@@ -48,6 +48,8 @@ def main():
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_imports,))
             parser.add_option("-m", "--include-objc-method", help="include OBJC_METHOD", metavar="OBJC_METHOD",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_objc_method,))
+            parser.add_option("-M", "--exclude-objc-method", help="exclude OBJC_METHOD", metavar="OBJC_METHOD",
+                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.exclude_objc_method,))
             parser.add_option("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
             self._profile_builder = pb
@@ -176,6 +178,11 @@ class TracerProfileBuilder(object):
             self._spec.append(('include', 'objc_method', f))
         return self
 
+    def exclude_objc_method(self, *function_name_globs):
+        for f in function_name_globs:
+            self._spec.append(('exclude', 'objc_method', f))
+        return self
+
     def include_debug_symbol(self, *function_name_globs):
         for f in function_name_globs:
             self._spec.append(('include', 'debug_symbol', f))
@@ -270,6 +277,8 @@ rpc.exports = {
                 case 'objc_method':
                     if (operation === 'include')
                         workingSet = includeObjCMethod(param, workingSet);
+                    else if (operation === 'exclude')
+                        workingSet = excludeObjCMethod(param, workingSet);
                     break;
                 case 'debug_symbol':
                     if (operation === 'include')
@@ -366,6 +375,13 @@ function includeImports(pattern, workingSet) {
 function includeObjCMethod(pattern, workingSet) {
     objcResolver().enumerateMatchesSync(pattern).forEach(function (m) {
         workingSet[m.address.toString()] = objcMethodFromMatch(m);
+    });
+    return workingSet;
+}
+
+function excludeObjCMethod(pattern, workingSet) {
+    objcResolver().enumerateMatchesSync(pattern).forEach(function (m) {
+        delete workingSet[m.address.toString()];
     });
     return workingSet;
 }
