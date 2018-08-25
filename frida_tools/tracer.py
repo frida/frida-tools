@@ -52,6 +52,7 @@ def main():
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.exclude_objc_method,))
             parser.add_option("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
+            parser.add_option("-q", "--quiet", help="do not format agent's output", action='store_true')
             self._profile_builder = pb
 
         def _usage(self):
@@ -61,6 +62,7 @@ def main():
             self._tracer = None
             self._targets = None
             self._profile = self._profile_builder.build()
+            self._quiet = options.quiet
 
         def _needs_target(self):
             return True
@@ -108,7 +110,10 @@ def main():
                 if thread_id != self._last_event_tid:
                     self._print("%s           /* TID 0x%x */%s" % (attributes, thread_id, Style.RESET_ALL))
                     self._last_event_tid = thread_id
-                self._print("%6d ms  %s%s%s%s" % (timestamp, attributes, indent, message, no_attributes))
+                if self._quiet:
+                    self._print(message)
+                else:
+                    self._print("%6d ms  %s%s%s%s" % (timestamp, attributes, indent, message, no_attributes))
 
         def on_trace_handler_create(self, function, handler, source):
             self._print("%s: Auto-generated handler at \"%s\"" % (function, source.replace("\\", "\\\\")))
