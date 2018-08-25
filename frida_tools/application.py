@@ -260,7 +260,10 @@ class ConsoleApplication(object):
                     self._session.enable_jit()
                 if self._enable_debugger:
                     self._session.enable_debugger()
-                    self._print("Debugger listening on port 5858\n")
+                    if self._enable_jit:
+                        self._print("Chrome Inspector server listening on port 9229\n")
+                    else:
+                        self._print("Duktape debugger listening on port 5858\n")
                 self._session.on('detached', self._schedule_on_session_detached)
             except Exception as e:
                 if spawning:
