@@ -97,6 +97,7 @@ def main():
                 else:
                     plural = "s"
                 self._update_status("Started tracing %d function%s. Press Ctrl+C to stop." % (len(self._targets), plural))
+
                 self._resume()
 
         def on_trace_error(self, error):
@@ -105,20 +106,24 @@ def main():
         def on_trace_events(self, events):
             no_attributes = Style.RESET_ALL
             for timestamp, thread_id, depth, target_address, message in events:
-                indent = depth * "   | "
-                attributes = self._get_attributes(thread_id)
-                if thread_id != self._last_event_tid:
-                    self._print("%s           /* TID 0x%x */%s" % (attributes, thread_id, Style.RESET_ALL))
-                    self._last_event_tid = thread_id
                 if self._quiet:
                     self._print(message)
                 else:
+                    indent = depth * "   | "
+                    attributes = self._get_attributes(thread_id)
+                    if thread_id != self._last_event_tid:
+                        self._print("%s           /* TID 0x%x */%s" % (attributes, thread_id, Style.RESET_ALL))
+                        self._last_event_tid = thread_id
                     self._print("%6d ms  %s%s%s%s" % (timestamp, attributes, indent, message, no_attributes))
 
         def on_trace_handler_create(self, function, handler, source):
+            if self._quiet:
+                return
             self._print("%s: Auto-generated handler at \"%s\"" % (function, source.replace("\\", "\\\\")))
 
         def on_trace_handler_load(self, function, handler, source):
+            if self._quiet:
+                return
             self._print("%s: Loaded handler at \"%s\"" % (function, source.replace("\\", "\\\\")))
 
         def _get_attributes(self, thread_id):
