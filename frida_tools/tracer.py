@@ -14,6 +14,7 @@ from frida import FileMonitor
 
 from frida_tools.model import Module, Function, ModuleFunction, ObjCMethod
 
+isQuiet = False
 
 def main():
     from colorama import Fore, Style
@@ -32,6 +33,8 @@ def main():
             pb = TracerProfileBuilder()
             def process_builder_arg(option, opt_str, value, parser, method, **kwargs):
                 method(value)
+            parser.add_option("-q", "--quiet", help="do not format agents output",
+                    action='callback', callback=process_builder_arg, callback_args=(pb.quiet,))
             parser.add_option("-I", "--include-module", help="include MODULE", metavar="MODULE",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_modules,))
             parser.add_option("-X", "--exclude-module", help="exclude MODULE", metavar="MODULE",
@@ -108,7 +111,10 @@ def main():
                 if thread_id != self._last_event_tid:
                     self._print("%s           /* TID 0x%x */%s" % (attributes, thread_id, Style.RESET_ALL))
                     self._last_event_tid = thread_id
-                self._print("%6d ms  %s%s%s%s" % (timestamp, attributes, indent, message, no_attributes))
+                if isQuiet:
+                    self._print(message)
+                else:
+                    self._print("%6d ms  %s%s%s%s" % (timestamp, attributes, indent, message, no_attributes))
 
         def on_trace_handler_create(self, function, handler, source):
             self._print("%s: Auto-generated handler at \"%s\"" % (function, source.replace("\\", "\\\\")))
@@ -136,6 +142,10 @@ class TracerProfileBuilder(object):
 
     def __init__(self):
         self._spec = []
+
+    def quiet(self, *module_name_globs):
+        isQuiet = True
+        return self
 
     def include_modules(self, *module_name_globs):
         for m in module_name_globs:
