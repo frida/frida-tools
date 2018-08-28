@@ -52,7 +52,8 @@ def main():
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.exclude_objc_method,))
             parser.add_option("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
-            parser.add_option("-q", "--quiet", help="do not format agent's output", action='store_true')
+            parser.add_option("-q", "--quiet", help="do not format output messages", action='store_true')
+            parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string')
             self._profile_builder = pb
 
         def _usage(self):
@@ -62,7 +63,11 @@ def main():
             self._tracer = None
             self._targets = None
             self._profile = self._profile_builder.build()
-            self._quiet = options.quiet
+            self._quiet = options.quiet == True
+            self._output = options.output
+            if self._output is not None:
+                with OutputFile(self._output, truncate=True) as output:
+                    pass
 
         def _needs_target(self):
             return True
@@ -105,16 +110,19 @@ def main():
 
         def on_trace_events(self, events):
             no_attributes = Style.RESET_ALL
-            for timestamp, thread_id, depth, target_address, message in events:
-                if self._quiet:
-                    self._print(message)
-                else:
-                    indent = depth * "   | "
-                    attributes = self._get_attributes(thread_id)
-                    if thread_id != self._last_event_tid:
-                        self._print("%s           /* TID 0x%x */%s" % (attributes, thread_id, Style.RESET_ALL))
-                        self._last_event_tid = thread_id
-                    self._print("%6d ms  %s%s%s%s" % (timestamp, attributes, indent, message, no_attributes))
+            with OutputFile(self._output) as output:
+                for timestamp, thread_id, depth, target_address, message in events:
+                    if output is not None:
+                        output.append(message + "\n")
+                    elif self._quiet:
+                        self._print(message)
+                    else:
+                        indent = depth * "   | "
+                        attributes = self._get_attributes(thread_id)
+                        if thread_id != self._last_event_tid:
+                            self._print("%s           /* TID 0x%x */%s" % (attributes, thread_id, Style.RESET_ALL))
+                            self._last_event_tid = thread_id
+                        self._print("%6d ms  %s%s%s%s" % (timestamp, attributes, indent, message, no_attributes))
 
         def on_trace_handler_create(self, function, handler, source):
             if self._quiet:
@@ -916,6 +924,29 @@ class FileRepository(Repository):
                 self._handler_by_address[function.absolute_address] = entry
                 self._handler_by_file[handler_file] = entry
                 self._notify_update(function, new_handler, handler_file)
+
+
+class OutputFile(object):
+    def __init__(self, filename, truncate=False):
+        self.filename = filename
+        self._truncate = truncate
+        self._fd = None
+
+    def __enter__(self):
+        if self.filename:
+            self._fd = codecs.open(self.filename, 'ab', 'utf-8')
+            if self._truncate:
+                self._fd.truncate(0)
+            return self
+        return None
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self._fd is not None:
+            self._fd.close()
+
+    def append(self, message):
+        self._fd.write(message)
+        self._fd.flush()
 
 
 class UI(object):
