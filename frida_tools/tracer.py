@@ -14,7 +14,6 @@ from frida import FileMonitor
 
 from frida_tools.model import Module, Function, ModuleFunction, ObjCMethod
 
-
 def main():
     from colorama import Fore, Style
 
@@ -53,6 +52,7 @@ def main():
             parser.add_option("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
             parser.add_option("-q", "--quiet", help="do not format agent's output", action='store_true')
+            parser.add_option("-o", "--output", help="dump agent messages to file", metavar="OUTPUT", type='string')
             self._profile_builder = pb
 
         def _usage(self):
@@ -63,6 +63,10 @@ def main():
             self._targets = None
             self._profile = self._profile_builder.build()
             self._quiet = options.quiet
+            self._output = options.output
+            if self._output is not None:
+                with open(self._output, "w") as fh:
+                    fh.truncate(0)
 
         def _needs_target(self):
             return True
@@ -106,7 +110,10 @@ def main():
         def on_trace_events(self, events):
             no_attributes = Style.RESET_ALL
             for timestamp, thread_id, depth, target_address, message in events:
-                if self._quiet:
+                if self._output is not None:
+                    with open(self._output, "a") as fh:
+                        fh.write(message + "\n")
+                elif self._quiet:
                     self._print(message)
                 else:
                     indent = depth * "   | "
