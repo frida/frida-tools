@@ -64,9 +64,9 @@ def main():
             self._profile = self._profile_builder.build()
             self._quiet = options.quiet
             self._output = options.output
-            if self._output is not None:
-                with open(self._output, "w") as fh:
-                    fh.truncate(0)
+            if self._output:
+                with OutputFile(self._output, truncate=True) as output:
+                    pass
 
         def _needs_target(self):
             return True
@@ -109,19 +109,19 @@ def main():
 
         def on_trace_events(self, events):
             no_attributes = Style.RESET_ALL
-            for timestamp, thread_id, depth, target_address, message in events:
-                if self._output is not None:
-                    with open(self._output, "a") as fh:
-                        fh.write(message + "\n")
-                elif self._quiet:
-                    self._print(message)
-                else:
-                    indent = depth * "   | "
-                    attributes = self._get_attributes(thread_id)
-                    if thread_id != self._last_event_tid:
-                        self._print("%s           /* TID 0x%x */%s" % (attributes, thread_id, Style.RESET_ALL))
-                        self._last_event_tid = thread_id
-                    self._print("%6d ms  %s%s%s%s" % (timestamp, attributes, indent, message, no_attributes))
+            with OutputFile(self._output) as output:
+                for timestamp, thread_id, depth, target_address, message in events:
+                    if output:
+                        output.append(message + "\n")
+                    if self._quiet:
+                        self._print(message)
+                    else:
+                        indent = depth * "   | "
+                        attributes = self._get_attributes(thread_id)
+                        if thread_id != self._last_event_tid:
+                            self._print("%s           /* TID 0x%x */%s" % (attributes, thread_id, Style.RESET_ALL))
+                            self._last_event_tid = thread_id
+                        self._print("%6d ms  %s%s%s%s" % (timestamp, attributes, indent, message, no_attributes))
 
         def on_trace_handler_create(self, function, handler, source):
             if self._quiet:
@@ -926,6 +926,27 @@ class FileRepository(Repository):
                 self._handler_by_address[function.absolute_address] = entry
                 self._handler_by_file[handler_file] = entry
                 self._notify_update(function, new_handler, handler_file)
+
+
+class OutputFile(object):
+    def __init__(self, filename, truncate=False):
+        self.filename = filename
+        self._truncate = truncate
+        self._fd = None
+
+    def __enter__(self):
+        if self.filename:
+            self._fd = open(self.filename, "ab")
+            if self._truncate:
+                self._fd.truncate(0)
+            return self
+        return None
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._fd.close()
+
+    def append(self, message):
+        self._fd.write(message)
 
 
 class UI(object):
