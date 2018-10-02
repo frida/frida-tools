@@ -3,6 +3,7 @@ from __future__ import unicode_literals, print_function
 
 import collections
 import errno
+import numbers
 from optparse import OptionParser
 import os
 import platform
@@ -116,6 +117,7 @@ class ConsoleApplication(object):
         self._schedule_on_device_lost = lambda: self._reactor.schedule(self._on_device_lost)
         self._spawned_pid = None
         self._spawned_argv = None
+        self._target_pid = None
         self._session = None
         if self._needs_target():
             self._enable_debugger = options.enable_debugger
@@ -252,9 +254,12 @@ class ConsoleApplication(object):
                     attach_target = self._spawned_pid
                 else:
                     attach_target = target_value
+                    if not isinstance(attach_target, numbers.Number):
+                        attach_target = self._device.get_process(attach_target).pid
                     if not self._quiet:
                         self._update_status("Attaching...")
                 spawning = False
+                self._target_pid = attach_target
                 self._session = self._device.attach(attach_target)
                 if self._enable_jit:
                     self._session.enable_jit()
@@ -280,7 +285,7 @@ class ConsoleApplication(object):
             self._print("Waiting for USB device to appear...")
 
     def _on_output(self, pid, fd, data):
-        if data is None:
+        if pid != self._target_pid or data is None:
             return
         if fd == 1:
             prefix = "stdout> "
