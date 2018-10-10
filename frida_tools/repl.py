@@ -46,7 +46,7 @@ def main():
 
             super(REPLApplication, self).__init__(self._process_input, self._on_stop)
 
-            self._dumb_stdin_reader = None if self._have_terminal else DumbStdinReader(valid_until=self._stopping)
+            self._dumb_stdin_reader = None if self._have_terminal and not self._plain_terminal else DumbStdinReader(valid_until=self._stopping.is_set)
 
         def _add_options(self, parser):
             parser.add_option("-l", "--load", help="load SCRIPT", metavar="SCRIPT",
@@ -206,7 +206,7 @@ def main():
                             return
 
                         try:
-                            if self._have_terminal:
+                            if self._have_terminal and not self._plain_terminal:
                                 # We create the prompt manually instead of using get_input,
                                 # so we can use the cli in the _on_stop method
                                 eventloop = create_eventloop()
@@ -248,7 +248,7 @@ def main():
                         self._print_help(expression)
                     except JavaScriptError as e:
                         error = e.error
-                        self._print(Fore.RED + Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message'])
+                        self._print(Fore.RED, Style.BRIGHT, error['name'], Style.RESET_ALL, ": ", error['message'])
                     except frida.InvalidOperationError:
                         return
                 elif expression.startswith("%"):
@@ -271,13 +271,13 @@ def main():
                     output = hexdump(value).rstrip("\n")
                 else:
                     output = json.dumps(value, sort_keys=True, indent=4, separators=(",", ": "))
+                self._print(output)
                 success = True
             except JavaScriptError as e:
                 error = e.error
-                output = Fore.RED + Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message']
+                self._print(Fore.RED, Style.BRIGHT, error['name'], Style.RESET_ALL, ": ", error['message'])
             except frida.InvalidOperationError:
                 return success
-            self._print(output)
             return success
 
         def _print_startup_message(self):
@@ -722,7 +722,7 @@ class DumbStdinReader(object):
 
         with self._lock:
             while self._result is None:
-                if self._valid_until.is_set():
+                if self._valid_until():
                     raise EOFError()
                 self._cond.wait(1)
             line, error = self._result
