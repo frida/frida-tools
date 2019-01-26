@@ -20,11 +20,11 @@ def main():
 
     from colorama import Fore, Style
     import frida
-    from prompt_toolkit.shortcuts import create_prompt_application, create_output, create_eventloop
+    from prompt_toolkit import PromptSession
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.completion import Completion, Completer
-    from prompt_toolkit.interface import CommandLineInterface
-    from pygments.lexers import JavascriptLexer
+    from prompt_toolkit.lexers import PygmentsLexer
+    from pygments.lexers.javascript import JavascriptLexer
     from pygments.token import Token
 
     from frida_tools.application import ConsoleApplication
@@ -50,15 +50,15 @@ def main():
 
         def _add_options(self, parser):
             parser.add_option("-l", "--load", help="load SCRIPT", metavar="SCRIPT",
-                type='string', action='store', dest="user_script", default=None)
+                              type='string', action='store', dest="user_script", default=None)
             parser.add_option("-c", "--codeshare", help="load CODESHARE_URI", metavar="CODESHARE_URI",
-                type='string', action='store', dest="codeshare_uri", default=None)
+                              type='string', action='store', dest="codeshare_uri", default=None)
             parser.add_option("-e", "--eval", help="evaluate CODE", metavar="CODE",
-                type='string', action='append', dest="eval_items", default=None)
+                              type='string', action='append', dest="eval_items", default=None)
             parser.add_option("-q", help="quiet mode (no prompt) and quit after -l and -e",
-                action='store_true', dest="quiet", default=False)
+                              action='store_true', dest="quiet", default=False)
             parser.add_option("--no-pause", help="automatically start main thread after startup",
-                action='store_true', dest="no_pause", default=False)
+                              action='store_true', dest="no_pause", default=False)
             parser.add_option("-o", "--output", help="output to log file", dest="logfile", default=None)
 
         def _initialize(self, parser, options, args):
@@ -107,10 +107,13 @@ def main():
 
             if self._spawned_argv is not None:
                 if self._no_pause:
-                    self._update_status("Spawned `{command}`. Resuming main thread!".format(command=" ".join(self._spawned_argv)))
+                    self._update_status(
+                        "Spawned `{command}`. Resuming main thread!".format(command=" ".join(self._spawned_argv)))
                     self._do_magic("resume")
                 else:
-                    self._update_status("Spawned `{command}`. Use %resume to let the main thread start executing!".format(command=" ".join(self._spawned_argv)))
+                    self._update_status(
+                        "Spawned `{command}`. Use %resume to let the main thread start executing!".format(
+                            command=" ".join(self._spawned_argv)))
             else:
                 self._clear_status()
             self._ready.set()
@@ -140,8 +143,10 @@ def main():
             script.set_log_handler(self._log)
             self._unload_script()
             self._script = script
+
             def on_message(message, data):
                 self._reactor.schedule(lambda: self._process_message(message, data))
+
             script.on('message', on_message)
             script.load()
 
@@ -207,24 +212,10 @@ def main():
 
                         try:
                             if self._have_terminal:
-                                # We create the prompt manually instead of using get_input,
-                                # so we can use the cli in the _on_stop method
-                                eventloop = create_eventloop()
+                                self._cli = PromptSession(lexer=PygmentsLexer(JavascriptLexer),
+                                                          history=self._history, completer=self._completer)
 
-                                self._cli = CommandLineInterface(
-                                    application=create_prompt_application(prompt, history=self._history, completer=self._completer, lexer=JavascriptLexer),
-                                    eventloop=eventloop,
-                                    output=create_output())
-
-                                try:
-                                    line = None
-
-                                    document = self._cli.run()
-
-                                    if document:
-                                        line = document.text
-                                finally:
-                                    eventloop.close()
+                                line = self._cli.prompt(prompt)
                             else:
                                 line = self._dumb_stdin_reader.read_line(prompt)
                                 self._print(line)
@@ -334,7 +325,7 @@ def main():
             'load': 1,
             'reload': 0,
             'unload': 0,
-            'time': -2 # At least 1 arg
+            'time': -2  # At least 1 arg
         }
 
         def _do_magic(self, statement):
@@ -355,9 +346,10 @@ def main():
                 required_args = abs(required_args) - 1
 
             if (not atleast_args and len(args) != required_args) or \
-               (atleast_args and len(args) < required_args):
+                    (atleast_args and len(args) < required_args):
                 self._print("{cmd} command expects {atleast}{n} argument{s}".format(
-                    cmd=command, atleast='atleast ' if atleast_args else '', n=required_args, s='' if required_args == 1 else ' '))
+                    cmd=command, atleast='atleast ' if atleast_args else '', n=required_args,
+                    s='' if required_args == 1 else ' '))
                 return
 
             if command == 'resume':
@@ -385,12 +377,14 @@ def main():
         def _reload(self):
             completed = threading.Event()
             result = [None]
+
             def do_reload():
                 try:
                     self._load_script()
                 except Exception as e:
                     result[0] = e
                 completed.set()
+
             self._reactor.schedule(do_reload)
             completed.wait()
             if result[0] is None:
@@ -528,7 +522,9 @@ URL: {url}
                     return None
 
                 if response.lower() in ('y', 'yes'):
-                    self._print("Adding fingerprint {} to the trust store! You won't be prompted again unless the code changes.".format(fingerprint))
+                    self._print(
+                        "Adding fingerprint {} to the trust store! You won't be prompted again unless the code changes.".format(
+                            fingerprint))
                     script = response_json['source']
                     self._update_truststore({
                         uri: fingerprint
@@ -561,7 +557,9 @@ URL: {url}
                     with open(codeshare_trust_store) as f:
                         trust_store = json.load(f)
                 except Exception as e:
-                    self._print("Unable to load the codeshare truststore ({}), defaulting to an empty truststore. You will be prompted every time you want to run a script!".format(e))
+                    self._print(
+                        "Unable to load the codeshare truststore ({}), defaulting to an empty truststore. You will be prompted every time you want to run a script!".format(
+                            e))
                     trust_store = {}
             else:
                 with open(codeshare_trust_store, 'w') as f:
@@ -586,7 +584,7 @@ URL: {url}
             # but pygments doesn't seem to know that
             for i in range(len(tokens) - 1):
                 if tokens[i][0] == Token.Literal.Number.Integer \
-                    and tokens[i + 1][0] == Token.Punctuation and tokens[i + 1][1] == '.':
+                        and tokens[i + 1][0] == Token.Punctuation and tokens[i + 1][1] == '.':
                     tokens[i] = (Token.Literal.Number.Float, tokens[i][1] + tokens[i + 1][1])
                     del tokens[i + 1]
 
@@ -653,8 +651,8 @@ URL: {url}
 
         def _get_keys(self, code):
             return sorted(
-                    filter(self._is_valid_name,
-                     set(self._repl._evaluate(code)[1])))
+                filter(self._is_valid_name,
+                       set(self._repl._evaluate(code)[1])))
 
         def _is_valid_name(self, name):
             tokens = list(self._lexer.get_tokens(name))
@@ -763,6 +761,7 @@ try:
     input_impl = raw_input
 except NameError:
     input_impl = input
+
 
 def get_input(prompt_string):
     return input_impl(prompt_string)
