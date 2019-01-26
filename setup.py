@@ -14,7 +14,7 @@ setup(
     install_requires=[
         "colorama >= 0.2.7, < 1.0.0",
         "frida >= 12.1.0, < 13.0.0",
-        "prompt-toolkit >= 0.57, < 2.0.0",
+        "prompt-toolkit >= 2.0.0, < 3.0.0",
         "pygments >= 2.0.2, < 3.0.0"
     ],
     license="wxWindows Library Licence, Version 3.1",
