@@ -134,7 +134,8 @@ def main():
             self._unload_script()
             self._unmonitor_script()
 
-            self._print("\nThank you for using Frida!")
+            if not self._quiet:
+                self._print("\nThank you for using Frida!")
 
         def _load_script(self):
             self._monitor_script()
