@@ -255,7 +255,7 @@ class TracerProfile(object):
         return key in TracerProfile._BLACKLIST
 
     def _create_resolver_script(self):
-        return r""""use strict";
+        return r"""'use strict';
 
 rpc.exports = {
     resolve: function (spec) {
@@ -356,7 +356,7 @@ function includeRelativeFunction(func, workingSet) {
             var relativeAddress = ptr(func.offset);
             var absoluteAddress = module.base.add(relativeAddress);
             workingSet[absoluteAddress] = {
-                name: "sub_" + relativeAddress.toString(16),
+                name: 'sub_' + relativeAddress.toString(16),
                 address: absoluteAddress,
                 module: moduleIndex,
                 private: true
@@ -416,7 +416,7 @@ function objcResolver() {
         try {
             cachedObjcResolver = new ApiResolver('objc');
         } catch (e) {
-            throw new Error("Objective-C runtime is not available");
+            throw new Error('Objective-C runtime is not available');
         }
     }
     return cachedObjcResolver;
@@ -537,7 +537,7 @@ class Tracer(object):
             self._script = None
 
     def _create_trace_script(self):
-        return """"use strict";
+        return """'use strict';
 
 var started = Date.now();
 var handlers = {};
@@ -584,10 +584,10 @@ rpc.exports = {
                 });
             } catch (e) {
                 send({
-                    from: "/targets",
+                    from: '/targets',
                     name: '+error',
                     payload: {
-                        message: "Skipping '" + name + "': " + e.message
+                        message: 'Skipping "' + name + '": ' + e.message
                     }
                 });
             }
@@ -620,7 +620,7 @@ function flush() {
     pending = [];
 
     send({
-        from: "/events",
+        from: '/events',
         name: '+add',
         payload: {
             items: items
@@ -630,13 +630,13 @@ function flush() {
 
 function parseHandler(target) {
     try {
-        return (1, eval)("(" + target.handler + ")");
+        return (1, eval)('(' + target.handler + ')');
     } catch (e) {
         send({
-            from: "/targets",
+            from: '/targets',
             name: '+error',
             payload: {
-                message: "Invalid handler for '" + target.name + "': " + e.message
+                message: 'Invalid handler for "' + target.name + '": ' + e.message
             }
         });
         return {};
@@ -700,13 +700,13 @@ class Repository(object):
             state = {"index": 2}
             def objc_arg(m):
                 index = state["index"]
-                r = ":\" + args[%d] + \" " % index
+                r = ":' + args[%d] + ' " % index
                 state["index"] = index + 1
                 return r
 
-            log_str = '"' + re.sub(r':', objc_arg, display_name) + '"'
-            if log_str.endswith("\" ]\""):
-                log_str = log_str[:-3] + "]\""
+            log_str = "'" + re.sub(r':', objc_arg, display_name) + "'"
+            if log_str.endswith("' ]'"):
+                log_str = log_str[:-3] + "]'"
         else:
             display_name = function.name
 
@@ -741,12 +741,12 @@ class Repository(object):
                                 normalized_type = normalized_type[:-8]
                             if normalized_type in ("char*", "constchar*"):
                                 read_ops = ".readUtf8String()"
-                                annotate_pre = "\\\""
-                                annotate_post = " + \"\\\"\""
+                                annotate_pre = "\""
+                                annotate_post = " + '\"'"
 
                             arg_index = len(args)
 
-                            args.append("\"%(arg_delimiter)s%(arg_name)s=%(annotate_pre)s\" + args[%(arg_index)s]%(read_ops)s%(annotate_post)s +" % {
+                            args.append("'%(arg_delimiter)s%(arg_name)s=%(annotate_pre)s' + args[%(arg_index)s]%(read_ops)s%(annotate_post)s +" % {
                                 "arg_name": arg,
                                 "arg_index": arg_index,
                                 "arg_delimiter": ", " if arg_index > 0 else "",
@@ -759,11 +759,11 @@ class Repository(object):
                     pass
 
             if len(args) == 0:
-                log_str = "\"%(name)s()\"" % { "name": function.name }
+                log_str = "'%(name)s()'" % { "name": function.name }
             else:
                 indent_outer = "    "
                 indent_inner = "      "
-                log_str = "\"%(name)s(\" +\n%(indent_inner)s%(args)s\n%(indent_outer)s\")\"" % {
+                log_str = "'%(name)s(' +\n%(indent_inner)s%(args)s\n%(indent_outer)s')'" % {
                     "name": function.name,
                     "args": ("\n" + indent_inner).join(args),
                     "indent_outer": indent_outer,
