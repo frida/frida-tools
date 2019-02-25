@@ -125,7 +125,7 @@ var result = {};
 
 rpc.exports = {
     start: function () {
-        threadIds = Process.enumerateThreadsSync().map(function (thread) { return thread.id; });
+        threadIds = Process.enumerateThreads().map(function (thread) { return thread.id; });
         threadIds.forEach(function (threadId) {
             Stalker.follow(threadId, {
                 events: { call: true },
@@ -185,7 +185,7 @@ rpc.exports = {
 
                         details = {
                             id: moduleId,
-                            exports: Module.enumerateExportsSync(path)
+                            exports: module.enumerateExports()
                                 .reduce(function (result, e) {
                                     result[e.address.toString()] = e.name;
                                     return result;

@@ -320,28 +320,28 @@ rpc.exports = {
 };
 
 function includeModule(pattern, workingSet) {
-    moduleResolver().enumerateMatchesSync('exports:' + pattern + '!*').forEach(function (m) {
+    moduleResolver().enumerateMatches('exports:' + pattern + '!*').forEach(function (m) {
         workingSet[m.address.toString()] = moduleExportFromMatch(m);
     });
     return workingSet;
 }
 
 function excludeModule(pattern, workingSet) {
-    moduleResolver().enumerateMatchesSync('exports:' + pattern + '!*').forEach(function (m) {
+    moduleResolver().enumerateMatches('exports:' + pattern + '!*').forEach(function (m) {
         delete workingSet[m.address.toString()];
     });
     return workingSet;
 }
 
 function includeFunction(pattern, workingSet) {
-    moduleResolver().enumerateMatchesSync('exports:*!' + pattern).forEach(function (m) {
+    moduleResolver().enumerateMatches('exports:*!' + pattern).forEach(function (m) {
         workingSet[m.address.toString()] = moduleExportFromMatch(m);
     });
     return workingSet;
 }
 
 function excludeFunction(pattern, workingSet) {
-    moduleResolver().enumerateMatchesSync('exports:*!' + pattern).forEach(function (m) {
+    moduleResolver().enumerateMatches('exports:*!' + pattern).forEach(function (m) {
         delete workingSet[m.address.toString()];
     });
     return workingSet;
@@ -370,9 +370,9 @@ function includeImports(pattern, workingSet) {
     var matches;
     if (pattern === null) {
         var mainModule = allModules()[0].path;
-        matches = moduleResolver().enumerateMatchesSync('imports:' + mainModule + '!*');
+        matches = moduleResolver().enumerateMatches('imports:' + mainModule + '!*');
     } else {
-        matches = moduleResolver().enumerateMatchesSync('imports:' + pattern + '!*');
+        matches = moduleResolver().enumerateMatches('imports:' + pattern + '!*');
     }
 
     matches.map(moduleExportFromMatch).forEach(function (e) {
@@ -383,14 +383,14 @@ function includeImports(pattern, workingSet) {
 }
 
 function includeObjCMethod(pattern, workingSet) {
-    objcResolver().enumerateMatchesSync(pattern).forEach(function (m) {
+    objcResolver().enumerateMatches(pattern).forEach(function (m) {
         workingSet[m.address.toString()] = objcMethodFromMatch(m);
     });
     return workingSet;
 }
 
 function excludeObjCMethod(pattern, workingSet) {
-    objcResolver().enumerateMatchesSync(pattern).forEach(function (m) {
+    objcResolver().enumerateMatches(pattern).forEach(function (m) {
         delete workingSet[m.address.toString()];
     });
     return workingSet;
@@ -425,7 +425,7 @@ function objcResolver() {
 var cachedModules = null;
 function allModules() {
     if (cachedModules === null) {
-        cachedModules = Process.enumerateModulesSync();
+        cachedModules = Process.enumerateModules();
         cachedModules._idByPath = cachedModules.reduce(function (mappings, module, index) {
             mappings[module.path] = index;
             return mappings;
@@ -732,8 +732,7 @@ class Repository(object):
                                 args.append("\", ...\" +");
                                 continue
 
-                            cast_pre = ""
-                            cast_post = ""
+                            read_ops = ""
                             annotate_pre = ""
                             annotate_post = ""
 
@@ -741,19 +740,17 @@ class Repository(object):
                             if normalized_type.endswith("*restrict"):
                                 normalized_type = normalized_type[:-8]
                             if normalized_type in ("char*", "constchar*"):
-                                cast_pre = "Memory.readUtf8String("
-                                cast_post = ")"
+                                read_ops = ".readUtf8String()"
                                 annotate_pre = "\\\""
                                 annotate_post = " + \"\\\"\""
 
                             arg_index = len(args)
 
-                            args.append("\"%(arg_delimiter)s%(arg_name)s=%(annotate_pre)s\" + %(cast_pre)sargs[%(arg_index)s]%(cast_post)s%(annotate_post)s +" % {
+                            args.append("\"%(arg_delimiter)s%(arg_name)s=%(annotate_pre)s\" + args[%(arg_index)s]%(read_ops)s%(annotate_post)s +" % {
                                 "arg_name": arg,
                                 "arg_index": arg_index,
                                 "arg_delimiter": ", " if arg_index > 0 else "",
-                                "cast_pre": cast_pre,
-                                "cast_post": cast_post,
+                                "read_ops": read_ops,
                                 "annotate_pre": annotate_pre,
                                 "annotate_post": annotate_post
                             })
@@ -788,7 +785,7 @@ class Repository(object):
    * @this {object} - Object allowing you to store state for use in onLeave.
    * @param {function} log - Call this function with a string to be presented to the user.
    * @param {array} args - Function arguments represented as an array of NativePointer objects.
-   * For example use Memory.readUtf8String(args[0]) if the first argument is a pointer to a C string encoded as UTF-8.
+   * For example use args[0].readUtf8String() if the first argument is a pointer to a C string encoded as UTF-8.
    * It is also possible to modify arguments by assigning a NativePointer object to an element of this array.
    * @param {object} state - Object allowing you to keep state across function calls.
    * Only one JavaScript function will execute at a time, so do not worry about race-conditions.
