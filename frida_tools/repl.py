@@ -760,18 +760,19 @@ class DumbStdinReader(object):
             self._result = (None, KeyboardInterrupt())
             self._cond.notify()
 
-if os.environ.get("TERM", '') == "dumb":
+
+if os.environ.get("TERM", "") == 'dumb':
     try:
         from epc.server import EPCServer
         from epc.client import EPCClient
         from collections import namedtuple
     except ImportError:
         def start_completion_thread(repl, epc_port=None):
-            # do nothing when cannot import epc module.
+            # Do nothing when we cannot import the EPC module.
             pass
     else:
         class EPCCompletionServer(EPCServer):
-            def __init__(self, address='localhost', port=0, *args, **kargs):
+            def __init__(self, address="localhost", port=0, *args, **kargs):
                 EPCServer.__init__(self, (address, port), *args, **kargs)
 
                 def complete(*cargs, **ckargs):
@@ -781,28 +782,28 @@ if os.environ.get("TERM", '') == "dumb":
             def print_port(self, stream=None):
                 if stream is None:
                     stream = sys.stdout
-                stream.write('___EPCCompletionServer_PORT=')
+                stream.write("___EPCCompletionServer_PORT=")
                 EPCServer.print_port(self, stream)
 
         class EPCCompletionClient(EPCClient):
-            def __init__(self, address='localhost', port=None, *args, **kargs):
+            def __init__(self, address="localhost", port=None, *args, **kargs):
                 if port is not None:
-                    args = ((address, port), ) + args
+                    args = ((address, port),) + args
                 EPCClient.__init__(self, *args, **kargs)
 
                 def complete(*cargs, **ckargs):
                     return self.complete(*cargs, **ckargs)
                 self.register_function(complete)
 
-        EpcDocument = namedtuple('Document', ['text_before_cursor', ])
+        EpcDocument = namedtuple('Document', ['text_before_cursor',])
 
         class ReplEPCCompletion(object):
             def __init__(self, repl, *args, **kargs):
                 self._repl = repl
 
             def complete(self, *to_complete):
-                to_complete = ''.join(to_complete)
-                prefix = '.'.join(to_complete.split(".")[:-1])
+                to_complete = "".join(to_complete)
+                prefix = ".".join(to_complete.split(".")[:-1])
                 if len(prefix) > 0:
                     prefix += "."
                 completions = [
@@ -830,20 +831,20 @@ if os.environ.get("TERM", '') == "dumb":
                 rpc_complete = ReplEPCCompletionClient(repl, port=epc_port)
                 rpc_complete_thread = threading.Thread(
                     target=rpc_complete.connect,
-                    name='PythonModeEPCCompletion',
-                    kwargs={'socket_or_address': ('localhost', epc_port)})
+                    name="PythonModeEPCCompletion",
+                    kwargs={'socket_or_address': ("localhost", epc_port)})
             else:
                 rpc_complete = ReplEPCCompletionServer(repl)
                 rpc_complete.print_port()  # needed for Emacs client
                 rpc_complete_thread = threading.Thread(
                     target=rpc_complete.serve_forever,
-                    name='PythonModeEPCCompletion')
-            rpc_complete_thread.setDaemon(True)
+                    name="PythonModeEPCCompletion")
+            rpc_complete_thread.daemon = True
             rpc_complete_thread.start()
             return rpc_complete_thread
 else:
     def start_completion_thread(repl, epc_port=None):
-        # do nothing as completion-epc is not needed when not running in emacs.
+        # Do nothing as completion-epc is not needed when not running in Emacs.
         pass
 
 
