@@ -3,6 +3,7 @@
 import platform
 import subprocess
 import threading
+import time
 try:
     import unittest2 as unittest
 except:
@@ -20,6 +21,8 @@ class TestDiscoverer(unittest.TestCase):
     def setUpClass(cls):
         system = platform.system()
         cls.target = subprocess.Popen([target_program], stdin=subprocess.PIPE)
+        # TODO: improve injectors to handle injection into a process that hasn't yet finished initializing
+        time.sleep(0.05)
         cls.session = frida.attach(cls.target.pid)
 
     @classmethod
