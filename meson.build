@@ -1,6 +1,6 @@
 project('frida-tools', 'c', version: '1.0.0')
 
-python = get_option('with-python')
+python = get_option('python')
 if python == ''
   python = find_program('python3', required: false)
   if not python.found()
