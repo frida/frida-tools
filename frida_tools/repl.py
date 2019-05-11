@@ -764,9 +764,10 @@ class DumbStdinReader(object):
 
 if os.environ.get("TERM", "") == 'dumb':
     try:
+        from collections import namedtuple
         from epc.server import EPCServer
         from epc.client import EPCClient
-        from collections import namedtuple
+        import sys
     except ImportError:
         def start_completion_thread(repl, epc_port=None):
             # Do nothing when we cannot import the EPC module.
