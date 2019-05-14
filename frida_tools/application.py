@@ -177,12 +177,6 @@ class ConsoleApplication(object):
             self._session.detach()
             self._session = None
 
-        if self._spawned_pid is not None:
-            try:
-                self._device.kill(self._spawned_pid)
-            except:
-                pass
-
         if self._device is not None:
             self._device.off('output', self._schedule_on_output)
             self._device.off('lost', self._schedule_on_device_lost)
