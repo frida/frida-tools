@@ -53,7 +53,7 @@ def main():
             parser.add_option("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
             parser.add_option("-q", "--quiet", help="do not format output messages", action='store_true', default=False)
-            parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string', default="")
+            parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string')
             self._profile_builder = pb
 
         def _usage(self):
@@ -64,8 +64,10 @@ def main():
             self._targets = None
             self._profile = self._profile_builder.build()
             self._quiet = options.quiet
-            if options.output:
+            if options.output is not None:
                 self._output = OutputFile(options.output)
+            else:
+                self._output = None
 
         def _needs_target(self):
             return True
@@ -109,7 +111,7 @@ def main():
         def on_trace_events(self, events):
             no_attributes = Style.RESET_ALL
             for timestamp, thread_id, depth, target_address, message in events:
-                if self._output:
+                if self._output is not None:
                     self._output.append(message + "\n")
                 elif self._quiet:
                     self._print(message)
@@ -927,12 +929,12 @@ class OutputFile(object):
     def __init__(self, filename):
         self._fd = codecs.open(self.filename, 'wb', 'utf-8')
 
+    def close(self):
+        self._fd.close()
+
     def append(self, message):
         self._fd.write(message)
         self._fd.flush()
-
-    def __del__(self):
-        self._fd.close()
 
 
 class UI(object):
