@@ -83,6 +83,8 @@ def main():
         def _stop(self):
             self._tracer.stop()
             self._tracer = None
+            if self._output is not None:
+                self._output.close()
 
         def _await_ctrl_c(self, reactor):
             while reactor.is_running():
