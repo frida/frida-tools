@@ -64,15 +64,15 @@ def main():
             self._targets = None
             self._profile = self._profile_builder.build()
             self._quiet = options.quiet
-            if options.output is not None:
-                self._output = OutputFile(options.output)
-            else:
-                self._output = None
+            self._output = None
+            self._output_path = options.output
 
         def _needs_target(self):
             return True
 
         def _start(self):
+            if self._output_path is not None:
+                self._output = OutputFile(self._output_path)
             self._tracer = Tracer(self._reactor, FileRepository(self._reactor), self._profile, log_handler=self._log)
             try:
                 self._targets = self._tracer.start_trace(self._session, self)
@@ -85,6 +85,7 @@ def main():
             self._tracer = None
             if self._output is not None:
                 self._output.close()
+            self._output = None
 
         def _await_ctrl_c(self, reactor):
             while reactor.is_running():
