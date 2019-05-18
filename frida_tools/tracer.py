@@ -52,7 +52,8 @@ def main():
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.exclude_objc_method,))
             parser.add_option("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
-            parser.add_option("-q", "--quiet", help="do not format agent's output", action='store_true')
+            parser.add_option("-q", "--quiet", help="do not format output messages", action='store_true', default=False)
+            parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string')
             self._profile_builder = pb
 
         def _usage(self):
@@ -63,11 +64,15 @@ def main():
             self._targets = None
             self._profile = self._profile_builder.build()
             self._quiet = options.quiet
+            self._output = None
+            self._output_path = options.output
 
         def _needs_target(self):
             return True
 
         def _start(self):
+            if self._output_path is not None:
+                self._output = OutputFile(self._output_path)
             self._tracer = Tracer(self._reactor, FileRepository(self._reactor), self._profile, log_handler=self._log)
             try:
                 self._targets = self._tracer.start_trace(self._session, self)
@@ -78,6 +83,9 @@ def main():
         def _stop(self):
             self._tracer.stop()
             self._tracer = None
+            if self._output is not None:
+                self._output.close()
+            self._output = None
 
         def _await_ctrl_c(self, reactor):
             while reactor.is_running():
@@ -106,7 +114,9 @@ def main():
         def on_trace_events(self, events):
             no_attributes = Style.RESET_ALL
             for timestamp, thread_id, depth, target_address, message in events:
-                if self._quiet:
+                if self._output is not None:
+                    self._output.append(message + "\n")
+                elif self._quiet:
                     self._print(message)
                 else:
                     indent = depth * "   | "
@@ -916,6 +926,18 @@ class FileRepository(Repository):
                 self._handler_by_address[function.absolute_address] = entry
                 self._handler_by_file[handler_file] = entry
                 self._notify_update(function, new_handler, handler_file)
+
+
+class OutputFile(object):
+    def __init__(self, filename):
+        self._fd = codecs.open(self.filename, 'wb', 'utf-8')
+
+    def close(self):
+        self._fd.close()
+
+    def append(self, message):
+        self._fd.write(message)
+        self._fd.flush()
 
 
 class UI(object):
