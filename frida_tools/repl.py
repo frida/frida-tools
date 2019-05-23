@@ -4,6 +4,7 @@ from __future__ import unicode_literals, print_function
 import os
 import signal
 import threading
+from os.path import abspath
 
 
 def main():
@@ -172,7 +173,7 @@ def main():
             self._unmonitor_script()
 
             if self._user_script is not None:
-                monitor = frida.FileMonitor(self._user_script)
+                monitor = frida.FileMonitor(abspath(self._user_script))
                 monitor.on('change', self._on_change)
                 monitor.enable()
                 self._script_monitor = monitor
