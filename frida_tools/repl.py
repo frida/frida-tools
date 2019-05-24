@@ -3,6 +3,7 @@ from __future__ import unicode_literals, print_function
 
 import os
 import signal
+import string
 import threading
 
 
@@ -799,6 +800,8 @@ if os.environ.get("TERM", "") == 'dumb':
 
         EpcDocument = namedtuple('Document', ['text_before_cursor',])
 
+        SYMBOL_CHARS = "._" + string.ascii_letters + string.digits
+        FIRST_SYMBOL_CHARS = "_" + string.ascii_letters
         class ReplEPCCompletion(object):
             def __init__(self, repl, *args, **kargs):
                 _, _ = args, kargs
@@ -806,13 +809,31 @@ if os.environ.get("TERM", "") == 'dumb':
 
             def complete(self, *to_complete):
                 to_complete = "".join(to_complete)
-                prefix = ".".join(to_complete.split(".")[:-1])
-                if len(prefix) > 0:
-                    prefix += "."
-                completions = [
-                    prefix + c.text
-                    for c in self._repl._completer.get_completions(
+                prefix = ''
+                if len(to_complete) != 0:
+                    for i, x in enumerate(to_complete[::-1]):
+                        if x not in SYMBOL_CHARS:
+                            while i >= 0 and \
+                              to_complete[-i] not in FIRST_SYMBOL_CHARS:
+                              i -= 1
+                            prefix, to_complete = \
+                              to_complete[:-i], to_complete[-i:]
+                            break
+                pos = len(prefix)
+                if "." in to_complete:
+                    prefix += to_complete.rsplit(".", 1)[0] + "."
+                try:
+                    completions = self._repl._completer.get_completions(
                         EpcDocument(text_before_cursor=to_complete), None)
+                except Exception as ex:
+                    _ = ex
+                    return tuple()
+                completions = [
+                    {
+                        "word": prefix + c.text,
+                        "pos": pos,
+                    }
+                    for c in completions
                 ]
                 return tuple(completions)
 
