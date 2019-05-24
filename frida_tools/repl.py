@@ -226,7 +226,8 @@ def main():
                                 line = self._dumb_stdin_reader.read_line(prompt)
                                 self._print(line)
                         except EOFError:
-                            if not self._have_terminal:
+                            if not self._have_terminal and \
+                              os.environ.get("TERM", '') != "dumb":
                                 while not self._stopping.wait(1):
                                     pass
                             return
