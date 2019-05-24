@@ -4,7 +4,6 @@ from __future__ import unicode_literals, print_function
 import os
 import signal
 import threading
-from os.path import abspath
 
 
 def main():
@@ -67,7 +66,7 @@ def main():
             parser.add_option("-o", "--output", help="output to log file", dest="logfile", default=None)
 
         def _initialize(self, parser, options, args):
-            self._user_script = options.user_script
+            self._user_script = os.path.abspath(options.user_script)
             self._codeshare_uri = options.codeshare_uri
             self._codeshare_script = None
             self._pending_eval = options.eval_items
@@ -173,7 +172,7 @@ def main():
             self._unmonitor_script()
 
             if self._user_script is not None:
-                monitor = frida.FileMonitor(abspath(self._user_script))
+                monitor = frida.FileMonitor(self._user_script)
                 monitor.on('change', self._on_change)
                 monitor.enable()
                 self._script_monitor = monitor
