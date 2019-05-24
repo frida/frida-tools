@@ -764,6 +764,7 @@ class DumbStdinReader(object):
 
 
 if os.environ.get("TERM", "") == 'dumb':
+    SUPPORT_OBSELETE_EPCSERVER = False
     try:
         from collections import namedtuple
         from epc.server import EPCServer
@@ -850,6 +851,7 @@ if os.environ.get("TERM", "") == 'dumb':
         def start_completion_thread(repl, epc_port=None):
             if epc_port is None:
                 epc_port = os.environ.get("EPC_COMPLETION_SERVER_PORT", None)
+            rpc_complete_thread = None
             if epc_port is not None:
                 epc_port = int(epc_port)
                 rpc_complete = ReplEPCCompletionClient(repl, port=epc_port)
@@ -857,15 +859,16 @@ if os.environ.get("TERM", "") == 'dumb':
                     target=rpc_complete.connect,
                     name="PythonModeEPCCompletion",
                     kwargs={'socket_or_address': ("localhost", epc_port)})
-            else:
+            elif SUPPORT_OBSELETE_EPCSERVER:
                 rpc_complete = ReplEPCCompletionServer(repl)
                 rpc_complete.print_port()  # needed for Emacs client
                 rpc_complete_thread = threading.Thread(
                     target=rpc_complete.serve_forever,
                     name="PythonModeEPCCompletion")
-            rpc_complete_thread.daemon = True
-            rpc_complete_thread.start()
-            return rpc_complete_thread
+            if rpc_complete_thread is not None:
+                rpc_complete_thread.daemon = True
+                rpc_complete_thread.start()
+                return rpc_complete_thread
 else:
     def start_completion_thread(repl, epc_port=None):
         # Do nothing as completion-epc is not needed when not running in Emacs.
