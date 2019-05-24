@@ -817,7 +817,7 @@ if os.environ.get("TERM", "") == 'dumb':
                         if x not in SYMBOL_CHARS:
                             while i >= 0 and \
                               to_complete[-i] not in FIRST_SYMBOL_CHARS:
-                              i -= 1
+                                i -= 1
                             prefix, to_complete = \
                               to_complete[:-i], to_complete[-i:]
                             break
