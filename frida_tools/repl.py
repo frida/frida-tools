@@ -771,7 +771,7 @@ if os.environ.get("TERM", "") == 'dumb':
     except ImportError:
         def start_completion_thread(repl, epc_port=None):
             # Do nothing when we cannot import the EPC module.
-            pass
+            _, _ = repl, epc_port
     else:
         class EPCCompletionServer(EPCServer):
             def __init__(self, address="localhost", port=0, *args, **kargs):
@@ -801,6 +801,7 @@ if os.environ.get("TERM", "") == 'dumb':
 
         class ReplEPCCompletion(object):
             def __init__(self, repl, *args, **kargs):
+                _, _ = args, kargs
                 self._repl = repl
 
             def complete(self, *to_complete):
@@ -847,7 +848,7 @@ if os.environ.get("TERM", "") == 'dumb':
 else:
     def start_completion_thread(repl, epc_port=None):
         # Do nothing as completion-epc is not needed when not running in Emacs.
-        pass
+        _, _ = repl, epc_port
 
 
 try:
