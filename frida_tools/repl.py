@@ -226,8 +226,7 @@ def main():
                                 line = self._dumb_stdin_reader.read_line(prompt)
                                 self._print(line)
                         except EOFError:
-                            if not self._have_terminal and \
-                              os.environ.get("TERM", '') != "dumb":
+                            if not self._have_terminal and os.environ.get("TERM", '') != "dumb":
                                 while not self._stopping.wait(1):
                                     pass
                             return
@@ -799,11 +798,9 @@ if os.environ.get("TERM", "") == 'dumb':
                 if len(to_complete) != 0:
                     for i, x in enumerate(to_complete[::-1]):
                         if x not in SYMBOL_CHARS:
-                            while i >= 0 and \
-                              to_complete[-i] not in FIRST_SYMBOL_CHARS:
+                            while i >= 0 and to_complete[-i] not in FIRST_SYMBOL_CHARS:
                                 i -= 1
-                            prefix, to_complete = \
-                              to_complete[:-i], to_complete[-i:]
+                            prefix, to_complete = to_complete[:-i], to_complete[-i:]
                             break
                 pos = len(prefix)
                 if "." in to_complete:
