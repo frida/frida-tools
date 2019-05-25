@@ -765,10 +765,8 @@ class DumbStdinReader(object):
 
 
 if os.environ.get("TERM", "") == 'dumb':
-    SUPPORT_OBSELETE_EPCSERVER = False
     try:
         from collections import namedtuple
-        from epc.server import EPCServer
         from epc.client import EPCClient
         import sys
     except ImportError:
@@ -776,20 +774,6 @@ if os.environ.get("TERM", "") == 'dumb':
             # Do nothing when we cannot import the EPC module.
             _, _ = repl, epc_port
     else:
-        class EPCCompletionServer(EPCServer):
-            def __init__(self, address="localhost", port=0, *args, **kargs):
-                EPCServer.__init__(self, (address, port), *args, **kargs)
-
-                def complete(*cargs, **ckargs):
-                    return self.complete(*cargs, **ckargs)
-                self.register_function(complete)
-
-            def print_port(self, stream=None):
-                if stream is None:
-                    stream = sys.stdout
-                stream.write("___EPCCompletionServer_PORT=")
-                EPCServer.print_port(self, stream)
-
         class EPCCompletionClient(EPCClient):
             def __init__(self, address="localhost", port=None, *args, **kargs):
                 if port is not None:
@@ -839,11 +823,6 @@ if os.environ.get("TERM", "") == 'dumb':
                 ]
                 return tuple(completions)
 
-        class ReplEPCCompletionServer(EPCCompletionServer, ReplEPCCompletion):
-            def __init__(self, repl, *args, **kargs):
-                EPCCompletionServer.__init__(self, *args, **kargs)
-                ReplEPCCompletion.__init__(self, repl)
-
         class ReplEPCCompletionClient(EPCCompletionClient, ReplEPCCompletion):
             def __init__(self, repl, *args, **kargs):
                 EPCCompletionClient.__init__(self, *args, **kargs)
@@ -860,12 +839,6 @@ if os.environ.get("TERM", "") == 'dumb':
                     target=rpc_complete.connect,
                     name="PythonModeEPCCompletion",
                     kwargs={'socket_or_address': ("localhost", epc_port)})
-            elif SUPPORT_OBSELETE_EPCSERVER:
-                rpc_complete = ReplEPCCompletionServer(repl)
-                rpc_complete.print_port()  # needed for Emacs client
-                rpc_complete_thread = threading.Thread(
-                    target=rpc_complete.serve_forever,
-                    name="PythonModeEPCCompletion")
             if rpc_complete_thread is not None:
                 rpc_complete_thread.daemon = True
                 rpc_complete_thread.start()
