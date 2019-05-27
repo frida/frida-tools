@@ -152,7 +152,10 @@ class ConsoleApplication(object):
         else:
             self._target = None
 
-        self._initialize(parser, options, args)
+        try:
+            self._initialize(parser, options, args)
+        except Exception as e:
+            parser.error(str(e))
 
     def run(self):
         mgr = frida.get_device_manager()
