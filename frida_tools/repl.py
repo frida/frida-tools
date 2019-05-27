@@ -67,18 +67,19 @@ def main():
             parser.add_option("-o", "--output", help="output to log file", dest="logfile", default=None)
 
         def _initialize(self, parser, options, args):
-            self._user_script = options.user_script
+            if options.user_script is not None:
+                self._user_script = os.path.abspath(options.user_script)
+                with codecs.open(self._user_script, 'rb', 'utf-8') as f:
+                    pass
+            else:
+                self._user_script = None
             self._codeshare_uri = options.codeshare_uri
             self._codeshare_script = None
             self._pending_eval = options.eval_items
             self._quiet = options.quiet
             self._no_pause = options.no_pause
             if options.logfile is not None:
-                try:
-                    self._logfile = open(options.logfile, 'w')
-                except Exception as e:
-                    self._update_status('Failed to open logfile "%s"' % options.logfile)
-                    self._exit(1)
+                self._logfile = open(options.logfile, 'w')
             else:
                 self._logfile = None
 
