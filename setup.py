@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name="frida-tools",
-    version="2.0.0",
+    version="2.0.1",
     description="Frida CLI tools",
     long_description="CLI tools for [Frida](http://www.frida.re).",
     long_description_content_type="text/markdown",
@@ -13,7 +13,7 @@ setup(
     url="https://www.frida.re",
     install_requires=[
         "colorama >= 0.2.7, < 1.0.0",
-        "frida >= 12.5.3, < 13.0.0",
+        "frida >= 12.5.9, < 13.0.0",
         "prompt-toolkit >= 2.0.0, < 3.0.0",
         "pygments >= 2.0.2, < 3.0.0"
     ],
