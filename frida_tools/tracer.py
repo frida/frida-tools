@@ -930,7 +930,7 @@ class FileRepository(Repository):
 
 class OutputFile(object):
     def __init__(self, filename):
-        self._fd = codecs.open(self.filename, 'wb', 'utf-8')
+        self._fd = codecs.open(filename, 'wb', 'utf-8')
 
     def close(self):
         self._fd.close()
