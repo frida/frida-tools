@@ -132,7 +132,7 @@ class ConsoleApplication(object):
         self._exit_status = None
         self._console_state = ConsoleState.EMPTY
         self._have_terminal = sys.stdin.isatty() and sys.stdout.isatty() and not os.environ.get("TERM", '') == "dumb"
-        self._plain_terminal = os.environ.get("TERM", '').lower() == "none"
+        self._plain_terminal = os.environ.get("TERM", "").lower() == "none"
         self._quiet = False
         if sum(map(lambda v: int(v is not None), (self._device_id, self._device_type, self._host))) > 1:
             parser.error("Only one of -D, -U, -R, and -H may be specified")
@@ -328,15 +328,14 @@ class ConsoleApplication(object):
             self._uprint(Style.BRIGHT, message, Style.RESET_ALL)
 
     def _uprint(self, *args):
-        args = str().join(arg for arg in args if not self._plain_terminal or not arg.startswith('\033'))
+        args = "".join(arg for arg in args if not self._plain_terminal or not arg.startswith('\033'))
         print(args)
 
     def _print(self, *args, **kwargs):
-        # filter out any args that are escape codes and turn them into a single element tuple
-        args = str().join(arg for arg in args if not self._plain_terminal or not arg.startswith('\033'))
+        # Filter out any args that are escape codes and turn them into a single element tuple
+        args = "".join(arg for arg in args if not self._plain_terminal or not arg.startswith('\033'))
         args = [args]
 
-        # continue to do the rest of the stupid stuff
         encoded_args = []
         if sys.version_info[0] >= 3:
             string_type = str
