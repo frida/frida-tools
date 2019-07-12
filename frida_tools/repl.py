@@ -140,6 +140,9 @@ def main():
             self._unload_script()
             self._unmonitor_script()
 
+            if self._logfile is not None:
+                self._logfile.close()
+
             if not self._quiet:
                 self._print("\nThank you for using Frida!")
 
