@@ -328,7 +328,7 @@ class ConsoleApplication(object):
             self._uprint(Style.BRIGHT, message, Style.RESET_ALL)
 
     def _uprint(self, *args):
-        args = "".join(arg for arg in args if not self._plain_terminal or not arg.startswith('\033'))
+        args = "".join(arg for arg in args if not self._plain_terminal or not arg.startswith("\033"))
         print(args)
 
     def _print(self, *args, **kwargs):
