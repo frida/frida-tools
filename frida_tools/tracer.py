@@ -52,7 +52,8 @@ def main():
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.exclude_objc_method,))
             parser.add_option("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
-            parser.add_option("-q", "--quiet", help="do not format agent's output", action='store_true')
+            parser.add_option("-q", "--quiet", help="do not format output messages", action='store_true', default=False)
+            parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string')
             self._profile_builder = pb
 
         def _usage(self):
@@ -63,11 +64,15 @@ def main():
             self._targets = None
             self._profile = self._profile_builder.build()
             self._quiet = options.quiet
+            self._output = None
+            self._output_path = options.output
 
         def _needs_target(self):
             return True
 
         def _start(self):
+            if self._output_path is not None:
+                self._output = OutputFile(self._output_path)
             self._tracer = Tracer(self._reactor, FileRepository(self._reactor), self._profile, log_handler=self._log)
             try:
                 self._targets = self._tracer.start_trace(self._session, self)
@@ -78,6 +83,9 @@ def main():
         def _stop(self):
             self._tracer.stop()
             self._tracer = None
+            if self._output is not None:
+                self._output.close()
+            self._output = None
 
         def _await_ctrl_c(self, reactor):
             while reactor.is_running():
@@ -106,7 +114,9 @@ def main():
         def on_trace_events(self, events):
             no_attributes = Style.RESET_ALL
             for timestamp, thread_id, depth, target_address, message in events:
-                if self._quiet:
+                if self._output is not None:
+                    self._output.append(message + "\n")
+                elif self._quiet:
                     self._print(message)
                 else:
                     indent = depth * "   | "
@@ -255,7 +265,7 @@ class TracerProfile(object):
         return key in TracerProfile._BLACKLIST
 
     def _create_resolver_script(self):
-        return r""""use strict";
+        return r"""'use strict';
 
 rpc.exports = {
     resolve: function (spec) {
@@ -320,28 +330,28 @@ rpc.exports = {
 };
 
 function includeModule(pattern, workingSet) {
-    moduleResolver().enumerateMatchesSync('exports:' + pattern + '!*').forEach(function (m) {
+    moduleResolver().enumerateMatches('exports:' + pattern + '!*').forEach(function (m) {
         workingSet[m.address.toString()] = moduleExportFromMatch(m);
     });
     return workingSet;
 }
 
 function excludeModule(pattern, workingSet) {
-    moduleResolver().enumerateMatchesSync('exports:' + pattern + '!*').forEach(function (m) {
+    moduleResolver().enumerateMatches('exports:' + pattern + '!*').forEach(function (m) {
         delete workingSet[m.address.toString()];
     });
     return workingSet;
 }
 
 function includeFunction(pattern, workingSet) {
-    moduleResolver().enumerateMatchesSync('exports:*!' + pattern).forEach(function (m) {
+    moduleResolver().enumerateMatches('exports:*!' + pattern).forEach(function (m) {
         workingSet[m.address.toString()] = moduleExportFromMatch(m);
     });
     return workingSet;
 }
 
 function excludeFunction(pattern, workingSet) {
-    moduleResolver().enumerateMatchesSync('exports:*!' + pattern).forEach(function (m) {
+    moduleResolver().enumerateMatches('exports:*!' + pattern).forEach(function (m) {
         delete workingSet[m.address.toString()];
     });
     return workingSet;
@@ -356,7 +366,7 @@ function includeRelativeFunction(func, workingSet) {
             var relativeAddress = ptr(func.offset);
             var absoluteAddress = module.base.add(relativeAddress);
             workingSet[absoluteAddress] = {
-                name: "sub_" + relativeAddress.toString(16),
+                name: 'sub_' + relativeAddress.toString(16),
                 address: absoluteAddress,
                 module: moduleIndex,
                 private: true
@@ -370,9 +380,9 @@ function includeImports(pattern, workingSet) {
     var matches;
     if (pattern === null) {
         var mainModule = allModules()[0].path;
-        matches = moduleResolver().enumerateMatchesSync('imports:' + mainModule + '!*');
+        matches = moduleResolver().enumerateMatches('imports:' + mainModule + '!*');
     } else {
-        matches = moduleResolver().enumerateMatchesSync('imports:' + pattern + '!*');
+        matches = moduleResolver().enumerateMatches('imports:' + pattern + '!*');
     }
 
     matches.map(moduleExportFromMatch).forEach(function (e) {
@@ -383,14 +393,14 @@ function includeImports(pattern, workingSet) {
 }
 
 function includeObjCMethod(pattern, workingSet) {
-    objcResolver().enumerateMatchesSync(pattern).forEach(function (m) {
+    objcResolver().enumerateMatches(pattern).forEach(function (m) {
         workingSet[m.address.toString()] = objcMethodFromMatch(m);
     });
     return workingSet;
 }
 
 function excludeObjCMethod(pattern, workingSet) {
-    objcResolver().enumerateMatchesSync(pattern).forEach(function (m) {
+    objcResolver().enumerateMatches(pattern).forEach(function (m) {
         delete workingSet[m.address.toString()];
     });
     return workingSet;
@@ -416,7 +426,7 @@ function objcResolver() {
         try {
             cachedObjcResolver = new ApiResolver('objc');
         } catch (e) {
-            throw new Error("Objective-C runtime is not available");
+            throw new Error('Objective-C runtime is not available');
         }
     }
     return cachedObjcResolver;
@@ -425,7 +435,7 @@ function objcResolver() {
 var cachedModules = null;
 function allModules() {
     if (cachedModules === null) {
-        cachedModules = Process.enumerateModulesSync();
+        cachedModules = Process.enumerateModules();
         cachedModules._idByPath = cachedModules.reduce(function (mappings, module, index) {
             mappings[module.path] = index;
             return mappings;
@@ -537,7 +547,7 @@ class Tracer(object):
             self._script = None
 
     def _create_trace_script(self):
-        return """"use strict";
+        return """'use strict';
 
 var started = Date.now();
 var handlers = {};
@@ -584,10 +594,10 @@ rpc.exports = {
                 });
             } catch (e) {
                 send({
-                    from: "/targets",
+                    from: '/targets',
                     name: '+error',
                     payload: {
-                        message: "Skipping '" + name + "': " + e.message
+                        message: 'Skipping "' + name + '": ' + e.message
                     }
                 });
             }
@@ -620,7 +630,7 @@ function flush() {
     pending = [];
 
     send({
-        from: "/events",
+        from: '/events',
         name: '+add',
         payload: {
             items: items
@@ -630,13 +640,13 @@ function flush() {
 
 function parseHandler(target) {
     try {
-        return (1, eval)("(" + target.handler + ")");
+        return (1, eval)('(' + target.handler + ')');
     } catch (e) {
         send({
-            from: "/targets",
+            from: '/targets',
             name: '+error',
             payload: {
-                message: "Invalid handler for '" + target.name + "': " + e.message
+                message: 'Invalid handler for "' + target.name + '": ' + e.message
             }
         });
         return {};
@@ -700,13 +710,13 @@ class Repository(object):
             state = {"index": 2}
             def objc_arg(m):
                 index = state["index"]
-                r = ":\" + args[%d] + \" " % index
+                r = ":' + args[%d] + ' " % index
                 state["index"] = index + 1
                 return r
 
-            log_str = '"' + re.sub(r':', objc_arg, display_name) + '"'
-            if log_str.endswith("\" ]\""):
-                log_str = log_str[:-3] + "]\""
+            log_str = "'" + re.sub(r':', objc_arg, display_name) + "'"
+            if log_str.endswith("' ]'"):
+                log_str = log_str[:-3] + "]'"
         else:
             display_name = function.name
 
@@ -732,8 +742,7 @@ class Repository(object):
                                 args.append("\", ...\" +");
                                 continue
 
-                            cast_pre = ""
-                            cast_post = ""
+                            read_ops = ""
                             annotate_pre = ""
                             annotate_post = ""
 
@@ -741,19 +750,17 @@ class Repository(object):
                             if normalized_type.endswith("*restrict"):
                                 normalized_type = normalized_type[:-8]
                             if normalized_type in ("char*", "constchar*"):
-                                cast_pre = "Memory.readUtf8String("
-                                cast_post = ")"
-                                annotate_pre = "\\\""
-                                annotate_post = " + \"\\\"\""
+                                read_ops = ".readUtf8String()"
+                                annotate_pre = "\""
+                                annotate_post = " + '\"'"
 
                             arg_index = len(args)
 
-                            args.append("\"%(arg_delimiter)s%(arg_name)s=%(annotate_pre)s\" + %(cast_pre)sargs[%(arg_index)s]%(cast_post)s%(annotate_post)s +" % {
+                            args.append("'%(arg_delimiter)s%(arg_name)s=%(annotate_pre)s' + args[%(arg_index)s]%(read_ops)s%(annotate_post)s +" % {
                                 "arg_name": arg,
                                 "arg_index": arg_index,
                                 "arg_delimiter": ", " if arg_index > 0 else "",
-                                "cast_pre": cast_pre,
-                                "cast_post": cast_post,
+                                "read_ops": read_ops,
                                 "annotate_pre": annotate_pre,
                                 "annotate_post": annotate_post
                             })
@@ -762,11 +769,11 @@ class Repository(object):
                     pass
 
             if len(args) == 0:
-                log_str = "\"%(name)s()\"" % { "name": function.name }
+                log_str = "'%(name)s()'" % { "name": function.name }
             else:
                 indent_outer = "    "
                 indent_inner = "      "
-                log_str = "\"%(name)s(\" +\n%(indent_inner)s%(args)s\n%(indent_outer)s\")\"" % {
+                log_str = "'%(name)s(' +\n%(indent_inner)s%(args)s\n%(indent_outer)s')'" % {
                     "name": function.name,
                     "args": ("\n" + indent_inner).join(args),
                     "indent_outer": indent_outer,
@@ -788,7 +795,7 @@ class Repository(object):
    * @this {object} - Object allowing you to store state for use in onLeave.
    * @param {function} log - Call this function with a string to be presented to the user.
    * @param {array} args - Function arguments represented as an array of NativePointer objects.
-   * For example use Memory.readUtf8String(args[0]) if the first argument is a pointer to a C string encoded as UTF-8.
+   * For example use args[0].readUtf8String() if the first argument is a pointer to a C string encoded as UTF-8.
    * It is also possible to modify arguments by assigning a NativePointer object to an element of this array.
    * @param {object} state - Object allowing you to keep state across function calls.
    * Only one JavaScript function will execute at a time, so do not worry about race-conditions.
@@ -919,6 +926,18 @@ class FileRepository(Repository):
                 self._handler_by_address[function.absolute_address] = entry
                 self._handler_by_file[handler_file] = entry
                 self._notify_update(function, new_handler, handler_file)
+
+
+class OutputFile(object):
+    def __init__(self, filename):
+        self._fd = codecs.open(filename, 'wb', 'utf-8')
+
+    def close(self):
+        self._fd.close()
+
+    def append(self, message):
+        self._fd.write(message)
+        self._fd.flush()
 
 
 class UI(object):

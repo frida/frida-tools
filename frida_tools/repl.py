@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, print_function
 
+import os
 import signal
+import string
 import threading
 
 
@@ -20,11 +22,11 @@ def main():
 
     from colorama import Fore, Style
     import frida
-    from prompt_toolkit.shortcuts import create_prompt_application, create_output, create_eventloop
+    from prompt_toolkit import PromptSession
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.completion import Completion, Completer
-    from prompt_toolkit.interface import CommandLineInterface
-    from pygments.lexers import JavascriptLexer
+    from prompt_toolkit.lexers import PygmentsLexer
+    from pygments.lexers.javascript import JavascriptLexer
     from pygments.token import Token
 
     from frida_tools.application import ConsoleApplication
@@ -48,32 +50,36 @@ def main():
 
             self._dumb_stdin_reader = None if self._have_terminal and not self._plain_terminal else DumbStdinReader(valid_until=self._stopping.is_set)
 
+            if not self._have_terminal:
+                self._rpc_complete_server = start_completion_thread(self)
+
         def _add_options(self, parser):
             parser.add_option("-l", "--load", help="load SCRIPT", metavar="SCRIPT",
-                type='string', action='store', dest="user_script", default=None)
+                              type='string', action='store', dest="user_script", default=None)
             parser.add_option("-c", "--codeshare", help="load CODESHARE_URI", metavar="CODESHARE_URI",
-                type='string', action='store', dest="codeshare_uri", default=None)
+                              type='string', action='store', dest="codeshare_uri", default=None)
             parser.add_option("-e", "--eval", help="evaluate CODE", metavar="CODE",
-                type='string', action='append', dest="eval_items", default=None)
+                              type='string', action='append', dest="eval_items", default=None)
             parser.add_option("-q", help="quiet mode (no prompt) and quit after -l and -e",
-                action='store_true', dest="quiet", default=False)
+                              action='store_true', dest="quiet", default=False)
             parser.add_option("--no-pause", help="automatically start main thread after startup",
-                action='store_true', dest="no_pause", default=False)
+                              action='store_true', dest="no_pause", default=False)
             parser.add_option("-o", "--output", help="output to log file", dest="logfile", default=None)
 
         def _initialize(self, parser, options, args):
-            self._user_script = options.user_script
+            if options.user_script is not None:
+                self._user_script = os.path.abspath(options.user_script)
+                with codecs.open(self._user_script, 'rb', 'utf-8') as f:
+                    pass
+            else:
+                self._user_script = None
             self._codeshare_uri = options.codeshare_uri
             self._codeshare_script = None
             self._pending_eval = options.eval_items
             self._quiet = options.quiet
             self._no_pause = options.no_pause
             if options.logfile is not None:
-                try:
-                    self._logfile = open(options.logfile, 'w')
-                except Exception as e:
-                    self._update_status('Failed to open logfile "%s"' % options.logfile)
-                    self._exit(1)
+                self._logfile = open(options.logfile, 'w')
             else:
                 self._logfile = None
 
@@ -107,10 +113,13 @@ def main():
 
             if self._spawned_argv is not None:
                 if self._no_pause:
-                    self._update_status("Spawned `{command}`. Resuming main thread!".format(command=" ".join(self._spawned_argv)))
+                    self._update_status(
+                        "Spawned `{command}`. Resuming main thread!".format(command=" ".join(self._spawned_argv)))
                     self._do_magic("resume")
                 else:
-                    self._update_status("Spawned `{command}`. Use %resume to let the main thread start executing!".format(command=" ".join(self._spawned_argv)))
+                    self._update_status(
+                        "Spawned `{command}`. Use %resume to let the main thread start executing!".format(
+                            command=" ".join(self._spawned_argv)))
             else:
                 self._clear_status()
             self._ready.set()
@@ -131,7 +140,11 @@ def main():
             self._unload_script()
             self._unmonitor_script()
 
-            self._print("\nThank you for using Frida!")
+            if self._logfile is not None:
+                self._logfile.close()
+
+            if not self._quiet:
+                self._print("\nThank you for using Frida!")
 
         def _load_script(self):
             self._monitor_script()
@@ -140,8 +153,10 @@ def main():
             script.set_log_handler(self._log)
             self._unload_script()
             self._script = script
+
             def on_message(message, data):
                 self._reactor.schedule(lambda: self._process_message(message, data))
+
             script.on('message', on_message)
             script.load()
 
@@ -207,29 +222,15 @@ def main():
 
                         try:
                             if self._have_terminal and not self._plain_terminal:
-                                # We create the prompt manually instead of using get_input,
-                                # so we can use the cli in the _on_stop method
-                                eventloop = create_eventloop()
+                                self._cli = PromptSession(lexer=PygmentsLexer(JavascriptLexer),
+                                                          history=self._history, completer=self._completer)
 
-                                self._cli = CommandLineInterface(
-                                    application=create_prompt_application(prompt, history=self._history, completer=self._completer, lexer=JavascriptLexer),
-                                    eventloop=eventloop,
-                                    output=create_output())
-
-                                try:
-                                    line = None
-
-                                    document = self._cli.run()
-
-                                    if document:
-                                        line = document.text
-                                finally:
-                                    eventloop.close()
+                                line = self._cli.prompt(prompt)
                             else:
                                 line = self._dumb_stdin_reader.read_line(prompt)
                                 self._print(line)
                         except EOFError:
-                            if not self._have_terminal:
+                            if not self._have_terminal and os.environ.get("TERM", '') != "dumb":
                                 while not self._stopping.wait(1):
                                     pass
                             return
@@ -334,7 +335,7 @@ def main():
             'load': 1,
             'reload': 0,
             'unload': 0,
-            'time': -2 # At least 1 arg
+            'time': -2  # At least 1 arg
         }
 
         def _do_magic(self, statement):
@@ -355,9 +356,10 @@ def main():
                 required_args = abs(required_args) - 1
 
             if (not atleast_args and len(args) != required_args) or \
-               (atleast_args and len(args) < required_args):
+                    (atleast_args and len(args) < required_args):
                 self._print("{cmd} command expects {atleast}{n} argument{s}".format(
-                    cmd=command, atleast='atleast ' if atleast_args else '', n=required_args, s='' if required_args == 1 else ' '))
+                    cmd=command, atleast='atleast ' if atleast_args else '', n=required_args,
+                    s='' if required_args == 1 else ' '))
                 return
 
             if command == 'resume':
@@ -385,12 +387,14 @@ def main():
         def _reload(self):
             completed = threading.Event()
             result = [None]
+
             def do_reload():
                 try:
                     self._load_script()
                 except Exception as e:
                     result[0] = e
                 completed.set()
+
             self._reactor.schedule(do_reload)
             completed.wait()
             if result[0] is None:
@@ -528,7 +532,9 @@ URL: {url}
                     return None
 
                 if response.lower() in ('y', 'yes'):
-                    self._print("Adding fingerprint {} to the trust store! You won't be prompted again unless the code changes.".format(fingerprint))
+                    self._print(
+                        "Adding fingerprint {} to the trust store! You won't be prompted again unless the code changes.".format(
+                            fingerprint))
                     script = response_json['source']
                     self._update_truststore({
                         uri: fingerprint
@@ -561,7 +567,9 @@ URL: {url}
                     with open(codeshare_trust_store) as f:
                         trust_store = json.load(f)
                 except Exception as e:
-                    self._print("Unable to load the codeshare truststore ({}), defaulting to an empty truststore. You will be prompted every time you want to run a script!".format(e))
+                    self._print(
+                        "Unable to load the codeshare truststore ({}), defaulting to an empty truststore. You will be prompted every time you want to run a script!".format(
+                            e))
                     trust_store = {}
             else:
                 with open(codeshare_trust_store, 'w') as f:
@@ -586,7 +594,7 @@ URL: {url}
             # but pygments doesn't seem to know that
             for i in range(len(tokens) - 1):
                 if tokens[i][0] == Token.Literal.Number.Integer \
-                    and tokens[i + 1][0] == Token.Punctuation and tokens[i + 1][1] == '.':
+                        and tokens[i + 1][0] == Token.Punctuation and tokens[i + 1][1] == '.':
                     tokens[i] = (Token.Literal.Number.Float, tokens[i][1] + tokens[i + 1][1])
                     del tokens[i + 1]
 
@@ -653,8 +661,8 @@ URL: {url}
 
         def _get_keys(self, code):
             return sorted(
-                    filter(self._is_valid_name,
-                     set(self._repl._evaluate(code)[1])))
+                filter(self._is_valid_name,
+                       set(self._repl._evaluate(code)[1])))
 
         def _is_valid_name(self, name):
             tokens = list(self._lexer.get_tokens(name))
@@ -759,10 +767,94 @@ class DumbStdinReader(object):
             self._cond.notify()
 
 
+if os.environ.get("TERM", "") == 'dumb':
+    try:
+        from collections import namedtuple
+        from epc.client import EPCClient
+        import sys
+    except ImportError:
+        def start_completion_thread(repl, epc_port=None):
+            # Do nothing when we cannot import the EPC module.
+            _, _ = repl, epc_port
+    else:
+        class EPCCompletionClient(EPCClient):
+            def __init__(self, address="localhost", port=None, *args, **kargs):
+                if port is not None:
+                    args = ((address, port),) + args
+                EPCClient.__init__(self, *args, **kargs)
+
+                def complete(*cargs, **ckargs):
+                    return self.complete(*cargs, **ckargs)
+                self.register_function(complete)
+
+        EpcDocument = namedtuple('Document', ['text_before_cursor',])
+
+        SYMBOL_CHARS = "._" + string.ascii_letters + string.digits
+        FIRST_SYMBOL_CHARS = "_" + string.ascii_letters
+        class ReplEPCCompletion(object):
+            def __init__(self, repl, *args, **kargs):
+                _, _ = args, kargs
+                self._repl = repl
+
+            def complete(self, *to_complete):
+                to_complete = "".join(to_complete)
+                prefix = ''
+                if len(to_complete) != 0:
+                    for i, x in enumerate(to_complete[::-1]):
+                        if x not in SYMBOL_CHARS:
+                            while i >= 0 and to_complete[-i] not in FIRST_SYMBOL_CHARS:
+                                i -= 1
+                            prefix, to_complete = to_complete[:-i], to_complete[-i:]
+                            break
+                pos = len(prefix)
+                if "." in to_complete:
+                    prefix += to_complete.rsplit(".", 1)[0] + "."
+                try:
+                    completions = self._repl._completer.get_completions(
+                        EpcDocument(text_before_cursor=to_complete), None)
+                except Exception as ex:
+                    _ = ex
+                    return tuple()
+                completions = [
+                    {
+                        "word": prefix + c.text,
+                        "pos": pos,
+                    }
+                    for c in completions
+                ]
+                return tuple(completions)
+
+        class ReplEPCCompletionClient(EPCCompletionClient, ReplEPCCompletion):
+            def __init__(self, repl, *args, **kargs):
+                EPCCompletionClient.__init__(self, *args, **kargs)
+                ReplEPCCompletion.__init__(self, repl)
+
+        def start_completion_thread(repl, epc_port=None):
+            if epc_port is None:
+                epc_port = os.environ.get("EPC_COMPLETION_SERVER_PORT", None)
+            rpc_complete_thread = None
+            if epc_port is not None:
+                epc_port = int(epc_port)
+                rpc_complete = ReplEPCCompletionClient(repl, port=epc_port)
+                rpc_complete_thread = threading.Thread(
+                    target=rpc_complete.connect,
+                    name="PythonModeEPCCompletion",
+                    kwargs={'socket_or_address': ("localhost", epc_port)})
+            if rpc_complete_thread is not None:
+                rpc_complete_thread.daemon = True
+                rpc_complete_thread.start()
+                return rpc_complete_thread
+else:
+    def start_completion_thread(repl, epc_port=None):
+        # Do nothing as completion-epc is not needed when not running in Emacs.
+        _, _ = repl, epc_port
+
+
 try:
     input_impl = raw_input
 except NameError:
     input_impl = input
+
 
 def get_input(prompt_string):
     return input_impl(prompt_string)

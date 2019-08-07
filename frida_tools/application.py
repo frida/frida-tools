@@ -125,7 +125,7 @@ class ConsoleApplication(object):
         else:
             self._enable_debugger = False
             self._enable_jit = False
-        self._schedule_on_session_detached = lambda reason: self._reactor.schedule(lambda: self._on_session_detached(reason))
+        self._schedule_on_session_detached = lambda reason, crash: self._reactor.schedule(lambda: self._on_session_detached(reason, crash))
         self._started = False
         self._resumed = False
         self._reactor = Reactor(run_until_return, on_stop)
@@ -153,7 +153,10 @@ class ConsoleApplication(object):
         else:
             self._target = None
 
-        self._initialize(parser, options, args)
+        try:
+            self._initialize(parser, options, args)
+        except Exception as e:
+            parser.error(str(e))
 
     def run(self):
         mgr = frida.get_device_manager()
@@ -177,12 +180,6 @@ class ConsoleApplication(object):
             self._session.off('detached', self._schedule_on_session_detached)
             self._session.detach()
             self._session = None
-
-        if self._spawned_pid is not None:
-            try:
-                self._device.kill(self._spawned_pid)
-            except:
-                pass
 
         if self._device is not None:
             self._device.off('output', self._schedule_on_output)
@@ -307,9 +304,12 @@ class ConsoleApplication(object):
         self._print("Device disconnected.")
         self._exit(1)
 
-    def _on_session_detached(self, reason):
-        message = reason[0].upper() + reason[1:].replace("-", " ")
-        self._print(Fore.RED, Style.BRIGHT, message, Style.RESET_ALL)
+    def _on_session_detached(self, reason, crash):
+        if crash is None:
+            message = reason[0].upper() + reason[1:].replace("-", " ")
+        else:
+            message = "Process crashed: " + crash.summary
+        self._print(Fore.RED + Style.BRIGHT + message + Style.RESET_ALL)
         self._exit(1)
 
     def _clear_status(self):

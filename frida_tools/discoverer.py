@@ -80,7 +80,6 @@ class Discoverer(object):
     def start(self, session, ui):
         def on_message(message, data):
             print(message, data)
-        session.enable_jit()
         self._script = session.create_script(name="discoverer", source=self._create_discover_script())
         self._script.on('message', on_message)
         self._script.load()
@@ -125,7 +124,7 @@ var result = {};
 
 rpc.exports = {
     start: function () {
-        threadIds = Process.enumerateThreadsSync().map(function (thread) { return thread.id; });
+        threadIds = Process.enumerateThreads().map(function (thread) { return thread.id; });
         threadIds.forEach(function (threadId) {
             Stalker.follow(threadId, {
                 events: { call: true },
@@ -185,7 +184,7 @@ rpc.exports = {
 
                         details = {
                             id: moduleId,
-                            exports: Module.enumerateExportsSync(path)
+                            exports: module.enumerateExports()
                                 .reduce(function (result, e) {
                                     result[e.address.toString()] = e.name;
                                     return result;
