@@ -314,7 +314,7 @@ class ConsoleApplication(object):
 
     def _clear_status(self):
         if not self._plain_terminal and self._console_state == ConsoleState.STATUS:
-            self._uprint(Cursor.UP(), (80 * " "))
+            self._uprint(Cursor.UP(), 80 * " ")
 
     def _update_status(self, message):
         if self._have_terminal and not self._plain_terminal:
