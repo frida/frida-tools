@@ -322,7 +322,7 @@ class ConsoleApplication(object):
                 cursor_position = Cursor.UP()
             else:
                 cursor_position = ""
-            self._uprint(cursor_position, Style.BRIGHT, "%-80s"% message, Style.RESET_ALL)
+            self._uprint(cursor_position, Style.BRIGHT, "%-80s" % message, Style.RESET_ALL)
             self._console_state = ConsoleState.STATUS
         else:
             self._uprint(Style.BRIGHT, message, Style.RESET_ALL)
