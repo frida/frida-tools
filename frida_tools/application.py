@@ -16,7 +16,7 @@ if platform.system() == 'Windows':
     import msvcrt
 
 import colorama
-from colorama import Fore, Style, Cursor
+from colorama import Cursor, Fore, Style
 import frida
 
 
