@@ -333,7 +333,7 @@ class ConsoleApplication(object):
 
     def _print(self, *args, **kwargs):
         # Filter out any args that are escape codes and turn them into a single element tuple
-        args = "".join(arg for arg in args if not self._plain_terminal or not arg.startswith('\033'))
+        args = "".join(arg for arg in args if not self._plain_terminal or not arg.startswith("\033"))
         args = [args]
 
         encoded_args = []
