@@ -87,6 +87,8 @@ class ConsoleApplication(object):
                 setattr(parser.values, 'target', (target_type, target_value))
             parser.add_option("-f", "--file", help="spawn FILE", metavar="FILE",
                 type='string', action='callback', callback=store_target, callback_args=('file',))
+            parser.add_option("-F", "--attach-frontmost", help="attach to frontmost application",
+                action='callback', callback=store_target, callback_args=('frontmost',))
             parser.add_option("-n", "--attach-name", help="attach to NAME", metavar="NAME",
                 type='string', action='callback', callback=store_target, callback_args=('name',))
             parser.add_option("-p", "--attach-pid", help="attach to PID", metavar="PID",
@@ -243,7 +245,20 @@ class ConsoleApplication(object):
             spawning = True
             try:
                 target_type, target_value = self._target
-                if target_type == 'file':
+                if target_type == 'frontmost':
+                    try:
+                        app = self._device.get_frontmost_application()
+                    except Exception as e:
+                        self._update_status("Unable to get frontmost application on {}: {}".format(self._device.name, e))
+                        self._exit(1)
+                        return
+                    if app is None:
+                        self._update_status("No frontmost application on {}".format(self._device.name))
+                        self._exit(1)
+                        return
+                    self._target = ('name', app.name)
+                    attach_target = app.pid
+                elif target_type == 'file':
                     argv = target_value
                     if not self._quiet:
                         self._update_status("Spawning `%s`..." % " ".join(argv))
