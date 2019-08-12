@@ -16,7 +16,7 @@ if platform.system() == 'Windows':
     import msvcrt
 
 import colorama
-from colorama import Fore, Style
+from colorama import Cursor, Fore, Style
 import frida
 
 
@@ -132,6 +132,7 @@ class ConsoleApplication(object):
         self._exit_status = None
         self._console_state = ConsoleState.EMPTY
         self._have_terminal = sys.stdin.isatty() and sys.stdout.isatty() and not os.environ.get("TERM", '') == "dumb"
+        self._plain_terminal = os.environ.get("TERM", "").lower() == "none"
         self._quiet = False
         if sum(map(lambda v: int(v is not None), (self._device_id, self._device_type, self._host))) > 1:
             parser.error("Only one of -D, -U, -R, and -H may be specified")
@@ -312,21 +313,29 @@ class ConsoleApplication(object):
         self._exit(1)
 
     def _clear_status(self):
-        if self._console_state == ConsoleState.STATUS:
-            print("\033[A" + (80 * " "))
+        if not self._plain_terminal and self._console_state == ConsoleState.STATUS:
+            self._uprint(Cursor.UP(), 80 * " ")
 
     def _update_status(self, message):
-        if self._have_terminal:
+        if self._have_terminal and not self._plain_terminal:
             if self._console_state == ConsoleState.STATUS:
-                cursor_position = "\033[A"
+                cursor_position = Cursor.UP()
             else:
                 cursor_position = ""
-            print("%-80s" % (cursor_position + Style.BRIGHT + message + Style.RESET_ALL,))
+            self._uprint(cursor_position, Style.BRIGHT, "%-80s" % message, Style.RESET_ALL)
             self._console_state = ConsoleState.STATUS
         else:
-            print(Style.BRIGHT + message + Style.RESET_ALL)
+            self._uprint(Style.BRIGHT, message, Style.RESET_ALL)
+
+    def _uprint(self, *args):
+        args = "".join(arg for arg in args if not self._plain_terminal or not arg.startswith("\033"))
+        print(args)
 
     def _print(self, *args, **kwargs):
+        # Filter out any args that are escape codes and turn them into a single element tuple
+        args = "".join(arg for arg in args if not self._plain_terminal or not arg.startswith("\033"))
+        args = [args]
+
         encoded_args = []
         if sys.version_info[0] >= 3:
             string_type = str
@@ -348,7 +357,7 @@ class ConsoleApplication(object):
             self._print(text)
         else:
             color = Fore.RED if level == 'error' else Fore.YELLOW
-            self._print(color + Style.BRIGHT + text + Style.RESET_ALL)
+            self._print(color, Style.BRIGHT, text, Style.RESET_ALL)
 
 
 def find_device(type):

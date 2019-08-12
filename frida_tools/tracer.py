@@ -109,7 +109,7 @@ def main():
                 self._resume()
 
         def on_trace_error(self, error):
-            self._print(Fore.RED + Style.BRIGHT + "Error" + Style.RESET_ALL + ": " + error['message'])
+            self._print(Fore.RED, Style.BRIGHT, "Error", Style.RESET_ALL, ": ", error['message'])
 
         def on_trace_events(self, events):
             no_attributes = Style.RESET_ALL
@@ -122,9 +122,9 @@ def main():
                     indent = depth * "   | "
                     attributes = self._get_attributes(thread_id)
                     if thread_id != self._last_event_tid:
-                        self._print("%s           /* TID 0x%x */%s" % (attributes, thread_id, Style.RESET_ALL))
+                        self._print(attributes, "           ", "/* TID %#x */" % thread_id, Style.RESET_ALL)
                         self._last_event_tid = thread_id
-                    self._print("%6d ms  %s%s%s%s" % (timestamp, attributes, indent, message, no_attributes))
+                    self._print("%6d ms" % timestamp, "  ", attributes, indent, message, no_attributes)
 
         def on_trace_handler_create(self, function, handler, source):
             if self._quiet:
