@@ -249,7 +249,7 @@ def main():
                         self._print_help(expression)
                     except JavaScriptError as e:
                         error = e.error
-                        self._print(Fore.RED, Style.BRIGHT, error['name'], Style.RESET_ALL, ": ", error['message'])
+                        self._print(Fore.RED + Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message'])
                     except frida.InvalidOperationError:
                         return
                 elif expression.startswith("%"):
@@ -272,13 +272,13 @@ def main():
                     output = hexdump(value).rstrip("\n")
                 else:
                     output = json.dumps(value, sort_keys=True, indent=4, separators=(",", ": "))
-                self._print(output)
                 success = True
             except JavaScriptError as e:
                 error = e.error
-                self._print(Fore.RED, Style.BRIGHT, error['name'], Style.RESET_ALL, ": ", error['message'])
+                output = Fore.RED + Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message']
             except frida.InvalidOperationError:
                 return success
+            self._print(output)
             return success
 
         def _print_startup_message(self):
