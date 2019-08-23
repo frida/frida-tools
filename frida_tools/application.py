@@ -95,6 +95,8 @@ class ConsoleApplication(object):
                 type='string', action='callback', callback=store_target, callback_args=('name',))
             parser.add_option("-p", "--attach-pid", help="attach to PID", metavar="PID",
                 type='int', action='callback', callback=store_target, callback_args=('pid',))
+            parser.add_option("--stdio", help="stdio behavior when spawning (defaults to “inherit”)", metavar="inherit|pipe",
+                type='choice', choices=['inherit', 'pipe'], default='inherit')
             parser.add_option("--debug", help="enable the Node.js compatible script debugger",
                 action='store_true', dest="enable_debugger", default=False)
             parser.add_option("--enable-jit", help="enable JIT",
@@ -124,9 +126,11 @@ class ConsoleApplication(object):
         self._target_pid = None
         self._session = None
         if self._needs_target():
+            self._stdio = options.stdio
             self._enable_debugger = options.enable_debugger
             self._enable_jit = options.enable_jit
         else:
+            self._stdio = 'inherit'
             self._enable_debugger = False
             self._enable_jit = False
         self._schedule_on_session_detached = lambda reason, crash: self._reactor.schedule(lambda: self._on_session_detached(reason, crash))
@@ -264,7 +268,7 @@ class ConsoleApplication(object):
                     argv = target_value
                     if not self._quiet:
                         self._update_status("Spawning `%s`..." % " ".join(argv))
-                    self._spawned_pid = self._device.spawn(argv)
+                    self._spawned_pid = self._device.spawn(argv, stdio=self._stdio)
                     self._spawned_argv = argv
                     attach_target = self._spawned_pid
                 else:
