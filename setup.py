@@ -6,7 +6,7 @@ setup(
     name="frida-tools",
     version="2.2.0",
     description="Frida CLI tools",
-    long_description="CLI tools for [Frida](http://www.frida.re).",
+    long_description="CLI tools for [Frida](https://www.frida.re).",
     long_description_content_type="text/markdown",
     author="Frida Developers",
     author_email="oleavr@frida.re",
