@@ -97,10 +97,10 @@ class ConsoleApplication(object):
                 type='int', action='callback', callback=store_target, callback_args=('pid',))
             parser.add_option("--stdio", help="stdio behavior when spawning (defaults to “inherit”)", metavar="inherit|pipe",
                 type='choice', choices=['inherit', 'pipe'], default='inherit')
+            parser.add_option("--runtime", help="script runtime to use (defaults to “duk”)", metavar="duk|v8",
+                type='choice', choices=['duk', 'v8'], default='duk')
             parser.add_option("--debug", help="enable the Node.js compatible script debugger",
                 action='store_true', dest="enable_debugger", default=False)
-            parser.add_option("--enable-jit", help="enable JIT",
-                action='store_true', dest="enable_jit", default=False)
 
         self._add_options(parser)
 
@@ -127,12 +127,12 @@ class ConsoleApplication(object):
         self._session = None
         if self._needs_target():
             self._stdio = options.stdio
+            self._runtime = options.runtime
             self._enable_debugger = options.enable_debugger
-            self._enable_jit = options.enable_jit
         else:
             self._stdio = 'inherit'
+            self._runtime = 'duk'
             self._enable_debugger = False
-            self._enable_jit = False
         self._schedule_on_session_detached = lambda reason, crash: self._reactor.schedule(lambda: self._on_session_detached(reason, crash))
         self._started = False
         self._resumed = False
@@ -280,14 +280,9 @@ class ConsoleApplication(object):
                 spawning = False
                 self._target_pid = attach_target
                 self._session = self._device.attach(attach_target)
-                if self._enable_jit:
-                    self._session.enable_jit()
                 if self._enable_debugger:
                     self._session.enable_debugger()
-                    if self._enable_jit:
-                        self._print("Chrome Inspector server listening on port 9229\n")
-                    else:
-                        self._print("Duktape debugger listening on port 5858\n")
+                    self._print("Chrome Inspector server listening on port 9229\n")
                 self._session.on('detached', self._schedule_on_session_detached)
             except Exception as e:
                 if spawning:

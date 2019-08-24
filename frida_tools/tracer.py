@@ -75,7 +75,7 @@ def main():
                 self._output = OutputFile(self._output_path)
             self._tracer = Tracer(self._reactor, FileRepository(self._reactor), self._profile, log_handler=self._log)
             try:
-                self._targets = self._tracer.start_trace(self._session, self)
+                self._targets = self._tracer.start_trace(self._session, self._runtime, self)
             except Exception as e:
                 self._update_status("Failed to start tracing: {error}".format(error=e))
                 self._exit(1)
@@ -220,8 +220,10 @@ class TracerProfile(object):
     def __init__(self, spec):
         self._spec = spec
 
-    def resolve(self, session, log_handler=None):
-        script = session.create_script(name="profile-resolver", source=self._create_resolver_script())
+    def resolve(self, session, runtime, log_handler=None):
+        script = session.create_script(name="profile-resolver",
+                                       source=self._create_resolver_script(),
+                                       runtime=runtime)
         script.set_log_handler(log_handler)
         def on_message(message, data):
             print(message)
@@ -497,7 +499,7 @@ class Tracer(object):
         self._script = None
         self._log_handler = log_handler
 
-    def start_trace(self, session, ui):
+    def start_trace(self, session, runtime, ui):
         def on_create(*args):
             ui.on_trace_handler_create(*args)
         self._repository.on_create(on_create)
@@ -518,9 +520,11 @@ class Tracer(object):
             self._reactor.schedule(lambda: self._process_message(message, data, ui))
 
         ui.on_trace_progress('resolve')
-        working_set = self._profile.resolve(session, log_handler=self._log_handler)
+        working_set = self._profile.resolve(session, runtime, log_handler=self._log_handler)
         ui.on_trace_progress('instrument')
-        self._script = session.create_script(name="tracer", source=self._create_trace_script())
+        self._script = session.create_script(name="tracer",
+                                             source=self._create_trace_script(),
+                                             runtime=runtime)
         self._script.set_log_handler(self._log_handler)
         self._script.on('message', on_message)
         self._script.load()

@@ -37,7 +37,7 @@ class TestDiscoverer(unittest.TestCase):
         reactor = Reactor(lambda reactor: test_ui.on_result.wait())
         def start():
             d = Discoverer(reactor)
-            d.start(self.session, test_ui)
+            d.start(self.session, 'duk', test_ui)
             reactor.schedule(d.stop, 0.1)
         reactor.schedule(start)
         reactor.run()

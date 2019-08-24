@@ -149,7 +149,9 @@ def main():
         def _load_script(self):
             self._monitor_script()
             self._seqno += 1
-            script = self._session.create_script(name="repl%d" % self._seqno, source=self._create_repl_script())
+            script = self._session.create_script(name="repl%d" % self._seqno,
+                                                 source=self._create_repl_script(),
+                                                 runtime=self._runtime)
             script.set_log_handler(self._log)
             self._unload_script()
             self._script = script

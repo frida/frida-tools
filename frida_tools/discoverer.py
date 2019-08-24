@@ -32,7 +32,7 @@ def main():
         def _start(self):
             self._update_status("Injecting script...")
             self._discoverer = Discoverer(self._reactor)
-            self._discoverer.start(self._session, self)
+            self._discoverer.start(self._session, self._runtime, self)
 
         def _stop(self):
             self._print("Stopping...")
@@ -77,10 +77,12 @@ class Discoverer(object):
                 pass
             self._script = None
 
-    def start(self, session, ui):
+    def start(self, session, runtime, ui):
         def on_message(message, data):
             print(message, data)
-        self._script = session.create_script(name="discoverer", source=self._create_discover_script())
+        self._script = session.create_script(name="discoverer",
+                                             source=self._create_discover_script(),
+                                             runtime=runtime)
         self._script.on('message', on_message)
         self._script.load()
 
