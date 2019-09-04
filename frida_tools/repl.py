@@ -125,20 +125,18 @@ def main():
             self._ready.set()
 
         def _on_stop(self):
-            def set_return():
-                raise EOFError()
-
             self._stopping.set()
 
             if self._cli is not None:
                 try:
-                    self._cli.eventloop.call_from_executor(set_return)
-                except Exception:
+                    self._cli.app.exit()
+                except:
                     pass
 
         def _stop(self):
             self._unload_script()
-            self._unmonitor_script()
+            with frida.Cancellable() as c:
+                self._unmonitor_script()
 
             if self._logfile is not None:
                 self._logfile.close()
@@ -196,9 +194,13 @@ def main():
             if not self._quiet:
                 self._print_startup_message()
 
-            while self._ready.wait(0.5) != True:
-                if not reactor.is_running():
-                    return
+            try:
+                while self._ready.wait(0.5) != True:
+                    if not reactor.is_running():
+                        return
+            except KeyboardInterrupt:
+                self._reactor.cancel_all()
+                return
 
             while True:
                 expression = ""
@@ -225,9 +227,13 @@ def main():
                         try:
                             if self._have_terminal and not self._plain_terminal:
                                 self._cli = PromptSession(lexer=PygmentsLexer(JavascriptLexer),
-                                                          history=self._history, completer=self._completer)
+                                                          history=self._history,
+                                                          completer=self._completer,
+                                                          complete_in_thread=True)
 
                                 line = self._cli.prompt(prompt)
+                                if line is None:
+                                    return
                             else:
                                 line = self._dumb_stdin_reader.read_line(prompt)
                                 self._print(line)
@@ -254,20 +260,24 @@ def main():
                         self._print(Fore.RED + Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message'])
                     except frida.InvalidOperationError:
                         return
-                elif expression.startswith("%"):
-                    self._do_magic(expression[1:].rstrip())
-                elif expression in ("exit", "quit", "q"):
-                    return
                 elif expression == "help":
                     self._print("Help: #TODO :)")
+                elif expression in ("exit", "quit", "q"):
+                    return
                 else:
-                    if not self._eval_and_print(expression):
-                        self._errors += 1
+                    try:
+                        if expression.startswith("%"):
+                            self._do_magic(expression[1:].rstrip())
+                        else:
+                            if not self._eval_and_print(expression):
+                                self._errors += 1
+                    except frida.OperationCancelledError:
+                        return
 
         def _eval_and_print(self, expression):
             success = False
             try:
-                (t, value) = self._evaluate(expression)
+                (t, value) = self._perform_on_reactor_thread(lambda: self._evaluate(expression))
                 if t in ('function', 'undefined', 'null'):
                     output = t
                 elif t == 'binary':
@@ -387,22 +397,11 @@ def main():
                     })();'''.format(expression=json.dumps(' '.join(args))))
 
         def _reload(self):
-            completed = threading.Event()
-            result = [None]
-
-            def do_reload():
-                try:
-                    self._load_script()
-                except Exception as e:
-                    result[0] = e
-                completed.set()
-
-            self._reactor.schedule(do_reload)
-            completed.wait()
-            if result[0] is None:
+            try:
+                self._perform_on_reactor_thread(lambda: self._load_script())
                 return True
-            else:
-                self._print("Failed to load script: {error}".format(error=result[0]))
+            except Exception as e:
+                self._print("Failed to load script: {}".format(e))
                 return False
 
         def _create_prompt(self):
@@ -627,24 +626,22 @@ URL: {url}
 
             try:
                 if encountered_dot:
-                    for key in self._get_keys("""try {
-                                    (function (o) {
-                                        "use strict";
-                                        var k = Object.getOwnPropertyNames(o);
-                                        if (o !== null && o !== undefined) {
-                                            var p;
-                                            if (typeof o !== 'object')
-                                                p = o.__proto__;
-                                            else
-                                                p = Object.getPrototypeOf(o);
-                                            if (p !== null && p !== undefined)
-                                                k = k.concat(Object.getOwnPropertyNames(p));
-                                        }
-                                        return k;
-                                    })(""" + before_dot + """);
-                                } catch (e) {
-                                    [];
-                                }"""):
+                    for key in self._get_keys("""
+                                (function (o) {
+                                    "use strict";
+                                    var k = Object.getOwnPropertyNames(o);
+                                    if (o !== null && o !== undefined) {
+                                        var p;
+                                        if (typeof o !== 'object')
+                                            p = o.__proto__;
+                                        else
+                                            p = Object.getPrototypeOf(o);
+                                        if (p !== null && p !== undefined)
+                                            k = k.concat(Object.getOwnPropertyNames(p));
+                                    }
+                                    return k;
+                                })(""" + before_dot + """);
+                            """):
                         if self._pattern_matches(after_dot, key):
                             yield Completion(key, -len(after_dot))
                 else:
@@ -658,13 +655,20 @@ URL: {url}
                         yield Completion(key, -len(before_dot))
             except frida.InvalidOperationError:
                 pass
+            except frida.OperationCancelledError:
+                pass
             except Exception as e:
                 self._repl._print(e)
 
         def _get_keys(self, code):
-            return sorted(
-                filter(self._is_valid_name,
-                       set(self._repl._evaluate(code)[1])))
+            repl = self._repl
+            with repl._reactor.cancellable:
+                (t, value) = repl._evaluate(code)
+
+            if t == 'error':
+                return []
+
+            return sorted(filter(self._is_valid_name, set(value)))
 
         def _is_valid_name(self, name):
             tokens = list(self._lexer.get_tokens(name))
@@ -863,4 +867,7 @@ def get_input(prompt_string):
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

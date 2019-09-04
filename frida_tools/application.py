@@ -175,18 +175,22 @@ class ConsoleApplication(object):
         self._reactor.schedule(self._try_start)
         self._reactor.schedule(self._show_message_if_no_device, delay=1)
 
-        old_sigterm_handler = signal.signal(signal.SIGTERM, lambda n, f: self._exit(0))
+        signal.signal(signal.SIGTERM, self._on_sigterm)
 
         self._reactor.run()
 
-        signal.signal(signal.SIGTERM, old_sigterm_handler)
-
         if self._started:
-            self._stop()
+            try:
+                self._perform_on_background_thread(self._stop)
+            except frida.OperationCancelledError:
+                pass
 
         if self._session is not None:
             self._session.off('detached', self._schedule_on_session_detached)
-            self._session.detach()
+            try:
+                self._perform_on_background_thread(self._session.detach)
+            except frida.OperationCancelledError:
+                pass
             self._session = None
 
         if self._device is not None:
@@ -284,6 +288,9 @@ class ConsoleApplication(object):
                     self._session.enable_debugger()
                     self._print("Chrome Inspector server listening on port 9229\n")
                 self._session.on('detached', self._schedule_on_session_detached)
+            except frida.OperationCancelledError:
+                self._exit(0)
+                return
             except Exception as e:
                 if spawning:
                     self._update_status("Failed to spawn: %s" % e)
@@ -297,6 +304,10 @@ class ConsoleApplication(object):
     def _show_message_if_no_device(self):
         if self._device is None:
             self._print("Waiting for USB device to appear...")
+
+    def _on_sigterm(self, n, f):
+        self._reactor.cancel_all()
+        self._exit(0)
 
     def _on_output(self, pid, fd, data):
         if pid != self._target_pid or data is None:
@@ -326,6 +337,10 @@ class ConsoleApplication(object):
         else:
             message = "Process crashed: " + crash.summary
         self._print(Fore.RED + Style.BRIGHT + message + Style.RESET_ALL)
+
+        if crash is not None:
+            self._print("\n***\n{}\n***".format(crash.report.rstrip("\n")))
+
         self._exit(1)
 
     def _clear_status(self):
@@ -368,6 +383,64 @@ class ConsoleApplication(object):
             color = Fore.RED if level == 'error' else Fore.YELLOW
             self._print(color + Style.BRIGHT + text + Style.RESET_ALL)
 
+    def _perform_on_reactor_thread(self, f):
+        completed = threading.Event()
+        result = [None, None]
+
+        def work():
+            try:
+                result[0] = f()
+            except Exception as e:
+                result[1] = e
+            completed.set()
+
+        self._reactor.schedule(work)
+
+        while not completed.is_set():
+            try:
+                completed.wait()
+            except KeyboardInterrupt:
+                self._reactor.cancel_all()
+                continue
+
+        error = result[1]
+        if error is not None:
+            raise error
+
+        return result[0]
+
+    def _perform_on_background_thread(self, f, timeout=None):
+        result = [None, None]
+
+        def work():
+            with self._reactor.cancellable:
+                try:
+                    result[0] = f()
+                except Exception as e:
+                    result[1] = e
+
+        worker = threading.Thread(target=work)
+        worker.start()
+
+        try:
+            worker.join(timeout)
+        except KeyboardInterrupt:
+            self._reactor.cancel_all()
+
+        if timeout is not None and worker.is_alive():
+            self._reactor.cancel_all()
+            while worker.is_alive():
+                try:
+                    worker.join()
+                except KeyboardInterrupt:
+                    pass
+
+        error = result[1]
+        if error is not None:
+            raise error
+
+        return result[0]
+
 
 def find_device(type):
     for device in frida.enumerate_devices():
@@ -409,6 +482,8 @@ class Reactor(object):
         self._lock = threading.Lock()
         self._cond = threading.Condition(self._lock)
 
+        self.cancellable = frida.Cancellable()
+
     def is_running(self):
         with self._lock:
             return self._running
@@ -443,7 +518,11 @@ class Reactor(object):
                     timeout = max([min(map(lambda item: item[1], self._pending)) - now, 0])
                 previous_pending_length = len(self._pending)
             if work is not None:
-                work()
+                with self.cancellable:
+                    try:
+                        work()
+                    except frida.OperationCancelledError:
+                        pass
             with self._lock:
                 if self._running and len(self._pending) == previous_pending_length:
                     self._cond.wait(timeout)
@@ -453,9 +532,11 @@ class Reactor(object):
             self._on_stop()
 
     def stop(self):
+        self.schedule(self._stop)
+
+    def _stop(self):
         with self._lock:
             self._running = False
-            self._cond.notify()
 
     def schedule(self, f, delay=None):
         now = time()
@@ -466,3 +547,6 @@ class Reactor(object):
         with self._lock:
             self._pending.append((f, when))
             self._cond.notify()
+
+    def cancel_all(self):
+        self.cancellable.cancel()
