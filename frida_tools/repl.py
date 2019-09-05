@@ -26,6 +26,7 @@ def main():
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.completion import Completion, Completer
     from prompt_toolkit.lexers import PygmentsLexer
+    from prompt_toolkit.styles import Style as PromptToolkitStyle
     from pygments.lexers.javascript import JavascriptLexer
     from pygments.token import Token
 
@@ -39,7 +40,6 @@ def main():
             self._stopping = threading.Event()
             self._errors = 0
             config_dir = self._get_or_create_config_dir()
-            self._history = FileHistory(os.path.join(config_dir, 'history'))
             self._completer = FridaCompleter(self)
             self._cli = None
             self._last_change_id = 0
@@ -48,7 +48,22 @@ def main():
 
             super(REPLApplication, self).__init__(self._process_input, self._on_stop)
 
-            self._dumb_stdin_reader = None if self._have_terminal and not self._plain_terminal else DumbStdinReader(valid_until=self._stopping.is_set)
+            if self._have_terminal and not self._plain_terminal:
+                style = PromptToolkitStyle([
+                    ("prompt", "#ef6456"),
+                    ("completion-menu", "bg:#3d3d3d #ef6456"),
+                    ("completion-menu.completion.current", "bg:#ef6456 #3d3d3d"),
+                ])
+                history = FileHistory(os.path.join(config_dir, 'history'))
+                self._cli = PromptSession(lexer=PygmentsLexer(JavascriptLexer),
+                                          style=style,
+                                          history=history,
+                                          completer=self._completer,
+                                          complete_in_thread=True)
+                self._dumb_stdin_reader = None
+            else:
+                self._cli = None
+                self._dumb_stdin_reader = DumbStdinReader(valid_until=self._stopping.is_set)
 
             if not self._have_terminal:
                 self._rpc_complete_server = start_completion_thread(self)
@@ -225,12 +240,7 @@ def main():
                             return
 
                         try:
-                            if self._have_terminal and not self._plain_terminal:
-                                self._cli = PromptSession(lexer=PygmentsLexer(JavascriptLexer),
-                                                          history=self._history,
-                                                          completer=self._completer,
-                                                          complete_in_thread=True)
-
+                            if self._cli is not None:
                                 line = self._cli.prompt(prompt)
                                 if line is None:
                                     return
@@ -257,7 +267,7 @@ def main():
                         self._print_help(expression)
                     except JavaScriptError as e:
                         error = e.error
-                        self._print(Fore.RED + Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message'])
+                        self._print(Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message'])
                     except frida.InvalidOperationError:
                         return
                 elif expression == "help":
@@ -287,7 +297,7 @@ def main():
                 success = True
             except JavaScriptError as e:
                 error = e.error
-                output = Fore.RED + Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message']
+                output = Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message']
             except frida.InvalidOperationError:
                 return success
             self._print(output)
@@ -303,7 +313,7 @@ def main():
    . . . .       object?   -> Display information about 'object'
    . . . .       exit/quit -> Exit
    . . . .
-   . . . .   More info at http://www.frida.re/docs/home/""".format(version=frida.__version__))
+   . . . .   More info at https://www.frida.re/docs/home/""".format(version=frida.__version__))
 
         def _print_help(self, expression):
             # TODO: Figure out docstrings and implement here. This is real jankaty right now.
