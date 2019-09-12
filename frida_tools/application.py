@@ -381,7 +381,11 @@ class ConsoleApplication(object):
             self._print(text)
         else:
             color = Fore.RED if level == 'error' else Fore.YELLOW
-            self._print(color + Style.BRIGHT + text + Style.RESET_ALL)
+            text = color + Style.BRIGHT + text + Style.RESET_ALL
+            if level == 'error':
+                self._print(text, file=sys.stderr)
+            else:
+                self._print(text)
 
     def _perform_on_reactor_thread(self, f):
         completed = threading.Event()

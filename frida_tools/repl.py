@@ -80,6 +80,8 @@ def main():
             parser.add_option("--no-pause", help="automatically start main thread after startup",
                               action='store_true', dest="no_pause", default=False)
             parser.add_option("-o", "--output", help="output to log file", dest="logfile", default=None)
+            parser.add_option("--exit-on-error", help="exit with code 1 after encountering any exception in the SCRIPT",
+                              action='store_true', dest="exit_on_error", default=False)
 
         def _initialize(self, parser, options, args):
             if options.user_script is not None:
@@ -93,6 +95,7 @@ def main():
             self._pending_eval = options.eval_items
             self._quiet = options.quiet
             self._no_pause = options.no_pause
+            self._exit_on_error = options.exit_on_error
             if options.logfile is not None:
                 self._logfile = open(options.logfile, 'w')
             else:
@@ -451,6 +454,8 @@ def main():
                 text = message.get('stack', message['description'])
                 self._log('error', text)
                 self._errors += 1
+                if self._exit_on_error:
+                    self._exit(1)
             else:
                 self._print("message:", message, "data:", data)
 
