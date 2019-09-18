@@ -402,13 +402,13 @@ def main():
                 self._reload()
             elif command == 'time':
                 self._eval_and_print('''
-                    (function () {
+                    (function () {{
                         var _startTime = Date.now();
                         var _result = eval({expression});
                         var _endTime = Date.now();
-                        console.log('Time: ' + (_endTime - _startTime).toLocaleString() + ' ms.');
+                        console.log('Time: ' + (_endTime - _startTime) + ' ms.');
                         return _result;
-                    })();'''.format(expression=json.dumps(' '.join(args))))
+                    }})();'''.format(expression=json.dumps(" ".join(args))))
 
         def _reload(self):
             try:
