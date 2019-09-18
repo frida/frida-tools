@@ -303,7 +303,8 @@ def main():
                 output = Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message']
             except frida.InvalidOperationError:
                 return success
-            self._print(output)
+            if output != "undefined":
+                self._print(output)
             return success
 
         def _print_startup_message(self):
