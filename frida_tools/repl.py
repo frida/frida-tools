@@ -642,6 +642,8 @@ URL: {url}
 
             try:
                 if encountered_dot:
+                    if before_dot == "" or before_dot.endswith("."):
+                        return
                     for key in self._get_keys("""
                                 (function (o) {
                                     "use strict";
