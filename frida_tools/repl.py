@@ -181,6 +181,8 @@ def main():
             else:
                 name = "repl"
 
+            is_first_load = self._script is None
+
             script = self._session.create_script(name=name,
                                                  source=self._create_repl_script(),
                                                  runtime=self._runtime)
@@ -197,6 +199,13 @@ def main():
             cmodule_source = self._create_cmodule_source()
             if cmodule_source is not None:
                 script.exports.load_cmodule(cmodule_source)
+
+            stage = 'early' if self._target[0] == 'file' and is_first_load else 'late'
+            parameters = {}
+            try:
+                script.exports.init(stage, parameters)
+            except:
+                pass
 
         def _unload_script(self):
             if self._script is None:
