@@ -299,7 +299,20 @@ def main():
                 success = True
             except JavaScriptError as e:
                 error = e.error
-                output = Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message']
+
+                output = Fore.RED + Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message']
+
+                stack = error.get('stack', None)
+                if stack is not None:
+                    trimmed_stack = stack.split("\n")[1:-5]
+
+                    if len(trimmed_stack) > 0:
+                        first = trimmed_stack[0]
+                        if first.rfind("duktape.c:") == len(first) - 16:
+                            trimmed_stack = trimmed_stack[1:]
+
+                    if len(trimmed_stack) > 0:
+                        output += "\n" + "\n".join(trimmed_stack)
             except frida.InvalidOperationError:
                 return success
             if output != "undefined":
