@@ -660,22 +660,32 @@ URL: {url}
                 if encountered_dot:
                     if before_dot == "" or before_dot.endswith("."):
                         return
-                    for key in self._get_keys("""
-                                (function (o) {
-                                    "use strict";
-                                    var k = Object.getOwnPropertyNames(o);
-                                    if (o !== null && o !== undefined) {
-                                        var p;
-                                        if (typeof o !== 'object')
-                                            p = o.__proto__;
-                                        else
-                                            p = Object.getPrototypeOf(o);
-                                        if (p !== null && p !== undefined)
-                                            k = k.concat(Object.getOwnPropertyNames(p));
-                                    }
-                                    return k;
-                                })(""" + before_dot + """);
-                            """):
+                    for key in self._get_keys("""\
+                            (function () {
+                                'use strict';
+
+                                var o;
+                                try {
+                                    o = """ + before_dot + """;
+                                } catch (e) {
+                                    return [];
+                                }
+
+                                if (o === undefined || o === null)
+                                    return [];
+
+                                var k = Object.getOwnPropertyNames(o);
+
+                                var p;
+                                if (typeof o !== 'object')
+                                    p = o.__proto__;
+                                else
+                                    p = Object.getPrototypeOf(o);
+                                if (p !== null && p !== undefined)
+                                    k = k.concat(Object.getOwnPropertyNames(p));
+
+                                return k;
+                            })();"""):
                         if self._pattern_matches(after_dot, key):
                             yield Completion(key, -len(after_dot))
                 else:
