@@ -35,7 +35,6 @@ def main():
     class REPLApplication(ConsoleApplication):
         def __init__(self):
             self._script = None
-            self._seqno = 0
             self._ready = threading.Event()
             self._stopping = threading.Event()
             self._errors = 0
@@ -163,8 +162,13 @@ def main():
 
         def _load_script(self):
             self._monitor_script()
-            self._seqno += 1
-            script = self._session.create_script(name="repl%d" % self._seqno,
+
+            if self._user_script is not None:
+                name, ext = os.path.splitext(os.path.basename(self._user_script))
+            else:
+                name = "repl"
+
+            script = self._session.create_script(name=name,
                                                  source=self._create_repl_script(),
                                                  runtime=self._runtime)
             script.set_log_handler(self._log)
