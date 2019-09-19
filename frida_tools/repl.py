@@ -42,8 +42,7 @@ def main():
             self._completer = FridaCompleter(self)
             self._cli = None
             self._last_change_id = 0
-            self._script_monitor = None
-            self._monitored_file = None
+            self._monitored_files = {}
 
             super(REPLApplication, self).__init__(self._process_input, self._on_stop)
 
@@ -69,6 +68,8 @@ def main():
         def _add_options(self, parser):
             parser.add_option("-l", "--load", help="load SCRIPT", metavar="SCRIPT",
                               type='string', action='store', dest="user_script", default=None)
+            parser.add_option("-C", "--cmodule", help="load CMODULE", metavar="CMODULE",
+                              type='string', action='store', dest="user_cmodule", default=None)
             parser.add_option("-c", "--codeshare", help="load CODESHARE_URI", metavar="CODESHARE_URI",
                               type='string', action='store', dest="codeshare_uri", default=None)
             parser.add_option("-e", "--eval", help="evaluate CODE", metavar="CODE",
@@ -88,12 +89,23 @@ def main():
                     pass
             else:
                 self._user_script = None
+
+            if options.user_cmodule is not None:
+                self._user_cmodule = os.path.abspath(options.user_cmodule)
+                with codecs.open(self._user_cmodule, 'rb', 'utf-8') as f:
+                    pass
+            else:
+                self._user_cmodule = None
+
             self._codeshare_uri = options.codeshare_uri
             self._codeshare_script = None
+
             self._pending_eval = options.eval_items
+
             self._quiet = options.quiet
             self._no_pause = options.no_pause
             self._exit_on_error = options.exit_on_error
+
             if options.logfile is not None:
                 self._logfile = open(options.logfile, 'w')
             else:
@@ -151,8 +163,9 @@ def main():
 
         def _stop(self):
             self._unload_script()
+
             with frida.Cancellable() as c:
-                self._unmonitor_script()
+                self._demonitor_all()
 
             if self._logfile is not None:
                 self._logfile.close()
@@ -161,7 +174,7 @@ def main():
                 self._print("\nThank you for using Frida!")
 
         def _load_script(self):
-            self._monitor_script()
+            self._monitor_all()
 
             if self._user_script is not None:
                 name, ext = os.path.splitext(os.path.basename(self._user_script))
@@ -181,6 +194,10 @@ def main():
             script.on('message', on_message)
             script.load()
 
+            cmodule_source = self._create_cmodule_source()
+            if cmodule_source is not None:
+                script.exports.load_cmodule(cmodule_source)
+
         def _unload_script(self):
             if self._script is None:
                 return
@@ -191,25 +208,23 @@ def main():
                 pass
             self._script = None
 
-        def _monitor_script(self):
-            if self._monitored_file == self._user_script:
+        def _monitor_all(self):
+            for path in [self._user_script, self._user_cmodule]:
+                self._monitor(path)
+
+        def _demonitor_all(self):
+            for monitor in self._monitored_files.values():
+                monitor.disable()
+            self._monitored_files = {}
+
+        def _monitor(self, path):
+            if path is None or path in self._monitored_files:
                 return
 
-            self._unmonitor_script()
-
-            if self._user_script is not None:
-                monitor = frida.FileMonitor(self._user_script)
-                monitor.on('change', self._on_change)
-                monitor.enable()
-                self._script_monitor = monitor
-            self._monitored_file = self._user_script
-
-        def _unmonitor_script(self):
-            if self._script_monitor is None:
-                return
-
-            self._script_monitor.disable()
-            self._script_monitor = None
+            monitor = frida.FileMonitor(path)
+            monitor.on('change', self._on_change)
+            monitor.enable()
+            self._monitored_files[path] = monitor
 
         def _process_input(self, reactor):
             if not self._quiet:
@@ -406,15 +421,7 @@ def main():
 
             if command == 'resume':
                 self._reactor.schedule(lambda: self._resume())
-            elif command == 'load':
-                old_user_script = self._user_script
-                self._user_script = os.path.abspath(args[0])
-                if not self._reload():
-                    self._user_script = old_user_script
             elif command == 'reload':
-                self._reload()
-            elif command == 'unload':
-                self._user_script = None
                 self._reload()
             elif command == 'time':
                 self._eval_and_print('''
@@ -501,25 +508,77 @@ def main():
                 with codecs.open(self._user_script, 'rb', 'utf-8') as f:
                     user_script += f.read().rstrip("\r\n") + "\n\n// Frida REPL script:\n"
 
-            return user_script + """\
+            return "_init();" + user_script + """\
 
-rpc.exports.evaluate = function (expression) {
-    try {
-        var result = (1, eval)(expression);
-        if (result instanceof ArrayBuffer) {
-            return result;
-        } else {
-            var type = (result === null) ? 'null' : typeof result;
-            return [type, result];
-        }
-    } catch (e) {
-        return ['error', {
-            name: e.name,
-            message: e.message,
-            stack: e.stack
-        }];
+function _init() {
+    global.cm = null;
+    global.cs = {};
+
+    rpc.exports = {
+        evaluate: function (expression) {
+            try {
+                var result = (1, eval)(expression);
+                if (result instanceof ArrayBuffer) {
+                    return result;
+                } else {
+                    var type = (result === null) ? 'null' : typeof result;
+                    return [type, result];
+                }
+            } catch (e) {
+                return ['error', {
+                    name: e.name,
+                    message: e.message,
+                    stack: e.stack
+                }];
+            }
+        },
+        loadCmodule: function (source) {
+            var cs = global.cs;
+
+            if (cs._frida_log === undefined)
+                cs._frida_log = new NativeCallback(onLog, 'void', ['pointer']);
+
+            global.cm = new CModule(source, cs);
+        },
+    };
+
+    function onLog(messagePtr) {
+        var message = messagePtr.readUtf8String();
+        console.log(message);
     }
-};
+}
+"""
+
+        def _create_cmodule_source(self):
+            if self._user_cmodule is None:
+                return None
+
+            name = os.path.basename(self._user_cmodule)
+
+            with codecs.open(self._user_cmodule, 'rb', 'utf-8') as f:
+                source = f.read()
+
+            return """static void frida_log (const char * format, ...);\n#line 1 "{name}"\n""".format(name=name) + source + """\
+#line 1 "frida-repl-builtins.c"
+#include <glib.h>
+
+extern void _frida_log (const gchar * message);
+
+static void
+frida_log (const char * format,
+           ...)
+{
+  gchar * message;
+  va_list args;
+
+  va_start (args, format);
+  message = g_strdup_vprintf (format, args);
+  va_end (args);
+
+  _frida_log (message);
+
+  g_free (message);
+}
 """
 
         def _load_codeshare_script(self, uri):
