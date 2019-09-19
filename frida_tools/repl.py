@@ -198,7 +198,7 @@ def main():
 
             cmodule_source = self._create_cmodule_source()
             if cmodule_source is not None:
-                script.exports.load_cmodule(cmodule_source)
+                script.exports.frida_repl_load_cmodule(cmodule_source)
 
             stage = 'early' if self._target[0] == 'file' and is_first_load else 'late'
             parameters = {}
@@ -471,7 +471,7 @@ def main():
             return prompt_string
 
         def _evaluate(self, text):
-            result = self._script.exports.evaluate(text)
+            result = self._script.exports.frida_repl_evaluate(text)
             if is_byte_array(result):
                 return ('binary', result)
             elif isinstance(result, dict):
@@ -523,8 +523,8 @@ function _init() {
     global.cm = null;
     global.cs = {};
 
-    rpc.exports = {
-        evaluate: function (expression) {
+    var rpcExports = {
+        fridaReplEvaluate: function (expression) {
             try {
                 var result = (1, eval)(expression);
                 if (result instanceof ArrayBuffer) {
@@ -541,7 +541,7 @@ function _init() {
                 }];
             }
         },
-        loadCmodule: function (source) {
+        fridaReplLoadCmodule: function (source) {
             var cs = global.cs;
 
             if (cs._frida_log === undefined)
@@ -550,6 +550,17 @@ function _init() {
             global.cm = new CModule(source, cs);
         },
     };
+
+    Object.defineProperty(rpc, 'exports', {
+        get: function () {
+            return rpcExports;
+        },
+        set: function (value) {
+            Object.keys(value).forEach(function (name) {
+                rpcExports[name] = value[name];
+            });
+        }
+    });
 
     function onLog(messagePtr) {
         var message = messagePtr.readUtf8String();
