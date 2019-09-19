@@ -50,7 +50,6 @@ def main():
 
             if self._have_terminal and not self._plain_terminal:
                 style = PromptToolkitStyle([
-                    ("prompt", "#ef6456"),
                     ("completion-menu", "bg:#3d3d3d #ef6456"),
                     ("completion-menu.completion.current", "bg:#ef6456 #3d3d3d"),
                 ])
