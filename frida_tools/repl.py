@@ -68,6 +68,8 @@ def main():
         def _add_options(self, parser):
             parser.add_option("-l", "--load", help="load SCRIPT", metavar="SCRIPT",
                               type='string', action='store', dest="user_script", default=None)
+            parser.add_option("-P", "--parameters", help="Parameters as JSON, same as Gadget", metavar="PARAMETERS_JSON",
+                              type='string', action='store', dest="user_parameters", default=None)
             parser.add_option("-C", "--cmodule", help="load CMODULE", metavar="CMODULE",
                               type='string', action='store', dest="user_cmodule", default=None)
             parser.add_option("-c", "--codeshare", help="load CODESHARE_URI", metavar="CODESHARE_URI",
@@ -89,6 +91,17 @@ def main():
                     pass
             else:
                 self._user_script = None
+
+            if options.user_parameters is not None:
+                try:
+                    params = json.loads(options.user_parameters)
+                except Exception as e:
+                    raise ValueError("failed to parse parameters argument as JSON: {}".format(e))
+                if not isinstance(params, dict):
+                    raise ValueError("failed to parse parameters argument as JSON: not an object")
+                self._user_parameters = params
+            else:
+                self._user_parameters = {}
 
             if options.user_cmodule is not None:
                 self._user_cmodule = os.path.abspath(options.user_cmodule)
@@ -201,9 +214,8 @@ def main():
                 script.exports.frida_repl_load_cmodule(cmodule_source)
 
             stage = 'early' if self._target[0] == 'file' and is_first_load else 'late'
-            parameters = {}
             try:
-                script.exports.init(stage, parameters)
+                script.exports.init(stage, self._user_parameters)
             except:
                 pass
 
