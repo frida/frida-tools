@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name="frida-tools",
-    version="5.0.1",
+    version="5.1.0",
     description="Frida CLI tools",
     long_description="CLI tools for [Frida](https://www.frida.re).",
     long_description_content_type="text/markdown",
