@@ -53,6 +53,7 @@ def main():
             parser.add_option("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
             parser.add_option("-q", "--quiet", help="do not format output messages", action='store_true', default=False)
+            parser.add_option("-d", "--decorate", help="Add module name to generated onEnter log statement", action='store_true', default=False)    #brown
             parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string')
             self._profile_builder = pb
 
@@ -64,6 +65,7 @@ def main():
             self._targets = None
             self._profile = self._profile_builder.build()
             self._quiet = options.quiet
+            self._decorate = options.decorate
             self._output = None
             self._output_path = options.output
 
@@ -73,7 +75,7 @@ def main():
         def _start(self):
             if self._output_path is not None:
                 self._output = OutputFile(self._output_path)
-            self._tracer = Tracer(self._reactor, FileRepository(self._reactor), self._profile, log_handler=self._log)
+            self._tracer = Tracer(self._reactor, FileRepository(self._reactor, self._decorate), self._profile, log_handler=self._log)
             try:
                 self._targets = self._tracer.start_trace(self._session, self._runtime, self)
             except Exception as e:
@@ -680,6 +682,7 @@ class Repository(object):
         self._on_create_callback = None
         self._on_load_callback = None
         self._on_update_callback = None
+        self._decorate = False
 
     def ensure_handler(self, function):
         raise NotImplementedError("not implemented")
@@ -708,7 +711,7 @@ class Repository(object):
         if self._on_update_callback is not None:
             self._on_update_callback(function, handler, source)
 
-    def _create_stub_handler(self, function):
+    def _create_stub_handler(self, function, decorate):
         if isinstance(function, ObjCMethod):
             display_name = function.display_name()
             state = {"index": 2}
@@ -772,16 +775,22 @@ class Repository(object):
                 except Exception as e:
                     pass
 
+            if decorate:
+                module_string = ' [%s]' %  function.module.name
+            else:
+                module_string = ''
+
             if len(args) == 0:
-                log_str = "'%(name)s()'" % { "name": function.name }
+                log_str = "'%(name)s()%(module_string)s'" % { "name": function.name, "module_string" : module_string }
             else:
                 indent_outer = "    "
                 indent_inner = "      "
-                log_str = "'%(name)s(' +\n%(indent_inner)s%(args)s\n%(indent_outer)s')'" % {
+                log_str = "'%(name)s(' +\n%(indent_inner)s%(args)s\n%(indent_outer)s')%(module_string)s'" % {
                     "name": function.name,
                     "args": ("\n" + indent_inner).join(args),
                     "indent_outer": indent_outer,
-                    "indent_inner": indent_inner
+                    "indent_inner": indent_inner,
+                    "module_string": module_string
                 }
 
         return """\
@@ -834,7 +843,7 @@ class MemoryRepository(Repository):
     def ensure_handler(self, function):
         handler = self._handlers.get(function)
         if handler is None:
-            handler = self._create_stub_handler(function)
+            handler = self._create_stub_handler(function, False)
             self._handlers[function] = handler
             self._notify_create(function, handler, "memory")
         else:
@@ -843,7 +852,7 @@ class MemoryRepository(Repository):
 
 
 class FileRepository(Repository):
-    def __init__(self, reactor):
+    def __init__(self, reactor, decorate):
         super(FileRepository, self).__init__()
         self._reactor = reactor
         self._handler_by_address = {}
@@ -852,6 +861,7 @@ class FileRepository(Repository):
         self._last_change_id = 0
         self._repo_dir = os.path.join(os.getcwd(), "__handlers__")
         self._repo_monitors = {}
+        self._decorate = decorate
 
     def ensure_handler(self, function):
         entry = self._handler_by_address.get(function.absolute_address)
@@ -878,7 +888,7 @@ class FileRepository(Repository):
                 break
 
         if handler is None:
-            handler = self._create_stub_handler(function)
+            handler = self._create_stub_handler(function, self._decorate)
             handler_file = handler_files_to_try[0]
             handler_dir = os.path.dirname(handler_file)
             if not os.path.isdir(handler_dir):
