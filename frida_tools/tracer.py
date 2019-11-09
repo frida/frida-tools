@@ -776,9 +776,9 @@ class Repository(object):
                     pass
 
             if decorate:
-                module_string = ' [%s]' %  function.module.name
+                module_string = " [%s]" %  function.module.name
             else:
-                module_string = ''
+                module_string = ""
 
             if len(args) == 0:
                 log_str = "'%(name)s()%(module_string)s'" % { "name": function.name, "module_string" : module_string }
