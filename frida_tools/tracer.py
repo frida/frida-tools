@@ -345,15 +345,39 @@ function excludeModule(pattern, workingSet) {
     return workingSet;
 }
 
+function parseExportsFunctionPattern (pattern) {
+    var m;
+    var f;
+    var res = pattern.split ('!');
+    
+    if (res.length == 1) {
+        m = '*';
+        f = res[0];
+    }
+    else {
+        m = (res[0] == '' ? '*' : res[0]);
+        f = (res[1] == '' ? '*' : res[1]);
+    }
+    
+    return {
+        module: m,
+        function: f
+    };
+}
+
 function includeFunction(pattern, workingSet) {
-    moduleResolver().enumerateMatches('exports:*!' + pattern).forEach(function (m) {
+    var obj = parseExportsFunctionPattern (pattern);
+    
+    moduleResolver().enumerateMatches('exports:' + obj['module'] + '!' + obj['function']).forEach(function (m) {
         workingSet[m.address.toString()] = moduleExportFromMatch(m);
     });
     return workingSet;
 }
 
 function excludeFunction(pattern, workingSet) {
-    moduleResolver().enumerateMatches('exports:*!' + pattern).forEach(function (m) {
+    var obj = parseExportsFunctionPattern (pattern);
+    
+    moduleResolver().enumerateMatches('exports:' + obj['module'] + '!' + obj['function']).forEach(function (m) {
         delete workingSet[m.address.toString()];
     });
     return workingSet;
