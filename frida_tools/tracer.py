@@ -345,6 +345,22 @@ function excludeModule(pattern, workingSet) {
     return workingSet;
 }
 
+function includeFunction(pattern, workingSet) {
+    var parseResult = parseExportsFunctionPattern(pattern);
+    moduleResolver().enumerateMatches('exports:' + parseResult.module + '!' + parseResult.function).forEach(function (m) {
+        workingSet[m.address.toString()] = moduleExportFromMatch(m);
+    });
+    return workingSet;
+}
+
+function excludeFunction(pattern, workingSet) {
+    var parseResult = parseExportsFunctionPattern(pattern);
+    moduleResolver().enumerateMatches('exports:' + parseResult.module + '!' + parseResult.function).forEach(function (m) {
+        delete workingSet[m.address.toString()];
+    });
+    return workingSet;
+}
+
 function parseExportsFunctionPattern(pattern) {
     var res = pattern.split('!');
     var m, f;
@@ -356,27 +372,10 @@ function parseExportsFunctionPattern(pattern) {
         m = (res[0] === '') ? '*' : res[0];
         f = (res[1] === '') ? '*' : res[1];
     }
-    
     return {
         module: m,
         function: f
     };
-}
-
-function includeFunction(pattern, workingSet) {
-    var obj = parseExportsFunctionPattern(pattern);
-    moduleResolver().enumerateMatches('exports:' + obj['module'] + '!' + obj['function']).forEach(function (m) {
-        workingSet[m.address.toString()] = moduleExportFromMatch(m);
-    });
-    return workingSet;
-}
-
-function excludeFunction(pattern, workingSet) {
-    var obj = parseExportsFunctionPattern(pattern);
-    moduleResolver().enumerateMatches('exports:' + obj['module'] + '!' + obj['function']).forEach(function (m) {
-        delete workingSet[m.address.toString()];
-    });
-    return workingSet;
 }
 
 function includeRelativeFunction(func, workingSet) {
