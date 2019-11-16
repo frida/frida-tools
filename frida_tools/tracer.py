@@ -363,8 +363,8 @@ function excludeFunction(pattern, workingSet) {
 
 function parseExportsFunctionPattern(pattern) {
     var res = pattern.split('!');
+
     var m, f;
-    
     if (res.length === 1) {
         m = '*';
         f = res[0];
@@ -372,6 +372,7 @@ function parseExportsFunctionPattern(pattern) {
         m = (res[0] === '') ? '*' : res[0];
         f = (res[1] === '') ? '*' : res[1];
     }
+
     return {
         module: m,
         function: f
