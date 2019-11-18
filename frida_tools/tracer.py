@@ -348,17 +348,37 @@ function excludeModule(pattern, workingSet) {
 }
 
 function includeFunction(pattern, workingSet) {
-    moduleResolver().enumerateMatches('exports:*!' + pattern).forEach(function (m) {
+    var parseResult = parseExportsFunctionPattern(pattern);
+    moduleResolver().enumerateMatches('exports:' + parseResult.module + '!' + parseResult.function).forEach(function (m) {
         workingSet[m.address.toString()] = moduleExportFromMatch(m);
     });
     return workingSet;
 }
 
 function excludeFunction(pattern, workingSet) {
-    moduleResolver().enumerateMatches('exports:*!' + pattern).forEach(function (m) {
+    var parseResult = parseExportsFunctionPattern(pattern);
+    moduleResolver().enumerateMatches('exports:' + parseResult.module + '!' + parseResult.function).forEach(function (m) {
         delete workingSet[m.address.toString()];
     });
     return workingSet;
+}
+
+function parseExportsFunctionPattern(pattern) {
+    var res = pattern.split('!');
+
+    var m, f;
+    if (res.length === 1) {
+        m = '*';
+        f = res[0];
+    } else {
+        m = (res[0] === '') ? '*' : res[0];
+        f = (res[1] === '') ? '*' : res[1];
+    }
+
+    return {
+        module: m,
+        function: f
+    };
 }
 
 function includeRelativeFunction(func, workingSet) {
