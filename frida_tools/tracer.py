@@ -625,7 +625,7 @@ var timer = null;
 // Create namespaces for user functions ('F') and data ('D'), pre-populate if relevant
 state.F = {}
 state.D = {}
-state.D.NEWLINE = String.fromCharCode (10);
+state.D.NEWLINE = String.fromCharCode(10);
 
 initializeSession();
 
