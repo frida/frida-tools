@@ -54,6 +54,8 @@ def main():
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
             parser.add_option("-q", "--quiet", help="do not format output messages", action='store_true', default=False)
             parser.add_option("-d", "--decorate", help="Add module name to generated onEnter log statement", action='store_true', default=False)
+            parser.add_option("-k", "--init-session", help="Path to Javascript file used to initialize the session", metavar="PATH",
+                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.init_session_paths,))
             parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string')
             self._profile_builder = pb
 
@@ -75,7 +77,7 @@ def main():
         def _start(self):
             if self._output_path is not None:
                 self._output = OutputFile(self._output_path)
-            self._tracer = Tracer(self._reactor, FileRepository(self._reactor, self._decorate), self._profile, log_handler=self._log)
+            self._tracer = Tracer(self._reactor, FileRepository(self._reactor, self._decorate), self._profile, self._profile_builder._init_session_paths, log_handler=self._log)
             try:
                 self._targets = self._tracer.start_trace(self._session, self._runtime, self)
             except Exception as e:
@@ -158,6 +160,7 @@ class TracerProfileBuilder(object):
 
     def __init__(self):
         self._spec = []
+        self._init_session_paths = []
 
     def include_modules(self, *module_name_globs):
         for m in module_name_globs:
@@ -208,6 +211,11 @@ class TracerProfileBuilder(object):
     def include_debug_symbol(self, *function_name_globs):
         for f in function_name_globs:
             self._spec.append(('include', 'debug_symbol', f))
+        return self
+
+    def init_session_paths(self, *function_name_globs):
+        for f in function_name_globs:
+            self._init_session_paths.append(f)
         return self
 
     def build(self):
@@ -530,11 +538,13 @@ function debugSymbolFromAddress(address) {
 
 
 class Tracer(object):
-    def __init__(self, reactor, repository, profile, log_handler=None):
+    def __init__(self, reactor, repository, profile, init_session, log_handler=None):
         self._reactor = reactor
         self._repository = repository
         self._profile = profile
         self._script = None
+        self._init_session_paths = init_session
+        self._init_session_code = ''
         self._log_handler = log_handler
 
     def start_trace(self, session, runtime, ui):
@@ -589,6 +599,21 @@ class Tracer(object):
             self._script = None
 
     def _create_trace_script(self):
+        # Extract all init session files into a single string,
+        # substitute newlines with '\u000a'
+        self._init_session_code = ''
+        for path in self._init_session_paths:
+            # Append contents of <path> to <self._init_session_code>
+            fo = open(path, "rt")
+            line = fo.readlines()
+            fo.close()
+
+            for i in range (len(line)):
+                line [i] = line [i].rstrip ()
+
+            self._init_session_code += '\\u000a'.join(line)
+            self._init_session_code += '\\u000a'
+
         return """'use strict';
 
 var started = Date.now();
@@ -596,6 +621,13 @@ var handlers = {};
 var state = {};
 var pending = [];
 var timer = null;
+
+// Create namespaces for user functions ('F') and data ('D'), pre-populate if relevant
+state.F = {}
+state.D = {}
+state.D.NEWLINE = String.fromCharCode (10);
+
+initializeSession();
 
 rpc.exports = {
     dispose: function () {
@@ -694,7 +726,11 @@ function parseHandler(target) {
         return {};
     }
 }
-"""
+
+function initializeSession() {
+    eval ("%(init_code)s");
+}
+""" % {"init_code": self._init_session_code}
 
     def _process_message(self, message, data, ui):
         handled = False
