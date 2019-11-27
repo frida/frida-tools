@@ -54,6 +54,8 @@ def main():
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
             parser.add_option("-q", "--quiet", help="do not format output messages", action='store_true', default=False)
             parser.add_option("-d", "--decorate", help="Add module name to generated onEnter log statement", action='store_true', default=False)
+            parser.add_option("-S", "--init-session", help="path to JavaScript file used to initialize the session", metavar="PATH",
+                    type='string', action='append', default=[])
             parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string')
             self._profile_builder = pb
 
@@ -68,6 +70,11 @@ def main():
             self._decorate = options.decorate
             self._output = None
             self._output_path = options.output
+            self._init_scripts = []
+            for path in options.init_session:
+                with codecs.open(path, 'rb', 'utf-8') as f:
+                    source = f.read()
+                self._init_scripts.append(InitScript(path, source))
 
         def _needs_target(self):
             return True
@@ -75,9 +82,13 @@ def main():
         def _start(self):
             if self._output_path is not None:
                 self._output = OutputFile(self._output_path)
-            self._tracer = Tracer(self._reactor, FileRepository(self._reactor, self._decorate), self._profile, log_handler=self._log)
+
+            stage = 'early' if self._target[0] == 'file' else 'late'
+
+            self._tracer = Tracer(self._reactor, FileRepository(self._reactor, self._decorate), self._profile,
+                    self._init_scripts, log_handler=self._log)
             try:
-                self._targets = self._tracer.start_trace(self._session, self._runtime, self)
+                self._targets = self._tracer.start_trace(self._session, stage, self._runtime, self)
             except Exception as e:
                 self._update_status("Failed to start tracing: {error}".format(error=e))
                 self._exit(1)
@@ -514,14 +525,15 @@ function debugSymbolFromAddress(address) {
 
 
 class Tracer(object):
-    def __init__(self, reactor, repository, profile, log_handler=None):
+    def __init__(self, reactor, repository, profile, init_scripts=[], log_handler=None):
         self._reactor = reactor
         self._repository = repository
         self._profile = profile
         self._script = None
+        self._init_scripts = init_scripts
         self._log_handler = log_handler
 
-    def start_trace(self, session, runtime, ui):
+    def start_trace(self, session, stage, runtime, ui):
         def on_create(*args):
             ui.on_trace_handler_create(*args)
         self._repository.on_create(on_create)
@@ -550,13 +562,21 @@ class Tracer(object):
         self._script.set_log_handler(self._log_handler)
         self._script.on('message', on_message)
         self._script.load()
+
+        agent = self._script.exports
+
+        parameters = {
+            'initScripts': [{ 'filename': script.filename, 'source': script.source } for script in self._init_scripts],
+        }
+        agent.init(stage, parameters)
+
         for chunk in [working_set[i:i+1000] for i in range(0, len(working_set), 1000)]:
             targets = [{
                     'name': function.name,
                     'absolute_address': hex(function.absolute_address),
                     'handler': self._repository.ensure_handler(function)
                 } for function in chunk]
-            self._script.exports.add(targets)
+            agent.add(targets)
 
         self._repository.commit_handlers()
 
@@ -573,15 +593,34 @@ class Tracer(object):
             self._script = None
 
     def _create_trace_script(self):
-        return """'use strict';
-
+        return """\
 var started = Date.now();
-var handlers = {};
+var stage;
+var parameters;
 var state = {};
+
+(function () {
+
+var handlers = {};
 var pending = [];
 var timer = null;
 
 rpc.exports = {
+    init: function (s, p) {
+        stage = s;
+        parameters = p;
+
+        var initScripts = p.initScripts;
+        delete p.initScripts;
+
+        initScripts.forEach(function (script) {
+            try {
+                (1, eval)(script.source);
+            } catch (e) {
+                throw new Error('Unable to load ' + script.filename + ': ' + e.stack);
+            }
+        });
+    },
     dispose: function () {
         flush();
     },
@@ -678,6 +717,8 @@ function parseHandler(target) {
         return {};
     }
 }
+
+})();
 """
 
     def _process_message(self, message, data, ui):
@@ -960,6 +1001,12 @@ class FileRepository(Repository):
                 self._handler_by_address[function.absolute_address] = entry
                 self._handler_by_file[handler_file] = entry
                 self._notify_update(function, new_handler, handler_file)
+
+
+class InitScript(object):
+    def __init__(self, filename, source):
+        self.filename = filename
+        self.source = source
 
 
 class OutputFile(object):
