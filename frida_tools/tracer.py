@@ -347,20 +347,16 @@ function excludeModule(pattern, workingSet) {
     return workingSet;
 }
 
-function parseExportsFunctionPattern (pattern) {
-    var m;
-    var f;
-    var res = pattern.split ('!');
-    
-    if (res.length == 1) {
+function parseExportsFunctionPattern(pattern) {
+    var res = pattern.split('!');
+    var m, f;
+    if (res.length === 1) {
         m = '*';
         f = res[0];
+    } else {
+        m = (res[0] === '') ? '*' : res[0];
+        f = (res[1] === '') ? '*' : res[1];
     }
-    else {
-        m = (res[0] == '' ? '*' : res[0]);
-        f = (res[1] == '' ? '*' : res[1]);
-    }
-    
     return {
         module: m,
         function: f
