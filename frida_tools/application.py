@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, print_function
 
+import codecs
 import collections
 import errno
 import numbers
@@ -8,6 +9,7 @@ from optparse import OptionParser
 import os
 import platform
 import select
+import shlex
 import signal
 import sys
 import threading
@@ -102,9 +104,13 @@ class ConsoleApplication(object):
             parser.add_option("--debug", help="enable the Node.js compatible script debugger",
                 action='store_true', dest="enable_debugger", default=False)
 
+        parser.add_option("-O", "--options-file", help="text file containing additional command line options",
+                metavar="FILE", type='string', action='store')
+
         self._add_options(parser)
 
-        (options, args) = parser.parse_args()
+        real_args = compute_real_args(parser)
+        (options, args) = parser.parse_args(real_args)
 
         if sys.version_info[0] < 3:
             input_encoding = sys.stdin.encoding or 'UTF-8'
@@ -444,6 +450,58 @@ class ConsoleApplication(object):
             raise error
 
         return result[0]
+
+
+def compute_real_args(parser):
+    real_args = normalize_raw_args(sys.argv[1:])
+
+    files_processed = set()
+    while True:
+        offset = find_arg_file_offset(real_args, parser)
+        if offset == -1:
+            break
+
+        file_path = os.path.abspath(real_args[offset + 1])
+        if file_path in files_processed:
+            parser.error("File '{}' given twice as -O argument".format(file_path))
+
+        if os.path.isfile(file_path):
+            with codecs.open(file_path, 'r', 'utf-8') as f:
+                new_arg_text = f.read()
+        else:
+            parser.error("File '{}' following -O option is not a valid file".format(file_path))
+
+        real_args = insert_new_args_in_list(real_args, offset, new_arg_text)
+        files_processed.add(file_path)
+
+    return real_args
+
+
+def normalize_raw_args(raw_args):
+    result = []
+    for arg in raw_args:
+        if arg.startswith("--options-file="):
+            result.append(arg[0:14])
+            result.append(arg[15:])
+        else:
+            result.append(arg)
+    return result
+
+
+def find_arg_file_offset(arglist, parser):
+    for i, arg in enumerate(arglist):
+        if arg in ("-O", "--options-file"):
+            if i < len(arglist) - 1:
+                return i
+            else:
+                parser.error("No argument given for -O option")
+    return -1
+
+
+def insert_new_args_in_list(args, offset, new_arg_text):
+    new_args = shlex.split(new_arg_text)
+    new_args_list = args[:offset] + new_args + args[offset + 2:]
+    return new_args_list
 
 
 def find_device(type):
