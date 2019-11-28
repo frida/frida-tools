@@ -54,6 +54,7 @@ def main():
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
             parser.add_option("-q", "--quiet", help="do not format output messages", action='store_true', default=False)
             parser.add_option("-d", "--decorate", help="Add module name to generated onEnter log statement", action='store_true', default=False)
+            parser.add_option("-u", "--userdata", help="Store user-defined data in state.userdata variable", metavar="STRING", type='string', default='')
             parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string')
             self._profile_builder = pb
 
@@ -68,6 +69,13 @@ def main():
             self._decorate = options.decorate
             self._output = None
             self._output_path = options.output
+            self._userdata = self.escape_char(options.userdata, '"')
+
+        def escape_char(self, str, c):
+            if (str == None):
+                return ''
+            else:
+                return str.replace(c, '\\'+c)
 
         def _needs_target(self):
             return True
@@ -75,7 +83,7 @@ def main():
         def _start(self):
             if self._output_path is not None:
                 self._output = OutputFile(self._output_path)
-            self._tracer = Tracer(self._reactor, FileRepository(self._reactor, self._decorate), self._profile, log_handler=self._log)
+            self._tracer = Tracer(self._reactor, FileRepository(self._reactor, self._decorate), self._profile, self._userdata, log_handler=self._log)
             try:
                 self._targets = self._tracer.start_trace(self._session, self._runtime, self)
             except Exception as e:
@@ -530,12 +538,16 @@ function debugSymbolFromAddress(address) {
 
 
 class Tracer(object):
-    def __init__(self, reactor, repository, profile, log_handler=None):
+    def __init__(self, reactor, repository, profile, userdata, log_handler=None):
         self._reactor = reactor
         self._repository = repository
         self._profile = profile
         self._script = None
         self._log_handler = log_handler
+        
+        self._userdata = userdata
+        if self._userdata == None:
+            self._userdata = ''
 
     def start_trace(self, session, runtime, ui):
         def on_create(*args):
@@ -596,6 +608,8 @@ var handlers = {};
 var state = {};
 var pending = [];
 var timer = null;
+
+state.userdata = "%(userdata)s";
 
 rpc.exports = {
     dispose: function () {
@@ -694,7 +708,7 @@ function parseHandler(target) {
         return {};
     }
 }
-"""
+""" % {"userdata": self._userdata}
 
     def _process_message(self, message, data, ui):
         handled = False
