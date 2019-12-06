@@ -109,7 +109,7 @@ class ConsoleApplication(object):
 
         self._add_options(parser)
 
-        real_args = self.return_real_args (parser)
+        real_args = compute_real_args(parser)
         (options, args) = parser.parse_args(real_args)
 
         if sys.version_info[0] < 3:
@@ -451,47 +451,46 @@ class ConsoleApplication(object):
 
         return result[0]
 
-    def return_real_args(self, parser):
-        real_args = sys.argv[1:]
-        performPass = True
-        files_processed = set()
+def compute_real_args(parser):
+    real_args = sys.argv[1:]
+    perform_pass = True
+    files_processed = set()
 
-        while (performPass):
-            offset = self.find_arg_file_offset(real_args, parser)
-            if (offset < 0):
-                performPass = False
-                continue
+    while perform_pass:
+        offset = find_arg_file_offset(real_args, parser)
+        if (offset < 0):
+            perform_pass = False
+            continue
 
-            file_path = real_args[offset+1]
-            
-            if file_path in files_processed:
-                parser.error('File "' + file_path + '" given twice as -O argument')
+        file_path = real_args[offset+1]
 
-            if os.path.isfile(file_path):
-                with codecs.open(file_path, 'r', 'utf-8') as f:
-                  new_arg_text = f.read()
+        if file_path in files_processed:
+            parser.error("File '{}' given twice as -O argument".format (file_path))
+
+        if os.path.isfile(file_path):
+            with codecs.open(file_path, 'r', 'utf-8') as f:
+                new_arg_text = f.read()
+        else:
+            parser.error("File '{}' following -O option is not a valid file".format(file_path))
+
+        real_args = insert_new_args_in_list(real_args, offset, new_arg_text)
+        files_processed.add(file_path)
+
+    return real_args
+
+def find_arg_file_offset(arglist, parser):
+    for i in range(len(arglist)):
+        if (arglist[i] == '-O') or (arglist[i] == '--options-file'):
+            if i < len(arglist) - 1:
+                return i
             else:
-                parser.error('File "' + file_path + '" following -O option is not a valid file')
+                parser.error("No argument given for -O option")
+    return -1
 
-            real_args = self.insert_new_args_in_list(real_args, offset, new_arg_text)
-            files_processed.add(file_path)
-
-        return real_args
-
-    def find_arg_file_offset(self, arglist, parser):
-        for i in range(len(arglist)):
-            if (arglist[i] == '-O') or (arglist[i] == '--options-file'):
-                if i < len(arglist)-1:
-                    return i
-                else:
-                    # No argument following the option, error
-                    parser.error ('No argument given for -O option')
-        return -1
-
-    def insert_new_args_in_list(self, args, offset, new_arg_text):
-        new_args = shlex.split(new_arg_text)
-        new_args_list = args[:offset] + new_args + args[offset+2:]
-        return new_args_list
+def insert_new_args_in_list(args, offset, new_arg_text):
+    new_args = shlex.split(new_arg_text)
+    new_args_list = args[:offset] + new_args + args[offset + 2:]
+    return new_args_list
 
 def find_device(type):
     for device in frida.enumerate_devices():
