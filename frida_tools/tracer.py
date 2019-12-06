@@ -161,6 +161,7 @@ class TracerProfileBuilder(object):
 
     def __init__(self):
         self._spec = []
+        self._init_session_paths = []
 
     def include_modules(self, *module_name_globs):
         for m in module_name_globs:
@@ -211,6 +212,11 @@ class TracerProfileBuilder(object):
     def include_debug_symbol(self, *function_name_globs):
         for f in function_name_globs:
             self._spec.append(('include', 'debug_symbol', f))
+        return self
+
+    def init_session_paths(self, *function_name_globs):
+        for f in function_name_globs:
+            self._init_session_paths.append(f)
         return self
 
     def build(self):
@@ -522,6 +528,8 @@ class Tracer(object):
         self._repository = repository
         self._profile = profile
         self._script = None
+        self._init_session_paths = init_session
+        self._init_session_code = ''
         self._log_handler = log_handler
 
     def start_trace(self, session, runtime, ui):
