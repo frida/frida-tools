@@ -69,13 +69,7 @@ def main():
             self._decorate = options.decorate
             self._output = None
             self._output_path = options.output
-            self._userdata = self.escape_char(options.userdata, '"')
-
-        def escape_char(self, str, c):
-            if (str == None):
-                return ''
-            else:
-                return str.replace(c, '\\'+c)
+            self._userdata = options.userdata
 
         def _needs_target(self):
             return True
@@ -544,10 +538,7 @@ class Tracer(object):
         self._profile = profile
         self._script = None
         self._log_handler = log_handler
-        
-        self._userdata = userdata
-        if self._userdata == None:
-            self._userdata = ''
+        self._userdata = userdata if userdata is not None else ""
 
     def start_trace(self, session, runtime, ui):
         def on_create(*args):
@@ -609,9 +600,10 @@ var state = {};
 var pending = [];
 var timer = null;
 
-state.userdata = "%(userdata)s";
-
 rpc.exports = {
+    init: function (stage, parameters) {
+        state.userdata = %{userdata}s;
+    },
     dispose: function () {
         flush();
     },
