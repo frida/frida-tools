@@ -127,7 +127,10 @@ def main():
         def _log(self, level, text):
             ConsoleApplication._log(self, level, text)
             if self._logfile is not None:
-                self._logfile.write(text + "\n")
+                try:
+                    self._logfile.write(text + "\n")
+                except UnicodeEncodeError:
+                    self._logfile.write(text.encode('ascii', 'ignore').decode('ascii') + '\n')
 
         def _usage(self):
             return "usage: %prog [options] target"
