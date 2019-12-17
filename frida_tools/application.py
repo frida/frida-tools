@@ -15,11 +15,11 @@ import threading
 from time import time
 if platform.system() == 'Windows':
     import msvcrt
+import shlex
 
 import colorama
 from colorama import Cursor, Fore, Style
 import frida
-import shlex
 
 
 def input_with_timeout(timeout):
@@ -458,14 +458,14 @@ def compute_real_args(parser):
 
     while perform_pass:
         offset = find_arg_file_offset(real_args, parser)
-        if (offset < 0):
+        if offset == -1:
             perform_pass = False
             continue
 
-        file_path = real_args[offset+1]
+        file_path = real_args[offset + 1]
 
         if file_path in files_processed:
-            parser.error("File '{}' given twice as -O argument".format (file_path))
+            parser.error("File '{}' given twice as -O argument".format(file_path))
 
         if os.path.isfile(file_path):
             with codecs.open(file_path, 'r', 'utf-8') as f:
@@ -479,8 +479,8 @@ def compute_real_args(parser):
     return real_args
 
 def find_arg_file_offset(arglist, parser):
-    for i in range(len(arglist)):
-        if (arglist[i] == '-O') or (arglist[i] == '--options-file'):
+    for i,arg in enumerate(arglist):
+        if arg in ("-O", "--options-file"):
             if i < len(arglist) - 1:
                 return i
             else:
