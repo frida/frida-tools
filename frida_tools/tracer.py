@@ -53,9 +53,9 @@ def main():
             parser.add_option("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
             parser.add_option("-q", "--quiet", help="do not format output messages", action='store_true', default=False)
-            parser.add_option("-d", "--decorate", help="Add module name to generated onEnter log statement", action='store_true', default=False)
-            parser.add_option("-S", "--init-session", help="Path to JavaScript file used to initialize the session", metavar="PATH",
-                    type='string', action='append')
+            parser.add_option("-d", "--decorate", help="add module name to generated onEnter log statement", action='store_true', default=False)
+            parser.add_option("-S", "--init-session", help="path to JavaScript file used to initialize the session", metavar="PATH",
+                    type='string', action='append', default=[])
             parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string')
             self._profile_builder = pb
 
@@ -161,7 +161,6 @@ class TracerProfileBuilder(object):
 
     def __init__(self):
         self._spec = []
-        self._init_session_paths = []
 
     def include_modules(self, *module_name_globs):
         for m in module_name_globs:
@@ -212,11 +211,6 @@ class TracerProfileBuilder(object):
     def include_debug_symbol(self, *function_name_globs):
         for f in function_name_globs:
             self._spec.append(('include', 'debug_symbol', f))
-        return self
-
-    def init_session_paths(self, *function_name_globs):
-        for f in function_name_globs:
-            self._init_session_paths.append(f)
         return self
 
     def build(self):
@@ -528,8 +522,7 @@ class Tracer(object):
         self._repository = repository
         self._profile = profile
         self._script = None
-        self._init_session_paths = init_session
-        self._init_session_code = ''
+        self._init_session_paths = init_session_paths
         self._log_handler = log_handler
 
     def start_trace(self, session, runtime, ui):
@@ -555,6 +548,9 @@ class Tracer(object):
         ui.on_trace_progress('resolve')
         working_set = self._profile.resolve(session, runtime, log_handler=self._log_handler)
         ui.on_trace_progress('instrument')
+        print ('----- _create_trace_script()  ------------------------------')  #debug
+        print (self._create_trace_script()) #debug
+        print ('------------------------------------------------------------')  #debug
         self._script = session.create_script(name="tracer",
                                              source=self._create_trace_script(),
                                              runtime=runtime)
@@ -585,17 +581,11 @@ class Tracer(object):
 
     def _create_trace_script(self):
         init_session_code = ""
-        for path in init_session_paths:
+        for path in self._init_session_paths:
             with open(path, 'rt') as fo:
                 lines = fo.readlines()
 
-            lines = [line.rstrip() for line in lines]
-
-            # eval() does not like 0x0A, replace with "\u000a"
-            init_session_code += "\\u000a".join(lines)
-            
-            # Insert "\ua000" in case another init session follows
-            init_session_code += "\\u000a"
+            init_session_code += "\n".join(lines)
 
         return """'use strict';
 
@@ -606,10 +596,12 @@ var pending = [];
 var timer = null;
 
 state.newline = String.fromCharCode(10);
-
-initializeSession();
+state.bar = "I am BAR!";
 
 rpc.exports = {
+    init: function (stage, parameters) {
+        %(init_code)s
+    },
     dispose: function () {
         flush();
     },
@@ -705,10 +697,6 @@ function parseHandler(target) {
         });
         return {};
     }
-}
-
-function initializeSession() {
-    eval("%(init_code)s");
 }
 """ % {"init_code": init_session_code}
 
