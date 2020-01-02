@@ -68,7 +68,7 @@ def main():
         def _add_options(self, parser):
             parser.add_option("-l", "--load", help="load SCRIPT", metavar="SCRIPT",
                               type='string', action='store', dest="user_script", default=None)
-            parser.add_option("-P", "--parameters", help="Parameters as JSON, same as Gadget", metavar="PARAMETERS_JSON",
+            parser.add_option("-P", "--parameters", help="parameters as JSON, same as Gadget", metavar="PARAMETERS_JSON",
                               type='string', action='store', dest="user_parameters", default=None)
             parser.add_option("-C", "--cmodule", help="load CMODULE", metavar="CMODULE",
                               type='string', action='store', dest="user_cmodule", default=None)
