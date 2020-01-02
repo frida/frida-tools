@@ -120,7 +120,7 @@ def main():
             self._exit_on_error = options.exit_on_error
 
             if options.logfile is not None:
-                self._logfile = open(options.logfile, 'w')
+                self._logfile = codecs.open(options.logfile, 'w', 'utf-8')
             else:
                 self._logfile = None
 
