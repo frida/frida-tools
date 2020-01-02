@@ -280,8 +280,7 @@ class TracerProfile(object):
         return key in TracerProfile._BLACKLIST
 
     def _create_resolver_script(self):
-        return r"""'use strict';
-
+        return r"""
 rpc.exports = {
     resolve: function (spec) {
         var workingSet = spec.reduce(function (workingSet, item) {

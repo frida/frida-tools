@@ -753,8 +753,6 @@ URL: {url}
                         return
                     for key in self._get_keys("""\
                             (function () {
-                                'use strict';
-
                                 var o;
                                 try {
                                     o = """ + before_dot + """;

@@ -119,8 +119,7 @@ class Discoverer(object):
         self._ui.on_sample_result(module_functions, dynamic_functions)
 
     def _create_discover_script(self):
-        return """'use strict';
-
+        return """\
 var threadIds = [];
 var result = {};
 
