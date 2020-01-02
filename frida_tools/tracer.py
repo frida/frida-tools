@@ -57,7 +57,7 @@ def main():
             parser.add_option("-d", "--decorate", help="add module name to generated onEnter log statement", action='store_true', default=False)
             parser.add_option("-S", "--init-session", help="path to JavaScript file used to initialize the session", metavar="PATH",
                     type='string', action='append', default=[])
-            parser.add_option("-P", "--parameters", help="parameters as JSON, exposed as global named 'parameters'", metavar="PARAMETERS_JSON",
+            parser.add_option("-P", "--parameters", help="parameters as JSON, exposed as a global named 'parameters'", metavar="PARAMETERS_JSON",
                     type='string', action='store', default=None)
             parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string')
             self._profile_builder = pb
