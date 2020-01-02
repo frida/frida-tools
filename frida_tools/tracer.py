@@ -17,6 +17,7 @@ from frida_tools.model import Module, Function, ModuleFunction, ObjCMethod
 
 def main():
     from colorama import Fore, Style
+    import json
 
     from frida_tools.application import ConsoleApplication, input_with_timeout
 
@@ -56,6 +57,8 @@ def main():
             parser.add_option("-d", "--decorate", help="add module name to generated onEnter log statement", action='store_true', default=False)
             parser.add_option("-S", "--init-session", help="path to JavaScript file used to initialize the session", metavar="PATH",
                     type='string', action='append', default=[])
+            parser.add_option("-P", "--parameters", help="parameters as JSON, exposed as global named 'parameters'", metavar="PARAMETERS_JSON",
+                    type='string', action='store', default=None)
             parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string')
             self._profile_builder = pb
 
@@ -70,11 +73,23 @@ def main():
             self._decorate = options.decorate
             self._output = None
             self._output_path = options.output
+
             self._init_scripts = []
             for path in options.init_session:
                 with codecs.open(path, 'rb', 'utf-8') as f:
                     source = f.read()
                 self._init_scripts.append(InitScript(path, source))
+
+            if options.parameters is not None:
+                try:
+                    params = json.loads(options.parameters)
+                except Exception as e:
+                    raise ValueError("failed to parse parameters argument as JSON: {}".format(e))
+                if not isinstance(params, dict):
+                    raise ValueError("failed to parse parameters argument as JSON: not an object")
+                self._parameters = params
+            else:
+                self._parameters = {}
 
         def _needs_target(self):
             return True
@@ -88,7 +103,7 @@ def main():
             self._tracer = Tracer(self._reactor, FileRepository(self._reactor, self._decorate), self._profile,
                     self._init_scripts, log_handler=self._log)
             try:
-                self._targets = self._tracer.start_trace(self._session, stage, self._runtime, self)
+                self._targets = self._tracer.start_trace(self._session, stage, self._parameters, self._runtime, self)
             except Exception as e:
                 self._update_status("Failed to start tracing: {error}".format(error=e))
                 self._exit(1)
@@ -532,7 +547,7 @@ class Tracer(object):
         self._init_scripts = init_scripts
         self._log_handler = log_handler
 
-    def start_trace(self, session, stage, runtime, ui):
+    def start_trace(self, session, stage, parameters, runtime, ui):
         def on_create(*args):
             ui.on_trace_handler_create(*args)
         self._repository.on_create(on_create)
@@ -564,10 +579,8 @@ class Tracer(object):
 
         agent = self._script.exports
 
-        parameters = {
-            'initScripts': [{ 'filename': script.filename, 'source': script.source } for script in self._init_scripts],
-        }
-        agent.init(stage, parameters)
+        init_scripts = [{ 'filename': script.filename, 'source': script.source } for script in self._init_scripts]
+        agent.init(stage, parameters, init_scripts)
 
         for chunk in [working_set[i:i+1000] for i in range(0, len(working_set), 1000)]:
             targets = [{
@@ -605,12 +618,9 @@ var pending = [];
 var timer = null;
 
 rpc.exports = {
-    init: function (s, p) {
+    init: function (s, p, initScripts) {
         stage = s;
         parameters = p;
-
-        var initScripts = p.initScripts;
-        delete p.initScripts;
 
         initScripts.forEach(function (script) {
             try {

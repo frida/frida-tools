@@ -38,7 +38,7 @@ class TestTracer(unittest.TestCase):
         def start():
             tp = TracerProfileBuilder().include("open*")
             t = Tracer(reactor, MemoryRepository(), tp.build())
-            targets = t.start_trace(self.session, 'late', 'duk', UI())
+            targets = t.start_trace(self.session, 'late', {}, 'duk', UI())
             t.stop()
             reactor.stop()
             done.set()
