@@ -53,7 +53,7 @@ def main():
             parser.add_option("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
             parser.add_option("-q", "--quiet", help="do not format output messages", action='store_true', default=False)
-            parser.add_option("-d", "--decorate", help="Add module name to generated onEnter log statement", action='store_true', default=False)
+            parser.add_option("-d", "--decorate", help="add module name to generated onEnter log statement", action='store_true', default=False)
             parser.add_option("-S", "--init-session", help="path to JavaScript file used to initialize the session", metavar="PATH",
                     type='string', action='append', default=[])
             parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string')
