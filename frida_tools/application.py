@@ -99,8 +99,8 @@ class ConsoleApplication(object):
                 type='int', action='callback', callback=store_target, callback_args=('pid',))
             parser.add_option("--stdio", help="stdio behavior when spawning (defaults to “inherit”)", metavar="inherit|pipe",
                 type='choice', choices=['inherit', 'pipe'], default='inherit')
-            parser.add_option("--runtime", help="script runtime to use (defaults to “duk”)", metavar="duk|v8",
-                type='choice', choices=['duk', 'v8'], default='duk')
+            parser.add_option("--runtime", help="script runtime to use", metavar="duk|v8",
+                type='choice', choices=['duk', 'v8'], default=None)
             parser.add_option("--debug", help="enable the Node.js compatible script debugger",
                 action='store_true', dest="enable_debugger", default=False)
 
