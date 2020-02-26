@@ -4,6 +4,7 @@ from __future__ import unicode_literals, print_function
 import codecs
 import collections
 import errno
+import fcntl
 import numbers
 from optparse import OptionParser
 import os
@@ -22,42 +23,61 @@ from colorama import Cursor, Fore, Style
 import frida
 
 
-def input_with_timeout(timeout):
-    if platform.system() == 'Windows':
-        start_time = time()
-        s = ''
-        while True:
-            while msvcrt.kbhit():
-                c = msvcrt.getche()
-                if ord(c) == 13: # enter_key
-                    break
-                elif ord(c) >= 32: #space_char
-                    s += c.decode('utf-8')
-            if time() - start_time > timeout:
-                return None
+def input_with_cancellable(cancellable):
+    result = ""
+    done = False
 
-        return s
+    if platform.system() == 'Windows':
+        while not done:
+            while msvcrt.kbhit():
+                c = msvcrt.getwche()
+                if c in ("\x00", "\xe0"):
+                    msvcrt.getwche()
+                    continue
+
+                result += c
+
+                if c == "\n":
+                    done = True
+                    break
+
+            cancellable.raise_if_cancelled()
+            time.sleep(0.05)
     else:
-        while True:
-            try:
-                rlist, _, _ = select.select([sys.stdin], [], [], timeout)
-                break
-            except (OSError, select.error) as e:
-                if e.args[0] != errno.EINTR:
-                    raise e
-        if rlist:
-            return sys.stdin.readline()
-        else:
-            return None
+        old_flags = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
+        fcntl.fcntl(sys.stdin, fcntl.F_SETFL, old_flags | os.O_NONBLOCK)
+
+        with cancellable.get_pollfd() as cancellable_fd:
+            while not done:
+                try:
+                    rlist, _, _ = select.select([sys.stdin, cancellable_fd], [], [])
+                except (OSError, select.error) as e:
+                    if e.args[0] != errno.EINTR:
+                        raise e
+
+                cancellable.raise_if_cancelled()
+
+                while True:
+                    c = sys.stdin.read(1)
+                    if c == "":
+                        break
+
+                    result += c
+
+                    if c == "\n":
+                        done = True
+                        break
+
+    return result
 
 
 def await_enter(reactor):
     try:
-        while input_with_timeout(0.5) == None:
-            if not reactor.is_running():
-                break
+        input_with_cancellable(reactor.ui_cancellable)
+    except frida.OperationCancelledError:
+        pass
     except KeyboardInterrupt:
-        print('')
+        print("")
 
 
 class ConsoleState:
@@ -312,7 +332,7 @@ class ConsoleApplication(object):
             self._print("Waiting for USB device to appear...")
 
     def _on_sigterm(self, n, f):
-        self._reactor.cancel_all()
+        self._reactor.cancel_io()
         self._exit(0)
 
     def _on_output(self, pid, fd, data):
@@ -410,7 +430,7 @@ class ConsoleApplication(object):
             try:
                 completed.wait()
             except KeyboardInterrupt:
-                self._reactor.cancel_all()
+                self._reactor.cancel_io()
                 continue
 
         error = result[1]
@@ -423,7 +443,7 @@ class ConsoleApplication(object):
         result = [None, None]
 
         def work():
-            with self._reactor.cancellable:
+            with self._reactor.io_cancellable:
                 try:
                     result[0] = f()
                 except Exception as e:
@@ -435,10 +455,10 @@ class ConsoleApplication(object):
         try:
             worker.join(timeout)
         except KeyboardInterrupt:
-            self._reactor.cancel_all()
+            self._reactor.cancel_io()
 
         if timeout is not None and worker.is_alive():
-            self._reactor.cancel_all()
+            self._reactor.cancel_io()
             while worker.is_alive():
                 try:
                     worker.join()
@@ -544,7 +564,13 @@ class Reactor(object):
         self._lock = threading.Lock()
         self._cond = threading.Condition(self._lock)
 
-        self.cancellable = frida.Cancellable()
+        self.io_cancellable = frida.Cancellable()
+
+        self.ui_cancellable = frida.Cancellable()
+        self._ui_cancellable_fd = self.ui_cancellable.get_pollfd()
+
+    def __del__(self):
+        self._ui_cancellable_fd.release()
 
     def is_running(self):
         with self._lock:
@@ -579,12 +605,14 @@ class Reactor(object):
                 if len(self._pending) > 0:
                     timeout = max([min(map(lambda item: item[1], self._pending)) - now, 0])
                 previous_pending_length = len(self._pending)
+
             if work is not None:
-                with self.cancellable:
+                with self.io_cancellable:
                     try:
                         work()
                     except frida.OperationCancelledError:
                         pass
+
             with self._lock:
                 if self._running and len(self._pending) == previous_pending_length:
                     self._cond.wait(timeout)
@@ -592,6 +620,8 @@ class Reactor(object):
 
         if self._on_stop is not None:
             self._on_stop()
+
+        self.ui_cancellable.cancel()
 
     def stop(self):
         self.schedule(self._stop)
@@ -610,5 +640,5 @@ class Reactor(object):
             self._pending.append((f, when))
             self._cond.notify()
 
-    def cancel_all(self):
-        self.cancellable.cancel()
+    def cancel_io(self):
+        self.io_cancellable.cancel()

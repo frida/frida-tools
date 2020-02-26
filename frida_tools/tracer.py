@@ -10,7 +10,7 @@ import subprocess
 import threading
 import time
 
-from frida import FileMonitor
+import frida
 
 from frida_tools.model import Module, Function, ModuleFunction, ObjCMethod
 
@@ -19,7 +19,7 @@ def main():
     from colorama import Fore, Style
     import json
 
-    from frida_tools.application import ConsoleApplication, input_with_timeout
+    from frida_tools.application import ConsoleApplication, input_with_cancellable
 
     class TracerApplication(ConsoleApplication, UI):
         def __init__(self):
@@ -116,9 +116,11 @@ def main():
             self._output = None
 
         def _await_ctrl_c(self, reactor):
-            while reactor.is_running():
+            while True:
                 try:
-                    input_with_timeout(0.5)
+                    input_with_cancellable(reactor.ui_cancellable)
+                except frida.OperationCancelledError:
+                    break
                 except KeyboardInterrupt:
                     break
 
@@ -979,7 +981,7 @@ class FileRepository(Repository):
         handler_dir = os.path.dirname(handler_file)
         monitor = self._repo_monitors.get(handler_dir)
         if monitor is None:
-            monitor = FileMonitor(handler_dir)
+            monitor = frida.FileMonitor(handler_dir)
             monitor.on('change', self._on_change)
             self._repo_monitors[handler_dir] = monitor
 

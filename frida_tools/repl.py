@@ -256,7 +256,7 @@ def main():
                     if not reactor.is_running():
                         return
             except KeyboardInterrupt:
-                self._reactor.cancel_all()
+                self._reactor.cancel_io()
                 return
 
             while True:
@@ -795,7 +795,7 @@ URL: {url}
 
         def _get_keys(self, code):
             repl = self._repl
-            with repl._reactor.cancellable:
+            with repl._reactor.io_cancellable:
                 (t, value) = repl._evaluate(code)
 
             if t == 'error':
