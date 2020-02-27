@@ -4,7 +4,6 @@ from __future__ import unicode_literals, print_function
 import codecs
 import collections
 import errno
-import fcntl
 import numbers
 from optparse import OptionParser
 import os
@@ -14,9 +13,11 @@ import shlex
 import signal
 import sys
 import threading
-from time import time
+import time
 if platform.system() == 'Windows':
     import msvcrt
+else:
+    import fcntl
 
 import colorama
 from colorama import Cursor, Fore, Style
@@ -591,7 +592,7 @@ class Reactor(object):
     def _run(self):
         running = True
         while running:
-            now = time()
+            now = time.time()
             work = None
             timeout = None
             previous_pending_length = -1
@@ -631,7 +632,7 @@ class Reactor(object):
             self._running = False
 
     def schedule(self, f, delay=None):
-        now = time()
+        now = time.time()
         if delay is not None:
             when = now + delay
         else:
