@@ -16,8 +16,6 @@ import threading
 import time
 if platform.system() == 'Windows':
     import msvcrt
-else:
-    import fcntl
 
 import colorama
 from colorama import Cursor, Fore, Style
@@ -25,10 +23,10 @@ import frida
 
 
 def input_with_cancellable(cancellable):
-    result = ""
-    done = False
-
     if platform.system() == 'Windows':
+        result = ""
+        done = False
+
         while not done:
             while msvcrt.kbhit():
                 c = msvcrt.getwche()
@@ -44,32 +42,19 @@ def input_with_cancellable(cancellable):
 
             cancellable.raise_if_cancelled()
             time.sleep(0.05)
+
+        return result
     else:
-        old_flags = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
-        fcntl.fcntl(sys.stdin, fcntl.F_SETFL, old_flags | os.O_NONBLOCK)
-
         with cancellable.get_pollfd() as cancellable_fd:
-            while not done:
-                try:
-                    rlist, _, _ = select.select([sys.stdin, cancellable_fd], [], [])
-                except (OSError, select.error) as e:
-                    if e.args[0] != errno.EINTR:
-                        raise e
+            try:
+                rlist, _, _ = select.select([sys.stdin, cancellable_fd], [], [])
+            except (OSError, select.error) as e:
+                if e.args[0] != errno.EINTR:
+                    raise e
 
-                cancellable.raise_if_cancelled()
+        cancellable.raise_if_cancelled()
 
-                while True:
-                    c = sys.stdin.read(1)
-                    if c == "":
-                        break
-
-                    result += c
-
-                    if c == "\n":
-                        done = True
-                        break
-
-    return result
+        return sys.stdin.readline()
 
 
 def await_enter(reactor):
