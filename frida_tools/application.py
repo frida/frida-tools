@@ -453,11 +453,11 @@ class ConsoleApplication(object):
 
 
 def compute_real_args(parser):
-    real_args = normalize_raw_args(sys.argv[1:])
+    real_args = normalize_options_file_args(sys.argv[1:])
 
     files_processed = set()
     while True:
-        offset = find_arg_file_offset(real_args, parser)
+        offset = find_options_file_offset(real_args, parser)
         if offset == -1:
             break
 
@@ -471,13 +471,13 @@ def compute_real_args(parser):
         else:
             parser.error("File '{}' following -O option is not a valid file".format(file_path))
 
-        real_args = insert_new_args_in_list(real_args, offset, new_arg_text)
+        real_args = insert_options_file_args_in_list(real_args, offset, new_arg_text)
         files_processed.add(file_path)
 
     return real_args
 
 
-def normalize_raw_args(raw_args):
+def normalize_options_file_args(raw_args):
     result = []
     for arg in raw_args:
         if arg.startswith("--options-file="):
@@ -488,7 +488,7 @@ def normalize_raw_args(raw_args):
     return result
 
 
-def find_arg_file_offset(arglist, parser):
+def find_options_file_offset(arglist, parser):
     for i, arg in enumerate(arglist):
         if arg in ("-O", "--options-file"):
             if i < len(arglist) - 1:
@@ -498,8 +498,9 @@ def find_arg_file_offset(arglist, parser):
     return -1
 
 
-def insert_new_args_in_list(args, offset, new_arg_text):
+def insert_options_file_args_in_list(args, offset, new_arg_text):
     new_args = shlex.split(new_arg_text)
+    new_args = normalize_options_file_args(new_args)
     new_args_list = args[:offset] + new_args + args[offset + 2:]
     return new_args_list
 
