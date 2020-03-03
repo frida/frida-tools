@@ -10,7 +10,7 @@ request, or for local development).
 Simply set your PYTHONPATH environment variable to wherever you've cloned
 this repo to.
 
-For example, on Windows, assuming you clone to c:\src:
+For example, on Windows, assuming you clone to `C:\src`:
 
     git clone https://github.com/frida/frida-tools.git
     cd frida-tools
