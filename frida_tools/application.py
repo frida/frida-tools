@@ -109,6 +109,8 @@ class ConsoleApplication(object):
                 type='choice', choices=['duk', 'v8'], default=None)
             parser.add_option("--debug", help="enable the Node.js compatible script debugger",
                 action='store_true', dest="enable_debugger", default=False)
+            parser.add_option("--squelch-crash", help="if enabled, will not dump crash report to console",
+                action='store_true', dest="squelch_crash", default=False)
 
         parser.add_option("-O", "--options-file", help="text file containing additional command line options",
                 metavar="FILE", type='string', action='store')
@@ -141,10 +143,12 @@ class ConsoleApplication(object):
             self._stdio = options.stdio
             self._runtime = options.runtime
             self._enable_debugger = options.enable_debugger
+            self._squelch_crash = options.squelch_crash
         else:
             self._stdio = 'inherit'
             self._runtime = 'duk'
             self._enable_debugger = False
+            self._squelch_crash = False
         self._schedule_on_session_detached = lambda reason, crash: self._reactor.schedule(lambda: self._on_session_detached(reason, crash))
         self._started = False
         self._resumed = False
@@ -349,10 +353,11 @@ class ConsoleApplication(object):
         else:
             message = "Process crashed: " + crash.summary
         self._print(Fore.RED + Style.BRIGHT + message + Style.RESET_ALL)
-
         if crash is not None:
-            self._print("\n***\n{}\n***".format(crash.report.rstrip("\n")))
-
+            if self._squelch_crash is True:
+                self._print("\n*** Crash report was squelched due to user setting. ***")
+            else:
+                self._print("\n***\n{}\n***".format(crash.report.rstrip("\n")))
         self._exit(1)
 
     def _clear_status(self):
