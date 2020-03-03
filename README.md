@@ -14,7 +14,7 @@ For example, on Windows, assuming you clone to `C:\src`:
 
     git clone https://github.com/frida/frida-tools.git
     cd frida-tools
-    SET PYTHONPATH=c:\src\frida-tools
+    SET PYTHONPATH=C:\src\frida-tools
 
 Now when you run frida.exe, these scripts and any changes you make will be
 referenced instead!
