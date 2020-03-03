@@ -4,7 +4,7 @@ CLI tools for [Frida](http://www.frida.re).
 
 ### Making dev changes to frida-tools
 
-**You do not need to build this repo** in order to make changes (for a pull 
+**You do not need to build this repo** in order to make changes (for a pull
 request, or for local development).
 
 Simply set your PYTHONPATH environment variable to wherever you've cloned
