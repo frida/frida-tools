@@ -8,7 +8,7 @@ CLI tools for [Frida](http://www.frida.re).
 request, or for local development).
 
 Simply set your PYTHONPATH environment variable to wherever you've cloned
-this repo to. 
+this repo to.
 
 For example, on Windows, assuming you clone to c:\src:
 
