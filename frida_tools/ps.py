@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, print_function
+import json
 
 
 def main():
@@ -11,12 +12,15 @@ def main():
                 action='store_true', dest="list_only_applications", default=False)
             parser.add_option("-i", "--installed", help="include all installed applications",
                 action='store_true', dest="include_all_applications", default=False)
+            parser.add_option("-j", "--json", help="output results as json",
+                action='store_true', dest="output_json", default=False)
 
         def _initialize(self, parser, options, args):
             if options.include_all_applications and not options.list_only_applications:
                 parser.error("-i cannot be used without -a")
             self._list_only_applications = options.list_only_applications
             self._include_all_applications = options.include_all_applications
+            self._output_json = options.output_json
 
         def _usage(self):
             return "usage: %prog [options]"
@@ -31,6 +35,15 @@ def main():
                     return
                 if not self._include_all_applications:
                     applications = list(filter(lambda app: app.pid != 0, applications))
+                if (self._output_json):
+                    appdict = []
+                    if len(applications) > 0:
+                        for app in sorted(applications, key=cmp_to_key(compare_applications)):
+                            curApp = {'pid': (app.pid or None), 'name': app.name, 'identifier': app.identifier}
+                            appdict.append(curApp)
+                    print(json.dumps(appdict, sort_keys=False, indent=4))
+                    self._exit(0)
+                    return
                 if len(applications) > 0:
                     pid_column_width = max(map(lambda app: len("%d" % app.pid), applications))
                     name_column_width = max(map(lambda app: len(app.name), applications))
@@ -58,6 +71,14 @@ def main():
                 except Exception as e:
                     self._update_status("Failed to enumerate processes: %s" % e)
                     self._exit(1)
+                    return
+                if (self._output_json):
+                    procdict = []
+                    for process in sorted(processes, key=cmp_to_key(compare_processes)):
+                        curProc = {'pid': process.pid, 'name': process.name}
+                        procdict.append(curProc)
+                    print(json.dumps(procdict, sort_keys=False, indent=4))
+                    self._exit(0)
                     return
                 pid_column_width = max(map(lambda p: len("%d" % p.pid), processes))
                 name_column_width = max(map(lambda p: len(p.name), processes))
