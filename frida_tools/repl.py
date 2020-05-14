@@ -666,7 +666,10 @@ URL: {url}
                     return script
 
         def _get_or_create_config_dir(self):
-            config_dir = os.path.join(os.path.expanduser('~'), '.frida')
+            if os.getenv('XDG_CONFIG_HOME') is not None:
+                config_dir = os.path.join(os.getenv('XDG_CONFIG_HOME'), 'frida')
+            else:
+                config_dir = os.path.join(os.path.expanduser('~'), '.frida')
             if not os.path.exists(config_dir):
                 os.makedirs(config_dir)
             return config_dir
