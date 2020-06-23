@@ -1,6 +1,15 @@
 # -*- coding: utf-8 -*-
 
+import glob
+import os
 from setuptools import setup
+
+
+pkg_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "frida_tools"))
+
+agents = glob.glob(os.path.join(pkg_dir, "*_agent.*"))
+assert len(agents) > 0, "Agents not compiled; run “npm install” in agents/"
+print(agents)
 
 setup(
     name="frida-tools",
@@ -13,7 +22,7 @@ setup(
     url="https://www.frida.re",
     install_requires=[
         "colorama >= 0.2.7, < 1.0.0",
-        "frida >= 12.8.12, < 13.0.0",
+        "frida >= 12.10.4, < 13.0.0",
         "prompt-toolkit >= 2.0.0, < 4.0.0",
         "pygments >= 2.0.2, < 3.0.0"
     ],
@@ -42,7 +51,10 @@ setup(
         "Topic :: Software Development :: Debuggers",
         "Topic :: Software Development :: Libraries :: Python Modules"
     ],
-    packages=['frida_tools'],
+    packages=["frida_tools"],
+    package_data={
+        "frida_tools": agents,
+    },
     entry_points={
         'console_scripts': [
             "frida = frida_tools.repl:main",

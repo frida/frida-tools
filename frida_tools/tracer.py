@@ -12,8 +12,6 @@ import time
 
 import frida
 
-from frida_tools.model import Module, Function, ModuleFunction, ObjCMethod
-
 
 def main():
     from colorama import Fore, Style
@@ -51,6 +49,10 @@ def main():
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_objc_method,))
             parser.add_option("-M", "--exclude-objc-method", help="exclude OBJC_METHOD", metavar="OBJC_METHOD",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.exclude_objc_method,))
+            parser.add_option("-j", "--include-java-method", help="include JAVA_METHOD", metavar="JAVA_METHOD",
+                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_java_method,))
+            parser.add_option("-J", "--exclude-java-method", help="exclude JAVA_METHOD", metavar="JAVA_METHOD",
+                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.exclude_java_method,))
             parser.add_option("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
             parser.add_option("-q", "--quiet", help="do not format output messages", action='store_true', default=False)
@@ -67,7 +69,6 @@ def main():
 
         def _initialize(self, parser, options, args):
             self._tracer = None
-            self._targets = None
             self._profile = self._profile_builder.build()
             self._quiet = options.quiet
             self._decorate = options.decorate
@@ -103,7 +104,7 @@ def main():
             self._tracer = Tracer(self._reactor, FileRepository(self._reactor, self._decorate), self._profile,
                     self._init_scripts, log_handler=self._log)
             try:
-                self._targets = self._tracer.start_trace(self._session, stage, self._parameters, self._runtime, self)
+                self._tracer.start_trace(self._session, stage, self._parameters, self._runtime, self)
             except Exception as e:
                 self._update_status("Failed to start tracing: {error}".format(error=e))
                 self._exit(1)
@@ -124,26 +125,29 @@ def main():
                 except KeyboardInterrupt:
                     break
 
-        def on_trace_progress(self, operation):
-            if operation == 'resolve':
-                self._update_status("Resolving functions...")
-            elif operation == 'instrument':
-                self._update_status("Instrumenting functions...")
-            elif operation == 'ready':
-                if len(self._targets) == 1:
+        def on_trace_progress(self, status, *params):
+            if status == 'initializing':
+                self._update_status("Instrumenting...")
+            elif status == 'initialized':
+                self._resume()
+            elif status == 'started':
+                (count,) = params
+                if count == 1:
                     plural = ""
                 else:
                     plural = "s"
-                self._update_status("Started tracing %d function%s. Press Ctrl+C to stop." % (len(self._targets), plural))
+                self._update_status("Started tracing %d function%s. Press Ctrl+C to stop." % (count, plural))
 
-                self._resume()
+        def on_trace_warning(self, message):
+            self._print(Fore.RED + Style.BRIGHT + "Warning" + Style.RESET_ALL + ": " + message)
 
-        def on_trace_error(self, error):
-            self._print(Fore.RED + Style.BRIGHT + "Error" + Style.RESET_ALL + ": " + error['message'])
+        def on_trace_error(self, message):
+            self._print(Fore.RED + Style.BRIGHT + "Error" + Style.RESET_ALL + ": " + message)
+            self._exit(1)
 
         def on_trace_events(self, events):
             no_attributes = Style.RESET_ALL
-            for timestamp, thread_id, depth, target_address, message in events:
+            for timestamp, thread_id, depth, message in events:
                 if self._output is not None:
                     self._output.append(message + "\n")
                 elif self._quiet:
@@ -156,15 +160,15 @@ def main():
                         self._last_event_tid = thread_id
                     self._print("%6d ms  %s%s%s%s" % (timestamp, attributes, indent, message, no_attributes))
 
-        def on_trace_handler_create(self, function, handler, source):
+        def on_trace_handler_create(self, target, handler, source):
             if self._quiet:
                 return
-            self._print("%s: Auto-generated handler at \"%s\"" % (function, source.replace("\\", "\\\\")))
+            self._print("%s: Auto-generated handler at \"%s\"" % (target, source.replace("\\", "\\\\")))
 
-        def on_trace_handler_load(self, function, handler, source):
+        def on_trace_handler_load(self, target, handler, source):
             if self._quiet:
                 return
-            self._print("%s: Loaded handler at \"%s\"" % (function, source.replace("\\", "\\\\")))
+            self._print("%s: Loaded handler at \"%s\"" % (target, source.replace("\\", "\\\\")))
 
         def _get_attributes(self, thread_id):
             attributes = self._attributes_by_thread_id.get(thread_id, None)
@@ -182,8 +186,6 @@ def main():
 
 
 class TracerProfileBuilder(object):
-    _RE_REL_ADDRESS = re.compile("(?P<module>[^\s!]+)!(?P<offset>(0x)?[0-9a-fA-F]+)")
-
     def __init__(self):
         self._spec = []
 
@@ -209,13 +211,7 @@ class TracerProfileBuilder(object):
 
     def include_relative_address(self, *address_rel_offsets):
         for f in address_rel_offsets:
-            m = TracerProfileBuilder._RE_REL_ADDRESS.search(f)
-            if m is None:
-                continue
-            self._spec.append(('include', 'relative_function', {
-                'module': m.group('module'),
-                'offset': int(m.group('offset'), base=16)
-            }))
+            self._spec.append(('include', 'relative-function', f))
         return self
 
     def include_imports(self, *module_name_globs):
@@ -225,17 +221,27 @@ class TracerProfileBuilder(object):
 
     def include_objc_method(self, *function_name_globs):
         for f in function_name_globs:
-            self._spec.append(('include', 'objc_method', f))
+            self._spec.append(('include', 'objc-method', f))
         return self
 
     def exclude_objc_method(self, *function_name_globs):
         for f in function_name_globs:
-            self._spec.append(('exclude', 'objc_method', f))
+            self._spec.append(('exclude', 'objc-method', f))
+        return self
+
+    def include_java_method(self, *function_name_globs):
+        for f in function_name_globs:
+            self._spec.append(('include', 'java-method', f))
+        return self
+
+    def exclude_java_method(self, *function_name_globs):
+        for f in function_name_globs:
+            self._spec.append(('exclude', 'java-method', f))
         return self
 
     def include_debug_symbol(self, *function_name_globs):
         for f in function_name_globs:
-            self._spec.append(('include', 'debug_symbol', f))
+            self._spec.append(('include', 'debug-symbol', f))
         return self
 
     def build(self):
@@ -243,301 +249,8 @@ class TracerProfileBuilder(object):
 
 
 class TracerProfile(object):
-    _BLACKLIST = set([
-        "libSystem.B.dylib!dyld_stub_binder"
-    ])
-
     def __init__(self, spec):
-        self._spec = spec
-
-    def resolve(self, session, runtime, log_handler=None):
-        script = session.create_script(name="profile-resolver",
-                                       source=self._create_resolver_script(),
-                                       runtime=runtime)
-        script.set_log_handler(log_handler)
-        def on_message(message, data):
-            print(message)
-        script.on('message', on_message)
-        script.load()
-        try:
-            data = script.exports.resolve(self._spec)
-        finally:
-            script.unload()
-
-        modules = {}
-        for module_id, m in data['modules'].items():
-            module = Module(m['name'], int(m['base'], 16), m['size'], m['path'])
-            modules[int(module_id)] = module
-
-        working_set = []
-        for target in data['targets']:
-            objc = target.get('objc')
-            if objc is not None:
-                method = objc['method']
-                of = ObjCMethod(method['type'], objc['className'], method['name'], int(target['address'], 16))
-                working_set.append(of)
-            else:
-                name = target['name']
-                absolute_address = int(target['address'], 16)
-                module_id = target.get('module')
-                if module_id is not None:
-                    module = modules[module_id]
-                    relative_address = absolute_address - module.base_address
-                    exported = not target.get('private', False)
-                    mf = ModuleFunction(module, name, relative_address, exported)
-                    if not self._is_blacklisted(mf):
-                        working_set.append(mf)
-                else:
-                    f = Function(name, absolute_address)
-                    working_set.append(f)
-        return working_set
-
-    def _is_blacklisted(self, module_function):
-        key = module_function.module.name + "!" + module_function.name
-        return key in TracerProfile._BLACKLIST
-
-    def _create_resolver_script(self):
-        return r"""
-rpc.exports = {
-    resolve: function (spec) {
-        var workingSet = spec.reduce(function (workingSet, item) {
-            var operation = item[0];
-            var scope = item[1];
-            var param = item[2];
-            switch (scope) {
-                case 'module':
-                    if (operation === 'include')
-                        workingSet = includeModule(param, workingSet);
-                    else if (operation === 'exclude')
-                        workingSet = excludeModule(param, workingSet);
-                    break;
-                case 'function':
-                    if (operation === 'include')
-                        workingSet = includeFunction(param, workingSet);
-                    else if (operation === 'exclude')
-                        workingSet = excludeFunction(param, workingSet);
-                    break;
-                case 'relative_function':
-                    if (operation === 'include')
-                        workingSet = includeRelativeFunction(param, workingSet);
-                    break;
-                case 'imports':
-                    if (operation === 'include')
-                        workingSet = includeImports(param, workingSet);
-                    break;
-                case 'objc_method':
-                    if (operation === 'include')
-                        workingSet = includeObjCMethod(param, workingSet);
-                    else if (operation === 'exclude')
-                        workingSet = excludeObjCMethod(param, workingSet);
-                    break;
-                case 'debug_symbol':
-                    if (operation === 'include')
-                        workingSet = includeDebugSymbol(param, workingSet);
-                    break;
-            }
-            return workingSet;
-        }, {});
-
-        var modules = {};
-        var targets = [];
-        for (var address in workingSet) {
-            if (workingSet.hasOwnProperty(address)) {
-                var target = workingSet[address];
-                var moduleId = target.module;
-                if (moduleId !== undefined && !modules.hasOwnProperty(moduleId)) {
-                    var m = allModules()[moduleId];
-                    delete m._cachedFunctionExports;
-                    modules[moduleId] = m;
-                }
-                targets.push(target);
-            }
-        }
-        return {
-            modules: modules,
-            targets: targets
-        };
-    }
-};
-
-function includeModule(pattern, workingSet) {
-    moduleResolver().enumerateMatches('exports:' + pattern + '!*').forEach(function (m) {
-        workingSet[m.address.toString()] = moduleExportFromMatch(m);
-    });
-    return workingSet;
-}
-
-function excludeModule(pattern, workingSet) {
-    moduleResolver().enumerateMatches('exports:' + pattern + '!*').forEach(function (m) {
-        delete workingSet[m.address.toString()];
-    });
-    return workingSet;
-}
-
-function includeFunction(pattern, workingSet) {
-    var parseResult = parseExportsFunctionPattern(pattern);
-    moduleResolver().enumerateMatches('exports:' + parseResult.module + '!' + parseResult.function).forEach(function (m) {
-        workingSet[m.address.toString()] = moduleExportFromMatch(m);
-    });
-    return workingSet;
-}
-
-function excludeFunction(pattern, workingSet) {
-    var parseResult = parseExportsFunctionPattern(pattern);
-    moduleResolver().enumerateMatches('exports:' + parseResult.module + '!' + parseResult.function).forEach(function (m) {
-        delete workingSet[m.address.toString()];
-    });
-    return workingSet;
-}
-
-function parseExportsFunctionPattern(pattern) {
-    var res = pattern.split('!');
-
-    var m, f;
-    if (res.length === 1) {
-        m = '*';
-        f = res[0];
-    } else {
-        m = (res[0] === '') ? '*' : res[0];
-        f = (res[1] === '') ? '*' : res[1];
-    }
-
-    return {
-        module: m,
-        function: f
-    };
-}
-
-function includeRelativeFunction(func, workingSet) {
-    var relativeToModule = func.module;
-    var modules = allModules();
-    for (var moduleIndex = 0; moduleIndex !== modules.length; moduleIndex++) {
-        var module = modules[moduleIndex];
-        if (module.path === relativeToModule || module.name === relativeToModule) {
-            var relativeAddress = ptr(func.offset);
-            var absoluteAddress = module.base.add(relativeAddress);
-            workingSet[absoluteAddress] = {
-                name: 'sub_' + relativeAddress.toString(16),
-                address: absoluteAddress,
-                module: moduleIndex,
-                private: true
-            };
-        }
-    }
-    return workingSet;
-}
-
-function includeImports(pattern, workingSet) {
-    var matches;
-    if (pattern === null) {
-        var mainModule = allModules()[0].path;
-        matches = moduleResolver().enumerateMatches('imports:' + mainModule + '!*');
-    } else {
-        matches = moduleResolver().enumerateMatches('imports:' + pattern + '!*');
-    }
-
-    matches.map(moduleExportFromMatch).forEach(function (e) {
-        workingSet[e.address.toString()] = e;
-    });
-
-    return workingSet;
-}
-
-function includeObjCMethod(pattern, workingSet) {
-    objcResolver().enumerateMatches(pattern).forEach(function (m) {
-        workingSet[m.address.toString()] = objcMethodFromMatch(m);
-    });
-    return workingSet;
-}
-
-function excludeObjCMethod(pattern, workingSet) {
-    objcResolver().enumerateMatches(pattern).forEach(function (m) {
-        delete workingSet[m.address.toString()];
-    });
-    return workingSet;
-}
-
-function includeDebugSymbol(pattern, workingSet) {
-    DebugSymbol.findFunctionsMatching(pattern).forEach(function (addr) {
-        workingSet[addr.toString()] = debugSymbolFromAddress(addr);
-    });
-    return workingSet;
-}
-
-var cachedModuleResolver = null;
-function moduleResolver() {
-    if (cachedModuleResolver === null)
-        cachedModuleResolver = new ApiResolver('module');
-    return cachedModuleResolver;
-}
-
-var cachedObjcResolver = null;
-function objcResolver() {
-    if (cachedObjcResolver === null) {
-        try {
-            cachedObjcResolver = new ApiResolver('objc');
-        } catch (e) {
-            throw new Error('Objective-C runtime is not available');
-        }
-    }
-    return cachedObjcResolver;
-}
-
-var cachedModules = null;
-function allModules() {
-    if (cachedModules === null) {
-        cachedModules = Process.enumerateModules();
-        cachedModules._idByPath = cachedModules.reduce(function (mappings, module, index) {
-            mappings[module.path] = index;
-            return mappings;
-        }, {});
-        cachedModules._idByName = cachedModules.reduce(function (mappings, module, index) {
-            mappings[module.name] = index;
-            return mappings;
-        }, {});
-    }
-    return cachedModules;
-}
-
-function moduleExportFromMatch(m) {
-    var encodedName = m.name;
-    var delimiterIndex = encodedName.indexOf('!');
-    var modulePath = encodedName.substring(0, delimiterIndex);
-    var functionName = encodedName.substring(delimiterIndex + 1);
-    return {
-        name: functionName,
-        address: m.address,
-        module: allModules()._idByPath[modulePath]
-    };
-}
-
-function objcMethodFromMatch(m) {
-    var encodedName = m.name;
-    var methodType = encodedName[0];
-    var delimiterIndex = encodedName.indexOf(' ', 3);
-    var className = encodedName.substring(2, delimiterIndex);
-    var methodName = encodedName.substring(delimiterIndex + 1, encodedName.length - 1);
-    return {
-        objc: {
-            className: className,
-            method: {
-                type: methodType,
-                name: methodName
-            }
-        },
-        address: m.address
-    };
-}
-
-function debugSymbolFromAddress(address) {
-    var symbol = DebugSymbol.fromAddress(address);
-    return {
-        name: symbol.name,
-        address: symbol.address,
-        module: allModules()._idByName[symbol.moduleName]
-    };
-}
-"""
+        self.spec = spec
 
 
 class Tracer(object):
@@ -546,6 +259,7 @@ class Tracer(object):
         self._repository = repository
         self._profile = profile
         self._script = None
+        self._agent = None
         self._init_scripts = init_scripts
         self._log_handler = log_handler
 
@@ -558,45 +272,36 @@ class Tracer(object):
             ui.on_trace_handler_load(*args)
         self._repository.on_load(on_load)
 
-        def on_update(function, handler, source):
-            self._script.exports.update([{
-                'name': function.name,
-                'absolute_address': hex(function.absolute_address),
-                'handler': handler
-            }])
+        def on_update(target, handler, source):
+            self._agent.update(target.identifier, target.display_name, handler)
         self._repository.on_update(on_update)
 
         def on_message(message, data):
-            self._reactor.schedule(lambda: self._process_message(message, data, ui))
+            self._reactor.schedule(lambda: self._on_message(message, data, ui))
 
-        ui.on_trace_progress('resolve')
-        working_set = self._profile.resolve(session, runtime, log_handler=self._log_handler)
-        ui.on_trace_progress('instrument')
-        self._script = session.create_script(name="tracer",
-                                             source=self._create_trace_script(),
-                                             runtime=runtime)
-        self._script.set_log_handler(self._log_handler)
-        self._script.on('message', on_message)
-        self._script.load()
+        ui.on_trace_progress('initializing')
+        data_dir = os.path.dirname(__file__)
+        if runtime == 'duk':
+            with open(os.path.join(data_dir, "tracer_agent.duk"), 'rb') as f:
+                bytecode = f.read()
+            script = session.create_script_from_bytes(name="tracer",
+                                                      data=bytecode,
+                                                      runtime='duk')
+        else:
+            with codecs.open(os.path.join(data_dir, "tracer_agent.js"), 'r', 'utf-8') as f:
+                source = f.read()
+            script = session.create_script(name="tracer",
+                                           source=source,
+                                           runtime='v8')
+        self._script = script
+        script.set_log_handler(self._log_handler)
+        script.on('message', on_message)
+        script.load()
 
-        agent = self._script.exports
+        self._agent = script.exports
 
-        init_scripts = [{ 'filename': script.filename, 'source': script.source } for script in self._init_scripts]
-        agent.init(stage, parameters, init_scripts)
-
-        for chunk in [working_set[i:i+1000] for i in range(0, len(working_set), 1000)]:
-            targets = [{
-                    'name': function.name,
-                    'absolute_address': hex(function.absolute_address),
-                    'handler': self._repository.ensure_handler(function)
-                } for function in chunk]
-            agent.add(targets)
-
-        self._repository.commit_handlers()
-
-        self._reactor.schedule(lambda: ui.on_trace_progress('ready'))
-
-        return working_set
+        raw_init_scripts = [{ 'filename': script.filename, 'source': script.source } for script in self._init_scripts]
+        self._agent.init(stage, parameters, raw_init_scripts, self._profile.spec)
 
     def stop(self):
         if self._script is not None:
@@ -606,147 +311,87 @@ class Tracer(object):
                 pass
             self._script = None
 
-    def _create_trace_script(self):
-        return """\
-var started = Date.now();
-var stage;
-var parameters;
-var state = {};
-
-(function () {
-
-var handlers = {};
-var pending = [];
-var timer = null;
-
-rpc.exports = {
-    init: function (s, p, initScripts) {
-        stage = s;
-        parameters = p;
-
-        initScripts.forEach(function (script) {
-            try {
-                (1, eval)(script.source);
-            } catch (e) {
-                throw new Error('Unable to load ' + script.filename + ': ' + e.stack);
-            }
-        });
-    },
-    dispose: function () {
-        flush();
-    },
-    add: function (targets) {
-        targets.forEach(function (target) {
-            var h = [parseHandler(target)];
-            var name = target.name;
-            var targetAddress = target.absolute_address;
-            target = null;
-
-            handlers[targetAddress] = h;
-
-            function invokeCallback(callback, context, param) {
-                if (callback === undefined)
-                    return;
-
-                var timestamp = Date.now() - started;
-                var threadId = context.threadId;
-                var depth = context.depth;
-
-                function log(message) {
-                    emit([timestamp, threadId, depth, targetAddress, message]);
-                }
-
-                callback.call(context, log, param, state);
-            }
-
-            try {
-                Interceptor.attach(ptr(targetAddress), {
-                    onEnter: function (args) {
-                        invokeCallback(h[0].onEnter, this, args);
-                    },
-                    onLeave: function (retval) {
-                        invokeCallback(h[0].onLeave, this, retval);
-                    }
-                });
-            } catch (e) {
-                send({
-                    from: '/targets',
-                    name: '+error',
-                    payload: {
-                        message: 'Skipping "' + name + '": ' + e.message
-                    }
-                });
-            }
-        });
-    },
-    update: function (targets) {
-        targets.forEach(function (target) {
-            handlers[target.absolute_address][0] = parseHandler(target);
-        });
-    }
-};
-
-function emit(event) {
-    pending.push(event);
-
-    if (timer === null)
-        timer = setTimeout(flush, 50);
-}
-
-function flush() {
-    if (timer !== null) {
-        clearTimeout(timer);
-        timer = null;
-    }
-
-    if (pending.length === 0)
-        return;
-
-    var items = pending;
-    pending = [];
-
-    send({
-        from: '/events',
-        name: '+add',
-        payload: {
-            items: items
-        }
-    });
-}
-
-function parseHandler(target) {
-    try {
-        return (1, eval)('(' + target.handler + ')');
-    } catch (e) {
-        send({
-            from: '/targets',
-            name: '+error',
-            payload: {
-                message: 'Invalid handler for "' + target.name + '": ' + e.message
-            }
-        });
-        return {};
-    }
-}
-
-})();
-"""
-
-    def _process_message(self, message, data, ui):
+    def _on_message(self, message, data, ui):
         handled = False
+
         if message['type'] == 'send':
-            stanza = message['payload']
-            if isinstance(stanza, dict):
-                if stanza['from'] == "/events":
-                    if stanza['name'] == '+add':
-                        events = [(timestamp, thread_id, depth, int(target_address.rstrip("L"), 16), message) for timestamp, thread_id, depth, target_address, message in stanza['payload']['items']]
-                        ui.on_trace_events(events)
-                        handled = True
-                elif stanza['from'] == "/targets" and stanza['name'] == '+error':
-                    ui.on_trace_error(stanza['payload'])
-                    handled = True
+            try:
+                payload = message['payload']
+                mtype = payload['type']
+                params = (mtype, payload, data, ui)
+            except:
+                # As user scripts may use send() we need to be prepared for this.
+                params = None
+            if params is not None:
+                handled = self._try_handle_message(*params)
+
         if not handled:
             print(message)
+
+    def _try_handle_message(self, mtype, params, data, ui):
+        if mtype == "events:add":
+            events = [(timestamp, thread_id, depth, message) for target_id, timestamp, thread_id, depth, message in params['events']]
+            ui.on_trace_events(events)
+            return True
+
+        if mtype == "handlers:get":
+            flavor = params['flavor']
+            base_id = params['baseId']
+
+            scripts = []
+            response = {
+                'type': "reply:{}".format(base_id),
+                'scripts': scripts
+            }
+
+            repo = self._repository
+            next_id = base_id
+            for scope in params['scopes']:
+                scope_name = scope['name']
+                for member_name in scope['members']:
+                    target = TraceTarget(next_id, flavor, scope_name, member_name)
+                    next_id += 1
+                    handler = repo.ensure_handler(target)
+                    scripts.append(handler)
+
+            self._script.post(response)
+
+            return True
+
+        if mtype == "agent:initialized":
+            ui.on_trace_progress('initialized')
+            return True
+
+        if mtype == "agent:started":
+            self._repository.commit_handlers()
+            ui.on_trace_progress('started', params['count'])
+            return True
+
+        if mtype == "agent:warning":
+            ui.on_trace_warning(params['message'])
+            return True
+
+        if mtype == "agent:error":
+            ui.on_trace_error(params['message'])
+            return True
+
+        return False
+
+
+class TraceTarget(object):
+    def __init__(self, identifier, flavor, scope, name):
+        self.identifier = identifier
+        self.flavor = flavor
+        self.scope = scope
+        if isinstance(name, str):
+            self.name = name
+            self.display_name = name
+        else:
+            self.name = name[0]
+            self.display_name = name[1]
+
+    def __str__(self):
+        return self.display_name
 
 
 class Repository(object):
@@ -756,7 +401,7 @@ class Repository(object):
         self._on_update_callback = None
         self._decorate = False
 
-    def ensure_handler(self, function):
+    def ensure_handler(self, target):
         raise NotImplementedError("not implemented")
 
     def commit_handlers(self):
@@ -771,21 +416,26 @@ class Repository(object):
     def on_update(self, callback):
         self._on_update_callback = callback
 
-    def _notify_create(self, function, handler, source):
+    def _notify_create(self, target, handler, source):
         if self._on_create_callback is not None:
-            self._on_create_callback(function, handler, source)
+            self._on_create_callback(target, handler, source)
 
-    def _notify_load(self, function, handler, source):
+    def _notify_load(self, target, handler, source):
         if self._on_load_callback is not None:
-            self._on_load_callback(function, handler, source)
+            self._on_load_callback(target, handler, source)
 
-    def _notify_update(self, function, handler, source):
+    def _notify_update(self, target, handler, source):
         if self._on_update_callback is not None:
-            self._on_update_callback(function, handler, source)
+            self._on_update_callback(target, handler, source)
 
-    def _create_stub_handler(self, function, decorate):
-        if isinstance(function, ObjCMethod):
-            display_name = function.display_name()
+    def _create_stub_handler(self, target, decorate):
+        if target.flavor == 'java':
+            return self._create_stub_java_handler(target, decorate)
+        else:
+            return self._create_stub_native_handler(target, decorate)
+
+    def _create_stub_native_handler(self, target, decorate):
+        if target.flavor == 'objc':
             state = {"index": 2}
             def objc_arg(m):
                 index = state["index"]
@@ -793,12 +443,10 @@ class Repository(object):
                 state["index"] = index + 1
                 return r
 
-            log_str = "'" + re.sub(r':', objc_arg, display_name) + "'"
+            log_str = "'" + re.sub(r':', objc_arg, target.display_name) + "'"
             if log_str.endswith("' ]'"):
                 log_str = log_str[:-3] + "]'"
         else:
-            display_name = function.name
-
             for man_section in (2, 3):
                 args = []
                 try:
@@ -806,9 +454,9 @@ class Repository(object):
                         man_argv = ["man"]
                         if platform.system() != "Darwin":
                             man_argv.extend(["-E", "UTF-8"])
-                        man_argv.extend(["-P", "col -b", str(man_section), function.name])
+                        man_argv.extend(["-P", "col -b", str(man_section), target.name])
                         output = subprocess.check_output(man_argv, stderr=devnull)
-                    match = re.search(r"^SYNOPSIS(?:.|\n)*?((?:^.+$\n)* {5}\w+[ \*\n]*" + function.name + r"\((?:.+\,\s*?$\n)*?(?:.+\;$\n))(?:.|\n)*^DESCRIPTION", output.decode('UTF-8', errors='replace'), re.MULTILINE)
+                    match = re.search(r"^SYNOPSIS(?:.|\n)*?((?:^.+$\n)* {5}\w+[ \*\n]*" + target.name + r"\((?:.+\,\s*?$\n)*?(?:.+\;$\n))(?:.|\n)*^DESCRIPTION", output.decode('UTF-8', errors='replace'), re.MULTILINE)
                     if match:
                         decl = match.group(1)
 
@@ -848,17 +496,17 @@ class Repository(object):
                     pass
 
             if decorate:
-                module_string = " [%s]" %  function.module.name
+                module_string = " [%s]" % os.path.basename(target.scope)
             else:
                 module_string = ""
 
             if len(args) == 0:
-                log_str = "'%(name)s()%(module_string)s'" % { "name": function.name, "module_string" : module_string }
+                log_str = "'%(name)s()%(module_string)s'" % { "name": target.name, "module_string" : module_string }
             else:
                 indent_outer = "    "
                 indent_inner = "      "
                 log_str = "'%(name)s(' +\n%(indent_inner)s%(args)s\n%(indent_outer)s')%(module_string)s'" % {
-                    "name": function.name,
+                    "name": target.name,
                     "args": ("\n" + indent_inner).join(args),
                     "indent_outer": indent_outer,
                     "indent_inner": indent_inner,
@@ -870,7 +518,7 @@ class Repository(object):
  * Auto-generated by Frida. Please modify to match the signature of %(display_name)s.
  * This stub is currently auto-generated from manpages when available.
  *
- * For full API reference, see: http://www.frida.re/docs/javascript-api/
+ * For full API reference, see: https://frida.re/docs/javascript-api/
  */
 
 {
@@ -904,7 +552,43 @@ class Repository(object):
   onLeave: function (log, retval, state) {
   }
 }
-""" % {"display_name": display_name, "log_str": log_str}
+""" % {"display_name": target.display_name, "log_str": log_str}
+
+    def _create_stub_java_handler(self, target, decorate):
+        return """\
+/*
+ * Auto-generated by Frida. Please modify to match the signature of %(display_name)s.
+ *
+ * For full API reference, see: https://frida.re/docs/javascript-api/
+ */
+
+{
+  /**
+   * Called synchronously when about to call %(display_name)s.
+   *
+   * @this {object} - The Java class or instance.
+   * @param {function} log - Call this function with a string to be presented to the user.
+   * @param {array} args - Java method arguments.
+   * @param {object} state - Object allowing you to keep state across function calls.
+   */
+  onEnter: function (log, args, state) {
+    log('%(display_name)s(' + args.map(JSON.stringify).join(', ') + ')');
+  },
+
+  /**
+   * Called synchronously when about to return from %(display_name)s.
+   *
+   * See onEnter for details.
+   *
+   * @this {object} - The Java class or instance.
+   * @param {function} log - Call this function with a string to be presented to the user.
+   * @param {NativePointer} retval - Return value.
+   * @param {object} state - Object allowing you to keep state across function calls.
+   */
+  onLeave: function (log, retval, state) {
+  }
+}
+""" % {"display_name": target.display_name}
 
 
 class MemoryRepository(Repository):
@@ -912,14 +596,14 @@ class MemoryRepository(Repository):
         super(MemoryRepository, self).__init__()
         self._handlers = {}
 
-    def ensure_handler(self, function):
-        handler = self._handlers.get(function)
+    def ensure_handler(self, target):
+        handler = self._handlers.get(target)
         if handler is None:
-            handler = self._create_stub_handler(function, False)
-            self._handlers[function] = handler
-            self._notify_create(function, handler, "memory")
+            handler = self._create_stub_handler(target, False)
+            self._handlers[target] = handler
+            self._notify_create(target, handler, "memory")
         else:
-            self._notify_load(function, handler, "memory")
+            self._notify_load(target, handler, "memory")
         return handler
 
 
@@ -927,7 +611,7 @@ class FileRepository(Repository):
     def __init__(self, reactor, decorate):
         super(FileRepository, self).__init__()
         self._reactor = reactor
-        self._handler_by_address = {}
+        self._handler_by_id = {}
         self._handler_by_file = {}
         self._changed_files = set()
         self._last_change_id = 0
@@ -935,42 +619,36 @@ class FileRepository(Repository):
         self._repo_monitors = {}
         self._decorate = decorate
 
-    def ensure_handler(self, function):
-        entry = self._handler_by_address.get(function.absolute_address)
+    def ensure_handler(self, target):
+        entry = self._handler_by_id.get(target.identifier)
         if entry is not None:
-            (function, handler, handler_file) = entry
+            (target, handler, handler_file) = entry
             return handler
 
         handler = None
-        handler_files_to_try = []
 
-        if isinstance(function, ModuleFunction):
-            module_dir = os.path.join(self._repo_dir, to_filename(function.module.name))
-            module_handler_file = os.path.join(module_dir, to_handler_filename(function.name))
-            handler_files_to_try.append(module_handler_file)
+        scope = target.scope
+        if len(scope) > 0:
+            handler_file = os.path.join(self._repo_dir, to_filename(os.path.basename(scope)), to_handler_filename(target.name))
+        else:
+            handler_file = os.path.join(self._repo_dir, to_handler_filename(target.name))
 
-        any_module_handler_file = os.path.join(self._repo_dir, to_handler_filename(function.name))
-        handler_files_to_try.append(any_module_handler_file)
-
-        for handler_file in handler_files_to_try:
-            if os.path.isfile(handler_file):
-                with codecs.open(handler_file, 'r', 'utf-8') as f:
-                    handler = f.read()
-                self._notify_load(function, handler, handler_file)
-                break
+        if os.path.isfile(handler_file):
+            with codecs.open(handler_file, 'r', 'utf-8') as f:
+                handler = f.read()
+            self._notify_load(target, handler, handler_file)
 
         if handler is None:
-            handler = self._create_stub_handler(function, self._decorate)
-            handler_file = handler_files_to_try[0]
+            handler = self._create_stub_handler(target, self._decorate)
             handler_dir = os.path.dirname(handler_file)
             if not os.path.isdir(handler_dir):
                 os.makedirs(handler_dir)
             with open(handler_file, 'w') as f:
                 f.write(handler)
-            self._notify_create(function, handler, handler_file)
+            self._notify_create(target, handler, handler_file)
 
-        entry = (function, handler, handler_file)
-        self._handler_by_address[function.absolute_address] = entry
+        entry = (target, handler, handler_file)
+        self._handler_by_id[target.identifier] = entry
         self._handler_by_file[handler_file] = entry
 
         self._ensure_monitor(handler_file)
@@ -1003,15 +681,15 @@ class FileRepository(Repository):
         changes = self._changed_files.copy()
         self._changed_files.clear()
         for changed_handler_file in changes:
-            (function, old_handler, handler_file) = self._handler_by_file[changed_handler_file]
+            (target, old_handler, handler_file) = self._handler_by_file[changed_handler_file]
             with codecs.open(handler_file, 'r', 'utf-8') as f:
                 new_handler = f.read()
             changed = new_handler != old_handler
             if changed:
-                entry = (function, new_handler, handler_file)
-                self._handler_by_address[function.absolute_address] = entry
+                entry = (target, new_handler, handler_file)
+                self._handler_by_id[target.identifier] = entry
                 self._handler_by_file[handler_file] = entry
-                self._notify_update(function, new_handler, handler_file)
+                self._notify_update(target, new_handler, handler_file)
 
 
 class InitScript(object):
@@ -1033,19 +711,22 @@ class OutputFile(object):
 
 
 class UI(object):
-    def on_trace_progress(self, operation):
+    def on_trace_progress(self, status):
         pass
 
-    def on_trace_error(self, error):
+    def on_trace_warning(self, message):
+        pass
+
+    def on_trace_error(self, message):
         pass
 
     def on_trace_events(self, events):
         pass
 
-    def on_trace_handler_create(self, function, handler, source):
+    def on_trace_handler_create(self, target, handler, source):
         pass
 
-    def on_trace_handler_load(self, function, handler, source):
+    def on_trace_handler_load(self, target, handler, source):
         pass
 
 
