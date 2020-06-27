@@ -336,8 +336,9 @@ class Agent {
         if (cutPoint === ">") {
             depthEntries.set(threadId, depth + 1);
         } else {
+            depth--;
             if (depth !== 0) {
-                depthEntries.set(threadId, depth - 1);
+                depthEntries.set(threadId, depth);
             } else {
                 depthEntries.delete(threadId);
             }
