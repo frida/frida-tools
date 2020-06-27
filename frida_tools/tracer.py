@@ -586,6 +586,9 @@ class Repository(object):
    * @param {object} state - Object allowing you to keep state across function calls.
    */
   onLeave: function (log, retval, state) {
+    if (retval !== undefined) {
+      log('<=', JSON.stringify(retval));
+    }
   }
 }
 """ % {"display_name": target.display_name}
