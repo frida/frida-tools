@@ -8,6 +8,7 @@ import numbers
 from optparse import OptionParser
 import os
 import platform
+import re
 import select
 import shlex
 import signal
@@ -20,6 +21,9 @@ if platform.system() == 'Windows':
 import colorama
 from colorama import Cursor, Fore, Style
 import frida
+
+
+AUX_OPTION_PATTERN = re.compile(r"(.+)=\((string|bool|int)\)(.+)")
 
 
 def input_with_cancellable(cancellable):
@@ -105,6 +109,8 @@ class ConsoleApplication(object):
                 type='int', action='callback', callback=store_target, callback_args=('pid',))
             parser.add_option("--stdio", help="stdio behavior when spawning (defaults to “inherit”)", metavar="inherit|pipe",
                 type='choice', choices=['inherit', 'pipe'], default='inherit')
+            parser.add_option("--aux", help="set aux option when spawning, such as “uid=(int)42” (supported types are: string, bool, int)", metavar="option",
+                type='string', action='append', dest="aux", default=[])
             parser.add_option("--runtime", help="script runtime to use", metavar="duk|v8",
                 type='choice', choices=['duk', 'v8'], default=None)
             parser.add_option("--debug", help="enable the Node.js compatible script debugger",
@@ -141,11 +147,13 @@ class ConsoleApplication(object):
         self._session = None
         if self._needs_target():
             self._stdio = options.stdio
+            self._aux = options.aux
             self._runtime = options.runtime
             self._enable_debugger = options.enable_debugger
             self._squelch_crash = options.squelch_crash
         else:
             self._stdio = 'inherit'
+            self._aux = []
             self._runtime = 'duk'
             self._enable_debugger = False
             self._squelch_crash = False
@@ -288,7 +296,12 @@ class ConsoleApplication(object):
                     argv = target_value
                     if not self._quiet:
                         self._update_status("Spawning `%s`..." % " ".join(argv))
-                    self._spawned_pid = self._device.spawn(argv, stdio=self._stdio)
+
+                    aux_kwargs = {}
+                    if self._aux is not None:
+                        aux_kwargs = dict([parse_aux_option(o) for o in self._aux])
+
+                    self._spawned_pid = self._device.spawn(argv, stdio=self._stdio, **aux_kwargs)
                     self._spawned_argv = argv
                     attach_target = self._spawned_pid
                 else:
@@ -545,6 +558,24 @@ def expand_target(target):
     if target_type == 'file':
         target_value = [target_value[0]]
     return (target_type, target_value)
+
+
+def parse_aux_option(option):
+    m = AUX_OPTION_PATTERN.match(option)
+    if m is None:
+        raise ValueError("expected name=(type)value, e.g. “uid=(int)42”; supported types are: string, bool, int")
+
+    name = m.group(1)
+    type_decl = m.group(2)
+    raw_value = m.group(3)
+    if type_decl == 'string':
+        value = raw_value
+    elif type_decl == 'bool':
+        value = bool(raw_value)
+    else:
+        value = int(raw_value)
+
+    return (name, value)
 
 
 class Reactor(object):
