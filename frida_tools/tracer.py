@@ -384,12 +384,12 @@ class TraceTarget(object):
         self.identifier = identifier
         self.flavor = flavor
         self.scope = scope
-        if isinstance(name, str):
-            self.name = name
-            self.display_name = name
-        else:
+        if isinstance(name, list):
             self.name = name[0]
             self.display_name = name[1]
+        else:
+            self.name = name
+            self.display_name = name
 
     def __str__(self):
         return self.display_name
