@@ -10,9 +10,9 @@
     "watch": "frida-compile agent.ts -xXw -o ../../frida_tools/tracer_agent.js"
   },
   "devDependencies": {
-    "@types/frida-gum": "^15.3.0",
-    "@types/node": "^14.0.13",
-    "frida": "^12.10.4",
+    "@types/frida-gum": "^16.1.0",
+    "@types/node": "^14.0.27",
+    "frida": "^12.11.6",
     "frida-compile": "^9.3.0"
   }
 }

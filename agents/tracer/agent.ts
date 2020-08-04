@@ -428,7 +428,7 @@ class Agent {
     private includeJavaMethod(pattern: string, plan: TracePlan) {
         const existingGroups = plan.java;
 
-        const groups: JavaMatchGroup[] = (Java as any).enumerateMethods(pattern);
+        const groups = Java.enumerateMethods(pattern);
         for (const group of groups) {
             const { loader } = group;
 
@@ -472,7 +472,7 @@ class Agent {
     private excludeJavaMethod(pattern: string, plan: TracePlan) {
         const existingGroups = plan.java;
 
-        const groups: JavaMatchGroup[] = (Java as any).enumerateMethods(pattern);
+        const groups = Java.enumerateMethods(pattern);
         for (const group of groups) {
             const { loader } = group;
 
@@ -678,7 +678,7 @@ function parseRelativeFunctionPattern(pattern: string) {
     };
 }
 
-function javaTargetGroupFromMatchGroup(group: JavaMatchGroup): JavaTargetGroup {
+function javaTargetGroupFromMatchGroup(group: Java.EnumerateMethodsMatchGroup): JavaTargetGroup {
     return {
         loader: group.loader,
         classes: new Map<JavaClassName, JavaTargetClass>(
@@ -686,7 +686,7 @@ function javaTargetGroupFromMatchGroup(group: JavaMatchGroup): JavaTargetGroup {
     };
 }
 
-function javaTargetClassFromMatchClass(klass: JavaMatchClass): JavaTargetClass {
+function javaTargetClassFromMatchClass(klass: Java.EnumerateMethodsMatchClass): JavaTargetClass {
     return {
         methods: new Map<JavaMethodName, JavaMethodNameOrSignature>(
             klass.methods.map(fullName => [javaBareMethodNameFromMethodName(fullName), fullName]))
@@ -799,23 +799,6 @@ type TraceLeaveHandler = (log: LogHandler, retval: any, state: TraceState) => an
 type CutPoint = ">" | "<";
 
 type LogHandler = (...message: string[]) => void;
-
-/*
- * Remove once TypeScript bindings have been updated.
- *  |
- *  v
- */
-interface JavaMatchGroup {
-    loader: Java.Wrapper | null;
-    classes: [JavaMatchClass, ...JavaMatchClass[]];
-}
-interface JavaMatchClass {
-    name: string;
-    methods: [string, ...string[]];
-}
-/*
- * ^^^
- */
 
 const agent = new Agent();
 
