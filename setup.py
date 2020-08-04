@@ -13,7 +13,7 @@ print(agents)
 
 setup(
     name="frida-tools",
-    version="8.1.1",
+    version="8.1.2",
     description="Frida CLI tools",
     long_description="CLI tools for [Frida](https://frida.re).",
     long_description_content_type="text/markdown",
