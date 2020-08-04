@@ -15,11 +15,11 @@ setup(
     name="frida-tools",
     version="8.1.1",
     description="Frida CLI tools",
-    long_description="CLI tools for [Frida](https://www.frida.re).",
+    long_description="CLI tools for [Frida](https://frida.re).",
     long_description_content_type="text/markdown",
     author="Frida Developers",
     author_email="oleavr@frida.re",
-    url="https://www.frida.re",
+    url="https://frida.re",
     install_requires=[
         "colorama >= 0.2.7, < 1.0.0",
         "frida >= 12.10.4, < 13.0.0",
