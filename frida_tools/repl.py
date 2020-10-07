@@ -229,8 +229,11 @@ def main():
             if self._script is None:
                 return
 
-            if self._eternalize:
+            try:
                 self._script.eternalize()
+            except:
+                pass
+            self._script = None
 
         def _unload_script(self):
             if self._script is None:
