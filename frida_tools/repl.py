@@ -81,6 +81,8 @@ def main():
             parser.add_option("--no-pause", help="automatically start main thread after startup",
                               action='store_true', dest="no_pause", default=False)
             parser.add_option("-o", "--output", help="output to log file", dest="logfile", default=None)
+            parser.add_option("--eternalize", help="eternalize the script before exit",
+                              action='store_true', dest="eternalize", default=False)
             parser.add_option("--exit-on-error", help="exit with code 1 after encountering any exception in the SCRIPT",
                               action='store_true', dest="exit_on_error", default=False)
 
@@ -117,6 +119,7 @@ def main():
 
             self._quiet = options.quiet
             self._no_pause = options.no_pause
+            self._eternalize = options.eternalize
             self._exit_on_error = options.exit_on_error
 
             if options.logfile is not None:
@@ -175,7 +178,10 @@ def main():
                     pass
 
         def _stop(self):
-            self._unload_script()
+            if self._eternalize:
+                self._eternalize_script()
+            else:
+                self._unload_script()
 
             with frida.Cancellable() as c:
                 self._demonitor_all()
@@ -218,6 +224,16 @@ def main():
                 script.exports.init(stage, self._user_parameters)
             except:
                 pass
+
+        def _eternalize_script(self):
+            if self._script is None:
+                return
+
+            try:
+                self._script.eternalize()
+            except:
+                pass
+            self._script = None
 
         def _unload_script(self):
             if self._script is None:
