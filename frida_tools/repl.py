@@ -179,7 +179,6 @@ def main():
 
         def _stop(self):
             if self._eternalize:
-                print("ETERNALIZING!!!!")
                 self._eternalize_script()
             else:
                 self._unload_script()
