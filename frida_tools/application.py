@@ -111,8 +111,8 @@ class ConsoleApplication(object):
                 type='choice', choices=['inherit', 'pipe'], default='inherit')
             parser.add_option("--aux", help="set aux option when spawning, such as “uid=(int)42” (supported types are: string, bool, int)", metavar="option",
                 type='string', action='append', dest="aux", default=[])
-            parser.add_option("--runtime", help="script runtime to use", metavar="duk|v8",
-                type='choice', choices=['duk', 'v8'], default=None)
+            parser.add_option("--runtime", help="script runtime to use", metavar="qjs|v8",
+                type='choice', choices=['qjs', 'v8'], default=None)
             parser.add_option("--debug", help="enable the Node.js compatible script debugger",
                 action='store_true', dest="enable_debugger", default=False)
             parser.add_option("--squelch-crash", help="if enabled, will not dump crash report to console",
@@ -154,7 +154,7 @@ class ConsoleApplication(object):
         else:
             self._stdio = 'inherit'
             self._aux = []
-            self._runtime = 'duk'
+            self._runtime = 'qjs'
             self._enable_debugger = False
             self._squelch_crash = False
         self._schedule_on_session_detached = lambda reason, crash: self._reactor.schedule(lambda: self._on_session_detached(reason, crash))

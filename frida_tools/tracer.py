@@ -288,11 +288,11 @@ class Tracer(object):
                                            source=source,
                                            runtime='v8')
         else:
-            with open(os.path.join(data_dir, "tracer_agent.duk"), 'rb') as f:
+            with open(os.path.join(data_dir, "tracer_agent.qjs"), 'rb') as f:
                 bytecode = f.read()
             script = session.create_script_from_bytes(name="tracer",
                                                       data=bytecode,
-                                                      runtime='duk')
+                                                      runtime='qjs')
 
         self._script = script
         script.set_log_handler(self._log_handler)
@@ -440,13 +440,13 @@ class Repository(object):
             state = {"index": 2}
             def objc_arg(m):
                 index = state["index"]
-                r = ":' + args[%d] + ' " % index
+                r = ":${args[%d]} " % index
                 state["index"] = index + 1
                 return r
 
-            log_str = "'" + re.sub(r':', objc_arg, target.display_name) + "'"
-            if log_str.endswith("' ]'"):
-                log_str = log_str[:-3] + "]'"
+            log_str = "`" + re.sub(r':', objc_arg, target.display_name) + "`"
+            if log_str.endswith("} ]`"):
+                log_str = log_str[:-3] + "]`"
         else:
             for man_section in (2, 3):
                 args = []
@@ -480,14 +480,13 @@ class Repository(object):
                             if normalized_type in ("char*", "constchar*"):
                                 read_ops = ".readUtf8String()"
                                 annotate_pre = "\""
-                                annotate_post = " + '\"'"
+                                annotate_post = "\""
 
                             arg_index = len(args)
 
-                            args.append("'%(arg_delimiter)s%(arg_name)s=%(annotate_pre)s' + args[%(arg_index)s]%(read_ops)s%(annotate_post)s +" % {
+                            args.append("%(arg_name)s=%(annotate_pre)s${args[%(arg_index)s]%(read_ops)s}%(annotate_post)s" % {
                                 "arg_name": arg,
                                 "arg_index": arg_index,
-                                "arg_delimiter": ", " if arg_index > 0 else "",
                                 "read_ops": read_ops,
                                 "annotate_pre": annotate_pre,
                                 "annotate_post": annotate_post
@@ -504,13 +503,9 @@ class Repository(object):
             if len(args) == 0:
                 log_str = "'%(name)s()%(module_string)s'" % { "name": target.name, "module_string" : module_string }
             else:
-                indent_outer = "    "
-                indent_inner = "      "
-                log_str = "'%(name)s(' +\n%(indent_inner)s%(args)s\n%(indent_outer)s')%(module_string)s'" % {
+                log_str = "`%(name)s(%(args)s)%(module_string)s`" % {
                     "name": target.name,
-                    "args": ("\n" + indent_inner).join(args),
-                    "indent_outer": indent_outer,
-                    "indent_inner": indent_inner,
+                    "args": ", ".join(args),
                     "module_string": module_string
                 }
 
@@ -536,7 +531,7 @@ class Repository(object):
    * However, do not use this to store function arguments across onEnter/onLeave, but instead
    * use "this" which is an object for keeping state local to an invocation.
    */
-  onEnter: function (log, args, state) {
+  onEnter(log, args, state) {
     log(%(log_str)s);
   },
 
@@ -550,7 +545,7 @@ class Repository(object):
    * @param {NativePointer} retval - Return value represented as a NativePointer object.
    * @param {object} state - Object allowing you to keep state across function calls.
    */
-  onLeave: function (log, retval, state) {
+  onLeave(log, retval, state) {
   }
 }
 """ % {"display_name": target.display_name, "log_str": log_str}
@@ -572,8 +567,8 @@ class Repository(object):
    * @param {array} args - Java method arguments.
    * @param {object} state - Object allowing you to keep state across function calls.
    */
-  onEnter: function (log, args, state) {
-    log('%(display_name)s(' + args.map(JSON.stringify).join(', ') + ')');
+  onEnter(log, args, state) {
+    log(`%(display_name)s(${args.map(JSON.stringify).join(', ')})`);
   },
 
   /**
@@ -586,9 +581,9 @@ class Repository(object):
    * @param {NativePointer} retval - Return value.
    * @param {object} state - Object allowing you to keep state across function calls.
    */
-  onLeave: function (log, retval, state) {
+  onLeave(log, retval, state) {
     if (retval !== undefined) {
-      log('<=', JSON.stringify(retval));
+      log(`<= ${JSON.stringify(retval)}`);
     }
   }
 }

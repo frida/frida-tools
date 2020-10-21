@@ -3,5 +3,5 @@
 /agents/tracer/node_modules/
 /build/
 /dist/
-/frida_tools/*_agent.duk
 /frida_tools/*_agent.js
+/frida_tools/*_agent.qjs

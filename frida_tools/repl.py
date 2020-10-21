@@ -360,13 +360,8 @@ def main():
 
                 stack = error.get('stack', None)
                 if stack is not None:
-                    trimmed_stack = stack.split("\n")[1:-5]
-
-                    if len(trimmed_stack) > 0:
-                        first = trimmed_stack[0]
-                        if first.rfind("duktape.c:") == len(first) - 16:
-                            trimmed_stack = trimmed_stack[1:]
-
+                    trim_amount = 5 if self._runtime == 'v8' else 6
+                    trimmed_stack = stack.split("\n")[1:-trim_amount]
                     if len(trimmed_stack) > 0:
                         output += "\n" + "\n".join(trimmed_stack)
             except frida.InvalidOperationError:
@@ -462,10 +457,10 @@ def main():
                 self._reload()
             elif command == 'time':
                 self._eval_and_print('''
-                    (function () {{
-                        var _startTime = Date.now();
-                        var _result = eval({expression});
-                        var _endTime = Date.now();
+                    (() => {{
+                        const _startTime = Date.now();
+                        const _result = eval({expression});
+                        const _endTime = Date.now();
                         console.log('Time: ' + (_endTime - _startTime) + ' ms.');
                         return _result;
                     }})();'''.format(expression=json.dumps(" ".join(args))))
@@ -551,14 +546,14 @@ function _init() {
     global.cm = null;
     global.cs = {};
 
-    var rpcExports = {
-        fridaReplEvaluate: function (expression) {
+    const rpcExports = {
+        fridaReplEvaluate(expression) {
             try {
-                var result = (1, eval)(expression);
+                const result = (1, eval)(expression);
                 if (result instanceof ArrayBuffer) {
                     return result;
                 } else {
-                    var type = (result === null) ? 'null' : typeof result;
+                    const type = (result === null) ? 'null' : typeof result;
                     return [type, result];
                 }
             } catch (e) {
@@ -569,8 +564,8 @@ function _init() {
                 }];
             }
         },
-        fridaReplLoadCmodule: function (source) {
-            var cs = global.cs;
+        fridaReplLoadCmodule(source) {
+            const cs = global.cs;
 
             if (cs._frida_log === undefined)
                 cs._frida_log = new NativeCallback(onLog, 'void', ['pointer']);
@@ -580,18 +575,18 @@ function _init() {
     };
 
     Object.defineProperty(rpc, 'exports', {
-        get: function () {
+        get() {
             return rpcExports;
         },
-        set: function (value) {
-            Object.keys(value).forEach(function (name) {
-                rpcExports[name] = value[name];
-            });
+        set(value) {
+            for (const [k, v] of Object.entries(value)) {
+                rpcExports[k] = v;
+            }
         }
     });
 
     function onLog(messagePtr) {
-        var message = messagePtr.readUtf8String();
+        const message = messagePtr.readUtf8String();
         console.log(message);
     }
 }
@@ -772,8 +767,8 @@ URL: {url}
                     if before_dot == "" or before_dot.endswith("."):
                         return
                     for key in self._get_keys("""\
-                            (function () {
-                                var o;
+                            (() => {
+                                let o;
                                 try {
                                     o = """ + before_dot + """;
                                 } catch (e) {
@@ -783,9 +778,9 @@ URL: {url}
                                 if (o === undefined || o === null)
                                     return [];
 
-                                var k = Object.getOwnPropertyNames(o);
+                                let k = Object.getOwnPropertyNames(o);
 
-                                var p;
+                                let p;
                                 if (typeof o !== 'object')
                                     p = o.__proto__;
                                 else
