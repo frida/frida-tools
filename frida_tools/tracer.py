@@ -281,18 +281,12 @@ class Tracer(object):
 
         ui.on_trace_progress('initializing')
         data_dir = os.path.dirname(__file__)
-        if runtime == 'v8':
-            with codecs.open(os.path.join(data_dir, "tracer_agent.js"), 'r', 'utf-8') as f:
-                source = f.read()
-            script = session.create_script(name="tracer",
-                                           source=source,
-                                           runtime='v8')
-        else:
-            with open(os.path.join(data_dir, "tracer_agent.qjs"), 'rb') as f:
-                bytecode = f.read()
-            script = session.create_script_from_bytes(name="tracer",
-                                                      data=bytecode,
-                                                      runtime='qjs')
+        with codecs.open(os.path.join(data_dir, "tracer_agent.js"), 'r', 'utf-8') as f:
+            source = f.read()
+        runtime = 'v8' if runtime == 'v8' else 'qjs'
+        script = session.create_script(name="tracer",
+                                       source=source,
+                                       runtime=runtime)
 
         self._script = script
         script.set_log_handler(self._log_handler)

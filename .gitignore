@@ -4,4 +4,3 @@
 /build/
 /dist/
 /frida_tools/*_agent.js
-/frida_tools/*_agent.qjs

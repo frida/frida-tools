@@ -6,8 +6,8 @@
   "main": "agent.ts",
   "scripts": {
     "prepare": "npm run build",
-    "build": "frida-compile agent.ts -bc -o ../../frida_tools/tracer_agent.qjs && frida-compile agent.ts -c -o ../../frida_tools/tracer_agent.js",
-    "watch": "frida-compile agent.ts -b -o ../../frida_tools/tracer_agent.qjs"
+    "build": "frida-compile agent.ts -c -o ../../frida_tools/tracer_agent.js",
+    "watch": "frida-compile agent.ts -o ../../frida_tools/tracer_agent.js"
   },
   "devDependencies": {
     "@types/frida-gum": "^16.2.0",
