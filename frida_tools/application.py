@@ -111,6 +111,8 @@ class ConsoleApplication(object):
                 type='choice', choices=['inherit', 'pipe'], default='inherit')
             parser.add_option("--aux", help="set aux option when spawning, such as “uid=(int)42” (supported types are: string, bool, int)", metavar="option",
                 type='string', action='append', dest="aux", default=[])
+            parser.add_option("--realm", help="realm to attach in", metavar="native|emulated",
+                type='choice', choices=['native', 'emulated'], default='native')
             parser.add_option("--runtime", help="script runtime to use", metavar="qjs|v8",
                 type='choice', choices=['qjs', 'v8'], default=None)
             parser.add_option("--debug", help="enable the Node.js compatible script debugger",
@@ -148,12 +150,14 @@ class ConsoleApplication(object):
         if self._needs_target():
             self._stdio = options.stdio
             self._aux = options.aux
+            self._realm = options.realm
             self._runtime = options.runtime
             self._enable_debugger = options.enable_debugger
             self._squelch_crash = options.squelch_crash
         else:
             self._stdio = 'inherit'
             self._aux = []
+            self._realm = 'native'
             self._runtime = 'qjs'
             self._enable_debugger = False
             self._squelch_crash = False
@@ -312,7 +316,7 @@ class ConsoleApplication(object):
                         self._update_status("Attaching...")
                 spawning = False
                 self._target_pid = attach_target
-                self._session = self._device.attach(attach_target)
+                self._session = self._device.attach(attach_target, realm=self._realm)
                 if self._enable_debugger:
                     self._session.enable_debugger()
                     self._print("Chrome Inspector server listening on port 9229\n")
