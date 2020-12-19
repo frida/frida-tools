@@ -21,7 +21,7 @@ setup(
     url="https://frida.re",
     install_requires=[
         "colorama >= 0.2.7, < 1.0.0",
-        "frida >= 14.0.0, < 15.0.0",
+        "frida >= 14.2.0, < 15.0.0",
         "prompt-toolkit >= 2.0.0, < 4.0.0",
         "pygments >= 2.0.2, < 3.0.0"
     ],
