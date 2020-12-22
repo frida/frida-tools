@@ -8,12 +8,13 @@ import numbers
 from optparse import OptionParser
 import os
 import platform
+import re
 import select
 import shlex
 import signal
 import sys
 import threading
-from time import time
+import time
 if platform.system() == 'Windows':
     import msvcrt
 
@@ -22,42 +23,51 @@ from colorama import Cursor, Fore, Style
 import frida
 
 
-def input_with_timeout(timeout):
-    if platform.system() == 'Windows':
-        start_time = time()
-        s = ''
-        while True:
-            while msvcrt.kbhit():
-                c = msvcrt.getche()
-                if ord(c) == 13: # enter_key
-                    break
-                elif ord(c) >= 32: #space_char
-                    s += c.decode('utf-8')
-            if time() - start_time > timeout:
-                return None
+AUX_OPTION_PATTERN = re.compile(r"(.+)=\((string|bool|int)\)(.+)")
 
-        return s
+
+def input_with_cancellable(cancellable):
+    if platform.system() == 'Windows':
+        result = ""
+        done = False
+
+        while not done:
+            while msvcrt.kbhit():
+                c = msvcrt.getwche()
+                if c in ("\x00", "\xe0"):
+                    msvcrt.getwche()
+                    continue
+
+                result += c
+
+                if c == "\n":
+                    done = True
+                    break
+
+            cancellable.raise_if_cancelled()
+            time.sleep(0.05)
+
+        return result
     else:
-        while True:
+        with cancellable.get_pollfd() as cancellable_fd:
             try:
-                rlist, _, _ = select.select([sys.stdin], [], [], timeout)
-                break
+                rlist, _, _ = select.select([sys.stdin, cancellable_fd], [], [])
             except (OSError, select.error) as e:
                 if e.args[0] != errno.EINTR:
                     raise e
-        if rlist:
-            return sys.stdin.readline()
-        else:
-            return None
+
+        cancellable.raise_if_cancelled()
+
+        return sys.stdin.readline()
 
 
 def await_enter(reactor):
     try:
-        while input_with_timeout(0.5) == None:
-            if not reactor.is_running():
-                break
+        input_with_cancellable(reactor.ui_cancellable)
+    except frida.OperationCancelledError:
+        pass
     except KeyboardInterrupt:
-        print('')
+        print("")
 
 
 class ConsoleState:
@@ -99,10 +109,16 @@ class ConsoleApplication(object):
                 type='int', action='callback', callback=store_target, callback_args=('pid',))
             parser.add_option("--stdio", help="stdio behavior when spawning (defaults to “inherit”)", metavar="inherit|pipe",
                 type='choice', choices=['inherit', 'pipe'], default='inherit')
-            parser.add_option("--runtime", help="script runtime to use", metavar="duk|v8",
-                type='choice', choices=['duk', 'v8'], default=None)
+            parser.add_option("--aux", help="set aux option when spawning, such as “uid=(int)42” (supported types are: string, bool, int)", metavar="option",
+                type='string', action='append', dest="aux", default=[])
+            parser.add_option("--realm", help="realm to attach in", metavar="native|emulated",
+                type='choice', choices=['native', 'emulated'], default='native')
+            parser.add_option("--runtime", help="script runtime to use", metavar="qjs|v8",
+                type='choice', choices=['qjs', 'v8'], default=None)
             parser.add_option("--debug", help="enable the Node.js compatible script debugger",
                 action='store_true', dest="enable_debugger", default=False)
+            parser.add_option("--squelch-crash", help="if enabled, will not dump crash report to console",
+                action='store_true', dest="squelch_crash", default=False)
 
         parser.add_option("-O", "--options-file", help="text file containing additional command line options",
                 metavar="FILE", type='string', action='store')
@@ -133,12 +149,18 @@ class ConsoleApplication(object):
         self._session = None
         if self._needs_target():
             self._stdio = options.stdio
+            self._aux = options.aux
+            self._realm = options.realm
             self._runtime = options.runtime
             self._enable_debugger = options.enable_debugger
+            self._squelch_crash = options.squelch_crash
         else:
             self._stdio = 'inherit'
-            self._runtime = 'duk'
+            self._aux = []
+            self._realm = 'native'
+            self._runtime = 'qjs'
             self._enable_debugger = False
+            self._squelch_crash = False
         self._schedule_on_session_detached = lambda reason, crash: self._reactor.schedule(lambda: self._on_session_detached(reason, crash))
         self._started = False
         self._resumed = False
@@ -278,7 +300,12 @@ class ConsoleApplication(object):
                     argv = target_value
                     if not self._quiet:
                         self._update_status("Spawning `%s`..." % " ".join(argv))
-                    self._spawned_pid = self._device.spawn(argv, stdio=self._stdio)
+
+                    aux_kwargs = {}
+                    if self._aux is not None:
+                        aux_kwargs = dict([parse_aux_option(o) for o in self._aux])
+
+                    self._spawned_pid = self._device.spawn(argv, stdio=self._stdio, **aux_kwargs)
                     self._spawned_argv = argv
                     attach_target = self._spawned_pid
                 else:
@@ -289,7 +316,7 @@ class ConsoleApplication(object):
                         self._update_status("Attaching...")
                 spawning = False
                 self._target_pid = attach_target
-                self._session = self._device.attach(attach_target)
+                self._session = self._device.attach(attach_target, realm=self._realm)
                 if self._enable_debugger:
                     self._session.enable_debugger()
                     self._print("Chrome Inspector server listening on port 9229\n")
@@ -312,7 +339,7 @@ class ConsoleApplication(object):
             self._print("Waiting for USB device to appear...")
 
     def _on_sigterm(self, n, f):
-        self._reactor.cancel_all()
+        self._reactor.cancel_io()
         self._exit(0)
 
     def _on_output(self, pid, fd, data):
@@ -343,10 +370,11 @@ class ConsoleApplication(object):
         else:
             message = "Process crashed: " + crash.summary
         self._print(Fore.RED + Style.BRIGHT + message + Style.RESET_ALL)
-
         if crash is not None:
-            self._print("\n***\n{}\n***".format(crash.report.rstrip("\n")))
-
+            if self._squelch_crash is True:
+                self._print("\n*** Crash report was squelched due to user setting. ***")
+            else:
+                self._print("\n***\n{}\n***".format(crash.report.rstrip("\n")))
         self._exit(1)
 
     def _clear_status(self):
@@ -410,7 +438,7 @@ class ConsoleApplication(object):
             try:
                 completed.wait()
             except KeyboardInterrupt:
-                self._reactor.cancel_all()
+                self._reactor.cancel_io()
                 continue
 
         error = result[1]
@@ -423,7 +451,7 @@ class ConsoleApplication(object):
         result = [None, None]
 
         def work():
-            with self._reactor.cancellable:
+            with self._reactor.io_cancellable:
                 try:
                     result[0] = f()
                 except Exception as e:
@@ -435,10 +463,10 @@ class ConsoleApplication(object):
         try:
             worker.join(timeout)
         except KeyboardInterrupt:
-            self._reactor.cancel_all()
+            self._reactor.cancel_io()
 
         if timeout is not None and worker.is_alive():
-            self._reactor.cancel_all()
+            self._reactor.cancel_io()
             while worker.is_alive():
                 try:
                     worker.join()
@@ -453,11 +481,11 @@ class ConsoleApplication(object):
 
 
 def compute_real_args(parser):
-    real_args = normalize_raw_args(sys.argv[1:])
+    real_args = normalize_options_file_args(sys.argv[1:])
 
     files_processed = set()
     while True:
-        offset = find_arg_file_offset(real_args, parser)
+        offset = find_options_file_offset(real_args, parser)
         if offset == -1:
             break
 
@@ -471,13 +499,13 @@ def compute_real_args(parser):
         else:
             parser.error("File '{}' following -O option is not a valid file".format(file_path))
 
-        real_args = insert_new_args_in_list(real_args, offset, new_arg_text)
+        real_args = insert_options_file_args_in_list(real_args, offset, new_arg_text)
         files_processed.add(file_path)
 
     return real_args
 
 
-def normalize_raw_args(raw_args):
+def normalize_options_file_args(raw_args):
     result = []
     for arg in raw_args:
         if arg.startswith("--options-file="):
@@ -488,7 +516,7 @@ def normalize_raw_args(raw_args):
     return result
 
 
-def find_arg_file_offset(arglist, parser):
+def find_options_file_offset(arglist, parser):
     for i, arg in enumerate(arglist):
         if arg in ("-O", "--options-file"):
             if i < len(arglist) - 1:
@@ -498,8 +526,9 @@ def find_arg_file_offset(arglist, parser):
     return -1
 
 
-def insert_new_args_in_list(args, offset, new_arg_text):
+def insert_options_file_args_in_list(args, offset, new_arg_text):
     new_args = shlex.split(new_arg_text)
+    new_args = normalize_options_file_args(new_args)
     new_args_list = args[:offset] + new_args + args[offset + 2:]
     return new_args_list
 
@@ -535,6 +564,24 @@ def expand_target(target):
     return (target_type, target_value)
 
 
+def parse_aux_option(option):
+    m = AUX_OPTION_PATTERN.match(option)
+    if m is None:
+        raise ValueError("expected name=(type)value, e.g. “uid=(int)42”; supported types are: string, bool, int")
+
+    name = m.group(1)
+    type_decl = m.group(2)
+    raw_value = m.group(3)
+    if type_decl == 'string':
+        value = raw_value
+    elif type_decl == 'bool':
+        value = bool(raw_value)
+    else:
+        value = int(raw_value)
+
+    return (name, value)
+
+
 class Reactor(object):
     def __init__(self, run_until_return, on_stop=None):
         self._running = False
@@ -544,7 +591,13 @@ class Reactor(object):
         self._lock = threading.Lock()
         self._cond = threading.Condition(self._lock)
 
-        self.cancellable = frida.Cancellable()
+        self.io_cancellable = frida.Cancellable()
+
+        self.ui_cancellable = frida.Cancellable()
+        self._ui_cancellable_fd = self.ui_cancellable.get_pollfd()
+
+    def __del__(self):
+        self._ui_cancellable_fd.release()
 
     def is_running(self):
         with self._lock:
@@ -565,7 +618,7 @@ class Reactor(object):
     def _run(self):
         running = True
         while running:
-            now = time()
+            now = time.time()
             work = None
             timeout = None
             previous_pending_length = -1
@@ -579,12 +632,14 @@ class Reactor(object):
                 if len(self._pending) > 0:
                     timeout = max([min(map(lambda item: item[1], self._pending)) - now, 0])
                 previous_pending_length = len(self._pending)
+
             if work is not None:
-                with self.cancellable:
+                with self.io_cancellable:
                     try:
                         work()
                     except frida.OperationCancelledError:
                         pass
+
             with self._lock:
                 if self._running and len(self._pending) == previous_pending_length:
                     self._cond.wait(timeout)
@@ -592,6 +647,8 @@ class Reactor(object):
 
         if self._on_stop is not None:
             self._on_stop()
+
+        self.ui_cancellable.cancel()
 
     def stop(self):
         self.schedule(self._stop)
@@ -601,7 +658,7 @@ class Reactor(object):
             self._running = False
 
     def schedule(self, f, delay=None):
-        now = time()
+        now = time.time()
         if delay is not None:
             when = now + delay
         else:
@@ -610,5 +667,5 @@ class Reactor(object):
             self._pending.append((f, when))
             self._cond.notify()
 
-    def cancel_all(self):
-        self.cancellable.cancel()
+    def cancel_io(self):
+        self.io_cancellable.cancel()

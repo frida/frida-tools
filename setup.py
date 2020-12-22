@@ -1,20 +1,28 @@
 # -*- coding: utf-8 -*-
 
+import glob
+import os
 from setuptools import setup
+
+
+pkg_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "frida_tools"))
+
+agents = glob.glob(os.path.join(pkg_dir, "*_agent.*"))
+assert len(agents) > 0, "Agents not compiled; run “npm install” in agents/"
 
 setup(
     name="frida-tools",
-    version="6.0.1",
+    version="9.1.0",
     description="Frida CLI tools",
-    long_description="CLI tools for [Frida](https://www.frida.re).",
+    long_description="CLI tools for [Frida](https://frida.re).",
     long_description_content_type="text/markdown",
     author="Frida Developers",
     author_email="oleavr@frida.re",
-    url="https://www.frida.re",
+    url="https://frida.re",
     install_requires=[
         "colorama >= 0.2.7, < 1.0.0",
-        "frida >= 12.8.5, < 13.0.0",
-        "prompt-toolkit >= 3.0.3, < 4.0.0",
+        "frida >= 14.2.0, < 15.0.0",
+        "prompt-toolkit >= 2.0.0, < 4.0.0",
         "pygments >= 2.0.2, < 3.0.0"
     ],
     license="wxWindows Library Licence, Version 3.1",
@@ -38,11 +46,16 @@ setup(
         "Programming Language :: Python :: 3.4",
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
         "Programming Language :: JavaScript",
         "Topic :: Software Development :: Debuggers",
         "Topic :: Software Development :: Libraries :: Python Modules"
     ],
-    packages=['frida_tools'],
+    packages=["frida_tools"],
+    package_data={
+        "frida_tools": agents,
+    },
     entry_points={
         'console_scripts': [
             "frida = frida_tools.repl:main",

@@ -120,99 +120,85 @@ class Discoverer(object):
 
     def _create_discover_script(self):
         return """\
-var threadIds = [];
-var result = {};
+const threadIds = new Set();
+const result = new Map();
 
 rpc.exports = {
     start: function () {
-        threadIds = Process.enumerateThreads().map(function (thread) { return thread.id; });
-        threadIds.forEach(function (threadId) {
+        for (const { id: threadId } of Process.enumerateThreads()) {
+            threadIds.add(threadId);
             Stalker.follow(threadId, {
                 events: { call: true },
-                onCallSummary: function (summary) {
-                    for (var address in summary) {
-                        if (summary.hasOwnProperty(address)) {
-                            var count = result[address] || 0;
-                            result[address] = count + summary[address];
-                        }
+                onCallSummary(summary) {
+                    for (const [address, count] of Object.entries(summary)) {
+                        result.set(address, (result.get(address) ?? 0) + count);
                     }
                 }
             });
-        });
+        }
 
         return {
-            total: threadIds.length
+            total: threadIds.size
         };
     },
     stop: function () {
-        threadIds.forEach(function (threadId) {
+        for (const threadId of threadIds.values()) {
             Stalker.unfollow(threadId);
-        });
-        threadIds = [];
+        }
+        threadIds.clear();
 
-        var res = result;
-        result = {};
+        const targets = [];
+        const modules = {};
 
-        var map = new ModuleMap();
+        const moduleMap = new ModuleMap();
+        const allModules = moduleMap.values().reduce((m, module) => m.set(module.path, module), new Map());
+        const moduleDetails = new Map();
+        let nextModuleId = 1;
 
-        var allModules = map.values()
-            .reduce(function (result, module) {
-                result[module.path] = module;
-                return result;
-            }, {});
-        var seenModules = {};
+        for (const [address, count] of result.entries()) {
+            let moduleId = 0;
+            let name;
+            let visibility = 'i';
+            const addressPtr = ptr(address);
 
-        var moduleDetails = {};
-        var nextModuleId = 1;
+            const path = moduleMap.findPath(addressPtr);
+            if (path !== null) {
+                const module = allModules.get(path);
 
-        var targets = Object.keys(res)
-            .map(function (address) {
-                var moduleId = 0;
-                var name;
-                var visibility = 'i';
-                var addressPtr = ptr(address);
-                var count = res[address];
-
-                var path = map.findPath(addressPtr);
-                if (path !== null) {
-                    var module = allModules[path];
-
-                    var details = moduleDetails[path];
-                    if (details !== undefined) {
-                        moduleId = details.id;
-                    } else {
-                        moduleId = nextModuleId++;
-
-                        details = {
-                            id: moduleId,
-                            exports: module.enumerateExports()
-                                .reduce(function (result, e) {
-                                    result[e.address.toString()] = e.name;
-                                    return result;
-                                }, {})
-                        };
-                        moduleDetails[path] = details;
-
-                        seenModules[moduleId] = module;
-                    }
-
-                    var exportName = details.exports[address];
-                    if (exportName !== undefined) {
-                        name = exportName;
-                        visibility = 'e';
-                    } else {
-                        name = 'sub_' + addressPtr.sub(module.base).toString(16);
-                    }
+                let details = moduleDetails.get(path);
+                if (details !== undefined) {
+                    moduleId = details.id;
                 } else {
-                    name = 'dsub_' + addressPtr.toString(16);
+                    moduleId = nextModuleId++;
+
+                    details = {
+                        id: moduleId,
+                        exports: module.enumerateExports().reduce((m, e) => m.set(e.address.toString(), e.name), new Map())
+                    };
+                    moduleDetails.set(path, details);
+
+                    modules[moduleId] = module;
                 }
 
-                return [moduleId, name, visibility, address, count];
-            });
+                const exportName = details.exports.get(address);
+                if (exportName !== undefined) {
+                    name = exportName;
+                    visibility = 'e';
+                } else {
+                    name = 'sub_' + addressPtr.sub(module.base).toString(16);
+                }
+            } else {
+                name = 'dsub_' + addressPtr.toString(16);
+            }
+
+            targets.push([moduleId, name, visibility, address, count]);
+        }
+
+        result.clear();
 
         return {
-            targets: targets,
-            modules: seenModules
+            targets,
+            modules
         };
     }
 };

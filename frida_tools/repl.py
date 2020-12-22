@@ -81,6 +81,8 @@ def main():
             parser.add_option("--no-pause", help="automatically start main thread after startup",
                               action='store_true', dest="no_pause", default=False)
             parser.add_option("-o", "--output", help="output to log file", dest="logfile", default=None)
+            parser.add_option("--eternalize", help="eternalize the script before exit",
+                              action='store_true', dest="eternalize", default=False)
             parser.add_option("--exit-on-error", help="exit with code 1 after encountering any exception in the SCRIPT",
                               action='store_true', dest="exit_on_error", default=False)
 
@@ -117,6 +119,7 @@ def main():
 
             self._quiet = options.quiet
             self._no_pause = options.no_pause
+            self._eternalize = options.eternalize
             self._exit_on_error = options.exit_on_error
 
             if options.logfile is not None:
@@ -175,7 +178,10 @@ def main():
                     pass
 
         def _stop(self):
-            self._unload_script()
+            if self._eternalize:
+                self._eternalize_script()
+            else:
+                self._unload_script()
 
             with frida.Cancellable() as c:
                 self._demonitor_all()
@@ -219,6 +225,16 @@ def main():
             except:
                 pass
 
+        def _eternalize_script(self):
+            if self._script is None:
+                return
+
+            try:
+                self._script.eternalize()
+            except:
+                pass
+            self._script = None
+
         def _unload_script(self):
             if self._script is None:
                 return
@@ -256,7 +272,7 @@ def main():
                     if not reactor.is_running():
                         return
             except KeyboardInterrupt:
-                self._reactor.cancel_all()
+                self._reactor.cancel_io()
                 return
 
             while True:
@@ -344,13 +360,8 @@ def main():
 
                 stack = error.get('stack', None)
                 if stack is not None:
-                    trimmed_stack = stack.split("\n")[1:-5]
-
-                    if len(trimmed_stack) > 0:
-                        first = trimmed_stack[0]
-                        if first.rfind("duktape.c:") == len(first) - 16:
-                            trimmed_stack = trimmed_stack[1:]
-
+                    trim_amount = 5 if self._runtime == 'v8' else 6
+                    trimmed_stack = stack.split("\n")[1:-trim_amount]
                     if len(trimmed_stack) > 0:
                         output += "\n" + "\n".join(trimmed_stack)
             except frida.InvalidOperationError:
@@ -446,10 +457,10 @@ def main():
                 self._reload()
             elif command == 'time':
                 self._eval_and_print('''
-                    (function () {{
-                        var _startTime = Date.now();
-                        var _result = eval({expression});
-                        var _endTime = Date.now();
+                    (() => {{
+                        const _startTime = Date.now();
+                        const _result = eval({expression});
+                        const _endTime = Date.now();
                         console.log('Time: ' + (_endTime - _startTime) + ' ms.');
                         return _result;
                     }})();'''.format(expression=json.dumps(" ".join(args))))
@@ -535,14 +546,14 @@ function _init() {
     global.cm = null;
     global.cs = {};
 
-    var rpcExports = {
-        fridaReplEvaluate: function (expression) {
+    const rpcExports = {
+        fridaReplEvaluate(expression) {
             try {
-                var result = (1, eval)(expression);
+                const result = (1, eval)(expression);
                 if (result instanceof ArrayBuffer) {
                     return result;
                 } else {
-                    var type = (result === null) ? 'null' : typeof result;
+                    const type = (result === null) ? 'null' : typeof result;
                     return [type, result];
                 }
             } catch (e) {
@@ -553,8 +564,8 @@ function _init() {
                 }];
             }
         },
-        fridaReplLoadCmodule: function (source) {
-            var cs = global.cs;
+        fridaReplLoadCmodule(source) {
+            const cs = global.cs;
 
             if (cs._frida_log === undefined)
                 cs._frida_log = new NativeCallback(onLog, 'void', ['pointer']);
@@ -564,18 +575,18 @@ function _init() {
     };
 
     Object.defineProperty(rpc, 'exports', {
-        get: function () {
+        get() {
             return rpcExports;
         },
-        set: function (value) {
-            Object.keys(value).forEach(function (name) {
-                rpcExports[name] = value[name];
-            });
+        set(value) {
+            for (const [k, v] of Object.entries(value)) {
+                rpcExports[k] = v;
+            }
         }
     });
 
     function onLog(messagePtr) {
-        var message = messagePtr.readUtf8String();
+        const message = messagePtr.readUtf8String();
         console.log(message);
     }
 }
@@ -666,7 +677,11 @@ URL: {url}
                     return script
 
         def _get_or_create_config_dir(self):
-            config_dir = os.path.join(os.path.expanduser('~'), '.frida')
+            xdg_home = os.getenv("XDG_CONFIG_HOME")
+            if xdg_home is not None:
+                config_dir = os.path.join(xdg_home, "frida")
+            else:
+                config_dir = os.path.join(os.path.expanduser("~"), ".frida")
             if not os.path.exists(config_dir):
                 os.makedirs(config_dir)
             return config_dir
@@ -752,8 +767,8 @@ URL: {url}
                     if before_dot == "" or before_dot.endswith("."):
                         return
                     for key in self._get_keys("""\
-                            (function () {
-                                var o;
+                            (() => {
+                                let o;
                                 try {
                                     o = """ + before_dot + """;
                                 } catch (e) {
@@ -763,9 +778,9 @@ URL: {url}
                                 if (o === undefined || o === null)
                                     return [];
 
-                                var k = Object.getOwnPropertyNames(o);
+                                let k = Object.getOwnPropertyNames(o);
 
-                                var p;
+                                let p;
                                 if (typeof o !== 'object')
                                     p = o.__proto__;
                                 else
@@ -795,7 +810,7 @@ URL: {url}
 
         def _get_keys(self, code):
             repl = self._repl
-            with repl._reactor.cancellable:
+            with repl._reactor.io_cancellable:
                 (t, value) = repl._evaluate(code)
 
             if t == 'error':
