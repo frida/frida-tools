@@ -14,7 +14,8 @@ def main():
             return "usage: %prog [options] agent|cmodule"
 
         def _add_options(self, parser):
-            parser.add_option("-n", "--project-name", help="project name", dest="project_name", default="example")
+            default_project_name = os.path.basename(os.getcwd())
+            parser.add_option("-n", "--project-name", help="project name", dest="project_name", default=default_project_name)
             parser.add_option("-o", "--output-directory", help="output directory", dest="outdir", default=".")
 
         def _initialize(self, parser, options, args):
