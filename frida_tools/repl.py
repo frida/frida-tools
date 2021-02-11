@@ -72,6 +72,8 @@ def main():
                               type='string', action='store', dest="user_parameters", default=None)
             parser.add_option("-C", "--cmodule", help="load CMODULE", metavar="CMODULE",
                               type='string', action='store', dest="user_cmodule", default=None)
+            parser.add_option("--toolchain", help="CModule toolchain to use when compiling from source code",
+                              metavar="any|internal|external", type='choice', choices=['any', 'internal', 'external'], default='any')
             parser.add_option("-c", "--codeshare", help="load CODESHARE_URI", metavar="CODESHARE_URI",
                               type='string', action='store', dest="codeshare_uri", default=None)
             parser.add_option("-e", "--eval", help="evaluate CODE", metavar="CODE",
@@ -107,10 +109,11 @@ def main():
 
             if options.user_cmodule is not None:
                 self._user_cmodule = os.path.abspath(options.user_cmodule)
-                with codecs.open(self._user_cmodule, 'rb', 'utf-8') as f:
+                with open(self._user_cmodule, 'rb') as f:
                     pass
             else:
                 self._user_cmodule = None
+            self._toolchain = options.toolchain
 
             self._codeshare_uri = options.codeshare_uri
             self._codeshare_script = None
@@ -215,9 +218,13 @@ def main():
             script.on('message', on_message)
             script.load()
 
-            cmodule_source = self._create_cmodule_source()
-            if cmodule_source is not None:
-                script.exports.frida_repl_load_cmodule(cmodule_source)
+            cmodule_code = self._load_cmodule_code()
+            if cmodule_code is not None:
+                # TODO: Remove this hack once RPC implementation supports passing binary data in both directions.
+                if is_byte_array(cmodule_code):
+                    script.post({'type': 'frida:cmodule-payload'}, data=cmodule_code)
+                    cmodule_code = None
+                script.exports.frida_load_cmodule(cmodule_code, self._toolchain)
 
             stage = 'early' if self._target[0] == 'file' and is_first_load else 'late'
             try:
@@ -494,7 +501,7 @@ def main():
             return prompt_string
 
         def _evaluate(self, text):
-            result = self._script.exports.frida_repl_evaluate(text)
+            result = self._script.exports.frida_evaluate(text)
             if is_byte_array(result):
                 return ('binary', result)
             elif isinstance(result, dict):
@@ -547,7 +554,7 @@ function _init() {
     global.cs = {};
 
     const rpcExports = {
-        fridaReplEvaluate(expression) {
+        fridaEvaluate(expression) {
             try {
                 const result = (1, eval)(expression);
                 if (result instanceof ArrayBuffer) {
@@ -564,13 +571,19 @@ function _init() {
                 }];
             }
         },
-        fridaReplLoadCmodule(source) {
+        fridaLoadCmodule(code, toolchain) {
             const cs = global.cs;
 
             if (cs._frida_log === undefined)
                 cs._frida_log = new NativeCallback(onLog, 'void', ['pointer']);
 
-            global.cm = new CModule(source, cs);
+            if (code === null) {
+                recv('frida:cmodule-payload', (message, data) => {
+                    code = data;
+                });
+            }
+
+            global.cm = new CModule(code, cs, { toolchain });
         },
     };
 
@@ -592,14 +605,17 @@ function _init() {
 }
 """
 
-        def _create_cmodule_source(self):
+        def _load_cmodule_code(self):
             if self._user_cmodule is None:
                 return None
 
-            name = os.path.basename(self._user_cmodule)
+            with open(self._user_cmodule, 'rb') as f:
+                code = f.read()
+            if code_is_native(code):
+                return code
+            source = code.decode('utf-8')
 
-            with codecs.open(self._user_cmodule, 'rb', 'utf-8') as f:
-                source = f.read()
+            name = os.path.basename(self._user_cmodule)
 
             return """static void frida_log (const char * format, ...);\n#line 1 "{name}"\n""".format(name=name) + source + """\
 #line 1 "frida-repl-builtins.c"
@@ -850,6 +866,16 @@ URL: {url}
     else:
         def iterbytes(data):
             return (ord(char) for char in data)
+
+    OS_BINARY_SIGNATURES = set([
+        b"\x4d\x5a",         # PE
+        b"\xca\xfe\xba\xbe", # Fat Mach-O
+        b"\xcf\xfa\xed\xfe", # Mach-O
+        b"\x7fELF",          # ELF
+    ])
+
+    def code_is_native(code):
+        return (code[:4] in OS_BINARY_SIGNATURES) or (code[:2] in OS_BINARY_SIGNATURES)
 
     app = REPLApplication()
     app.run()
