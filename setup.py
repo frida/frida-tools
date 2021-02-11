@@ -12,7 +12,7 @@ assert len(agents) > 0, "Agents not compiled; run “npm install” in agents/"
 
 setup(
     name="frida-tools",
-    version="9.1.0",
+    version="9.2.0",
     description="Frida CLI tools",
     long_description="CLI tools for [Frida](https://frida.re).",
     long_description_content_type="text/markdown",
