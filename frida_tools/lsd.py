@@ -81,8 +81,8 @@ def main():
                 return mycmp(self.obj, other.obj) != 0
         return K
 
-    device = LSDApplication()
-    device.run()
+    app = LSDApplication()
+    app.run()
 
 
 if __name__ == '__main__':
