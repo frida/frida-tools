@@ -1,6 +1,7 @@
 sources = [
   '__init__.py',
   'application.py',
+  'creator.py',
   'discoverer.py',
   'kill.py',
   'lsd.py',

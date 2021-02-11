@@ -1,5 +1,6 @@
 scripts = [
   'frida',
+  'frida-create',
   'frida-discover',
   'frida-kill',
   'frida-ls-devices',
