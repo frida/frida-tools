@@ -557,7 +557,7 @@ class Agent {
             } catch (e) {
                 throw new Error("Objective-C runtime is not available");
             }
-            this.cachedModuleResolver = resolver;
+            this.cachedObjcResolver = resolver;
         }
         return resolver;
     }
