@@ -1,6 +1,6 @@
 # Frida CLI tools
 
-CLI tools for [Frida](http://www.frida.re).
+CLI tools for [Frida](https://frida.re).
 
 ### Making dev changes to frida-tools
 

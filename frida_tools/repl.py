@@ -387,7 +387,7 @@ def main():
    . . . .       object?   -> Display information about 'object'
    . . . .       exit/quit -> Exit
    . . . .
-   . . . .   More info at https://www.frida.re/docs/home/""".format(version=frida.__version__))
+   . . . .   More info at https://frida.re/docs/home/""".format(version=frida.__version__))
 
         def _print_help(self, expression):
             # TODO: Figure out docstrings and implement here. This is real jankaty right now.
