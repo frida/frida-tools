@@ -42,14 +42,17 @@ def main():
                 return
 
             if self._output_format == 'text':
-                pid_column_width = max(map(lambda p: len("%d" % p.pid), processes))
-                name_column_width = max(map(lambda p: len(p.name), processes))
-                header_format = "%" + str(pid_column_width) + "s  %s"
-                self._print(header_format % ("PID", "Name"))
-                self._print("%s  %s" % (pid_column_width * "-", name_column_width * "-"))
-                line_format = "%" + str(pid_column_width) + "d  %s"
-                for process in sorted(processes, key=cmp_to_key(compare_processes)):
-                    self._print(line_format % (process.pid, process.name))
+                if len(processes) > 0:
+                    pid_column_width = max(map(lambda p: len("%d" % p.pid), processes))
+                    name_column_width = max(map(lambda p: len(p.name), processes))
+                    header_format = "%" + str(pid_column_width) + "s  %s"
+                    self._print(header_format % ("PID", "Name"))
+                    self._print("%s  %s" % (pid_column_width * "-", name_column_width * "-"))
+                    line_format = "%" + str(pid_column_width) + "d  %s"
+                    for process in sorted(processes, key=cmp_to_key(compare_processes)):
+                        self._print(line_format % (process.pid, process.name))
+                else:
+                    self._log('error', "No running processes.")
             elif self._output_format == 'json':
                 result = []
                 for process in sorted(processes, key=cmp_to_key(compare_processes)):
@@ -74,25 +77,25 @@ def main():
                     pid_column_width = max(map(lambda app: len("%d" % app.pid), applications))
                     name_column_width = max(map(lambda app: len(app.name), applications))
                     identifier_column_width = max(map(lambda app: len(app.identifier), applications))
+
+                    header_format = "%" + str(pid_column_width) + "s  " + \
+                        "%-" + str(name_column_width) + "s  " + \
+                        "%-" + str(identifier_column_width) + "s"
+                    self._print(header_format % ("PID", "Name", "Identifier"))
+                    self._print("%s  %s  %s" % (pid_column_width * "-", name_column_width * "-", identifier_column_width * "-"))
+                    line_format = "%" + str(pid_column_width) + "s  " + \
+                        "%-" + str(name_column_width) + "s  " + \
+                        "%-" + str(identifier_column_width) + "s"
+
+                    for app in sorted(applications, key=cmp_to_key(compare_applications)):
+                        if app.pid == 0:
+                            self._print(line_format % ("-", app.name, app.identifier))
+                        else:
+                            self._print(line_format % (app.pid, app.name, app.identifier))
+                elif self._include_all_applications:
+                    self._log('error', "No installed applications.")
                 else:
-                    pid_column_width = 0
-                    name_column_width = 0
-                    identifier_column_width = 0
-
-                header_format = "%" + str(pid_column_width) + "s  " + \
-                    "%-" + str(name_column_width) + "s  " + \
-                    "%-" + str(identifier_column_width) + "s"
-                self._print(header_format % ("PID", "Name", "Identifier"))
-                self._print("%s  %s  %s" % (pid_column_width * "-", name_column_width * "-", identifier_column_width * "-"))
-                line_format = "%" + str(pid_column_width) + "s  " + \
-                    "%-" + str(name_column_width) + "s  " + \
-                    "%-" + str(identifier_column_width) + "s"
-
-                for app in sorted(applications, key=cmp_to_key(compare_applications)):
-                    if app.pid == 0:
-                        self._print(line_format % ("-", app.name, app.identifier))
-                    else:
-                        self._print(line_format % (app.pid, app.name, app.identifier))
+                    self._log('error', "No running applications.")
             elif self._output_format == 'json':
                 result = []
                 if len(applications) > 0:
