@@ -5,7 +5,6 @@
   "private": true,
   "main": "agent.ts",
   "scripts": {
-    "prepare": "npm run build",
     "build": "frida-compile agent.ts -c -o ../../frida_tools/tracer_agent.js",
     "watch": "frida-compile agent.ts -o ../../frida_tools/tracer_agent.js"
   },
