@@ -85,6 +85,14 @@ class ConsoleApplication(object):
         parser = OptionParser(usage=self._usage(), version=frida.__version__)
 
         if self._needs_device():
+            relays = []
+            def add_relay(option, opt_str, value, parser):
+                try:
+                    address, username, password, kind = value.split(",")
+                    relays.append(frida.Relay(address, username, password, kind))
+                except:
+                    parser.error("Invalid relay, schema is: “address,username,password,turn-{udp,tcp,tls}”")
+
             parser.add_option("-D", "--device", help="connect to device with the given ID",
                     metavar="ID", type='string', action='store', dest="device_id", default=None)
             parser.add_option("-U", "--usb", help="connect to USB device",
@@ -93,6 +101,20 @@ class ConsoleApplication(object):
                     action='store_const', const='remote', dest="device_type", default=None)
             parser.add_option("-H", "--host", help="connect to remote frida-server on HOST",
                     metavar="HOST", type='string', action='store', dest="host", default=None)
+            parser.add_option("--certificate", help="speak TLS with HOST, expecting CERTIFICATE",
+                    metavar="CERTIFICATE", type='string', action='store', dest="certificate", default=None)
+            parser.add_option("--token", help="authenticate with HOST using TOKEN",
+                    metavar="TOKEN", type='string', action='store', dest="token", default=None)
+            parser.add_option("--keepalive-interval",
+                    help="set keepalive interval in seconds, or 0 to disable (defaults to -1 to auto-select based on transport)",
+                    metavar="INTERVAL", type='int', action='store', dest="keepalive_interval", default=None)
+            parser.add_option("--p2p", help="establish a peer-to-peer connection with target",
+                    action='store_const', const='p2p', dest="session_transport", default="multiplexed")
+            parser.add_option("--stun-server", help="set STUN server ADDRESS to use with --p2p",
+                    metavar="ADDRESS", type='string', action='store', dest="stun_server", default=None)
+            parser.add_option("--relay", help="add relay to use with --p2p",
+                    metavar="address,username,password,turn-{udp,tcp,tls}", type='string',
+                    action='callback', callback=add_relay)
 
         if self._needs_target():
             def store_target(option, opt_str, target_value, parser, target_type, *args, **kwargs):
@@ -136,10 +158,22 @@ class ConsoleApplication(object):
             self._device_id = options.device_id
             self._device_type = options.device_type
             self._host = options.host
+            self._certificate = options.certificate
+            self._token = options.token
+            self._keepalive_interval = options.keepalive_interval
+            self._session_transport = options.session_transport
+            self._stun_server = options.stun_server
+            self._relays = relays
         else:
             self._device_id = None
             self._device_type = None
             self._host = None
+            self._certificate = None
+            self._token = None
+            self._keepalive_interval = None
+            self._session_transport = 'multiplexed'
+            self._stun_server = None
+            self._relays = None
         self._device = None
         self._schedule_on_output = lambda pid, fd, data: self._reactor.schedule(lambda: self._on_output(pid, fd, data))
         self._schedule_on_device_lost = lambda: self._reactor.schedule(self._on_device_lost)
@@ -184,7 +218,7 @@ class ConsoleApplication(object):
             if target[0] == 'file':
                 argv = target[1]
                 argv.extend(args)
-            args = []
+                args = []
             self._target = target
         else:
             self._target = None
@@ -269,12 +303,26 @@ class ConsoleApplication(object):
                 self._update_status("Device '%s' not found" % self._device_id)
                 self._exit(1)
                 return
+        elif (self._host is not None) or (self._device_type == 'remote'):
+            host = self._host
+
+            options = {}
+            if self._certificate is not None:
+                options['certificate'] = self._certificate
+            if self._token is not None:
+                options['token'] = self._token
+            if self._keepalive_interval is not None:
+                options['keepalive_interval'] = self._keepalive_interval
+
+            if host is None and len(options) == 0:
+                self._device = frida.get_remote_device()
+            else:
+                self._device = frida.get_device_manager().add_remote_device(host if host is not None else "127.0.0.1",
+                                                                            **options)
         elif self._device_type is not None:
             self._device = find_device(self._device_type)
             if self._device is None:
                 return
-        elif self._host is not None:
-            self._device = frida.get_device_manager().add_remote_device(self._host)
         else:
             self._device = frida.get_local_device()
         self._device.on('output', self._schedule_on_output)
@@ -317,10 +365,17 @@ class ConsoleApplication(object):
                 spawning = False
                 self._target_pid = attach_target
                 self._session = self._device.attach(attach_target, realm=self._realm)
+                self._session.on('detached', self._schedule_on_session_detached)
+                if self._session_transport == 'p2p':
+                    peer_options = {}
+                    if self._stun_server is not None:
+                        peer_options['stun_server'] = self._stun_server
+                    if self._relays is not None:
+                        peer_options['relays'] = self._relays
+                    self._session.setup_peer_connection(**peer_options)
                 if self._enable_debugger:
                     self._session.enable_debugger()
                     self._print("Chrome Inspector server listening on port 9229\n")
-                self._session.on('detached', self._schedule_on_session_detached)
             except frida.OperationCancelledError:
                 self._exit(0)
                 return
