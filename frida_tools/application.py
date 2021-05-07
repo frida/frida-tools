@@ -103,8 +103,8 @@ class ConsoleApplication(object):
                 type='string', action='callback', callback=store_target, callback_args=('file',))
             parser.add_option("-F", "--attach-frontmost", help="attach to frontmost application",
                 action='callback', callback=store_target, callback_args=('frontmost',))
-            parser.add_option("-n", "--attach-name", help="attach to NAME", metavar="NAME",
-                type='string', action='callback', callback=store_target, callback_args=('name',))
+            parser.add_option("-i", "--attach-identifier", help="attach to IDENTIFIER", metavar="IDENTIFIER",
+                type='string', action='callback', callback=store_target, callback_args=('identifier',))
             parser.add_option("-p", "--attach-pid", help="attach to PID", metavar="PID",
                 type='int', action='callback', callback=store_target, callback_args=('pid',))
             parser.add_option("--stdio", help="stdio behavior when spawning (defaults to “inherit”)", metavar="inherit|pipe",
@@ -296,6 +296,17 @@ class ConsoleApplication(object):
                         return
                     self._target = ('name', app.name)
                     attach_target = app.pid
+                elif target_type == 'identifier':
+                    app_list = self._device.enumerate_applications()
+                    app_identifier_lc = target_value.lower()
+                    matching = [app for app in app_list if app.identifier.lower() == app_identifier_lc]
+                    if len(matching) == 1:
+                        attach_target = matching[0].pid
+                    elif len(matching) > 1:
+                        raise frida.ProcessNotFoundError("ambiguous identifier; it matches: %s" % ", ".join(
+                            ["%s (pid: %d)" % (process.identifier, process.pid) for process in matching]))
+                    else:
+                        raise frida.ProcessNotFoundError("unable to find process with identifier '%s'" % target_value)
                 elif target_type == 'file':
                     argv = target_value
                     if not self._quiet:
