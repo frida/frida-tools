@@ -775,6 +775,9 @@ URL: {url}
                             before_dot = '0.0' + before_dot
                         elif t[0] == Token.Punctuation and t[1] == ']':
                             before_dot = '[]' + before_dot
+                        elif t[0] == Token.Punctuation and t[1] == ')':
+                            # we don't know the returned value of the function call so we abort the completion
+                            return
 
                     break
 
