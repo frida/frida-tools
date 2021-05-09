@@ -57,7 +57,8 @@ def main():
                                           history=history,
                                           completer=self._completer,
                                           complete_in_thread=True,
-                                          enable_open_in_editor=True)
+                                          enable_open_in_editor=True,
+                                          tempfile_suffix=".js")
                 self._dumb_stdin_reader = None
             else:
                 self._cli = None
