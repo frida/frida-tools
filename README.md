@@ -23,8 +23,7 @@ referenced instead!
 
 Add the following lines to `agents/tracer/agent.ts`:
 
-    export {};  // to get around TS2451: Cannot redeclare block-scoped variable
-    const Java = require('frida-java-bridge');
+    Object.defineProperty(global, 'Java', { value: require('frida-java-bridge') });
 
 Run live reload:
 
