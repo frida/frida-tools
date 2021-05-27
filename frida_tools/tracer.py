@@ -35,9 +35,9 @@ def main():
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_modules,))
             parser.add_option("-X", "--exclude-module", help="exclude MODULE", metavar="MODULE",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.exclude_modules,))
-            parser.add_option("-i", "--include", help="include FUNCTION", metavar="FUNCTION",
+            parser.add_option("-i", "--include", help="include [MODULE!]FUNCTION", metavar="FUNCTION",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include,))
-            parser.add_option("-x", "--exclude", help="exclude FUNCTION", metavar="FUNCTION",
+            parser.add_option("-x", "--exclude", help="exclude [MODULE!]FUNCTION", metavar="FUNCTION",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.exclude,))
             parser.add_option("-a", "--add", help="add MODULE!OFFSET", metavar="MODULE!OFFSET",
                     type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_relative_address,))
