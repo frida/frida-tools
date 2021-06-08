@@ -64,6 +64,7 @@ setup(
             "frida-kill = frida_tools.kill:main",
             "frida-discover = frida_tools.discoverer:main",
             "frida-trace = frida_tools.tracer:main",
+            "frida-join = frida_tools.join:main",
             "frida-create = frida_tools.creator:main",
         ]
     }

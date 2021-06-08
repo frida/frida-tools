@@ -3,6 +3,7 @@ sources = [
   'application.py',
   'creator.py',
   'discoverer.py',
+  'join.py',
   'kill.py',
   'lsd.py',
   'model.py',
