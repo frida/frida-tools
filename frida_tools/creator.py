@@ -4,10 +4,12 @@ from __future__ import unicode_literals, print_function
 
 def main():
     import codecs
-    import frida
-    from frida_tools.application import ConsoleApplication
     import os
     import platform
+
+    import frida
+
+    from frida_tools.application import ConsoleApplication
 
     class CreatorApplication(ConsoleApplication):
         def _usage(self):

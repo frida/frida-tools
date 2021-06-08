@@ -10,14 +10,6 @@ def main():
         def _usage(self):
             return "usage: %prog [options] process"
 
-        def _start(self):
-            try:
-                self._device.kill(self._process)
-            except frida.ProcessNotFoundError:
-                self._update_status('unable to find process: %s' % self._process)
-                self._exit(1)
-            self._exit(0)
-
         def _initialize(self, parser, options, args):
             if len(args) < 1:
                 parser.error('process name or pid must be specified')
@@ -26,6 +18,14 @@ def main():
                 parser.error('process name or pid must be specified')
 
             self._process = process[1]
+
+        def _start(self):
+            try:
+                self._device.kill(self._process)
+            except frida.ProcessNotFoundError:
+                self._update_status('unable to find process: %s' % self._process)
+                self._exit(1)
+            self._exit(0)
 
     app = KillApplication()
     app.run()
