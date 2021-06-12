@@ -80,6 +80,10 @@ class ConsoleApplication(object):
     def __init__(self, run_until_return=await_enter, on_stop=None):
         plain_terminal = os.environ.get("TERM", "").lower() == "none"
 
+        # Windows doesn't have SIGPIPE
+        if hasattr(signal, "SIGPIPE"):
+            signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
         colorama.init(strip=True if plain_terminal else None)
 
         parser = OptionParser(usage=self._usage(), version=frida.__version__)
