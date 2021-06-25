@@ -123,19 +123,12 @@ def main():
 
 
     def compare_processes(a, b):
-        a_has_icon = a.get_small_icon() is not None
-        b_has_icon = b.get_small_icon() is not None
-        if a_has_icon == b_has_icon:
-            if a.name > b.name:
-                return 1
-            elif a.name < b.name:
-                return -1
-            else:
-                return 0
-        elif a_has_icon:
+        if a.name > b.name:
+            return 1
+        elif a.name < b.name:
             return -1
         else:
-            return 1
+            return 0
 
 
     def cmp_to_key(mycmp):
