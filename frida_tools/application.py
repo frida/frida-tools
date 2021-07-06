@@ -103,6 +103,8 @@ class ConsoleApplication(object):
                     metavar="HOST", type='string', action='store', dest="host", default=None)
             parser.add_option("--certificate", help="speak TLS with HOST, expecting CERTIFICATE",
                     metavar="CERTIFICATE", type='string', action='store', dest="certificate", default=None)
+            parser.add_option("--origin", help="connect to remote server with “Origin” header set to ORIGIN",
+                    metavar="ORIGIN", type='string', action='store', dest="origin", default=None)
             parser.add_option("--token", help="authenticate with HOST using TOKEN",
                     metavar="TOKEN", type='string', action='store', dest="token", default=None)
             parser.add_option("--keepalive-interval",
@@ -159,6 +161,7 @@ class ConsoleApplication(object):
             self._device_type = options.device_type
             self._host = options.host
             self._certificate = options.certificate
+            self._origin = options.origin
             self._token = options.token
             self._keepalive_interval = options.keepalive_interval
             self._session_transport = options.session_transport
@@ -169,6 +172,7 @@ class ConsoleApplication(object):
             self._device_type = None
             self._host = None
             self._certificate = None
+            self._origin = None
             self._token = None
             self._keepalive_interval = None
             self._session_transport = 'multiplexed'
@@ -309,6 +313,8 @@ class ConsoleApplication(object):
             options = {}
             if self._certificate is not None:
                 options['certificate'] = self._certificate
+            if self._origin is not None:
+                options['origin'] = self._origin
             if self._token is not None:
                 options['token'] = self._token
             if self._keepalive_interval is not None:
