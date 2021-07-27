@@ -8,8 +8,11 @@ def main():
     import math
     import platform
     import sys
-    import termios
-    import tty
+    try:
+        import termios
+        import tty
+    except:
+        pass
 
     from frida_tools.application import ConsoleApplication
 
