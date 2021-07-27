@@ -122,6 +122,8 @@ class ConsoleApplication(object):
             def store_target(option, opt_str, target_value, parser, target_type, *args, **kwargs):
                 if target_type == 'file':
                     target_value = [target_value]
+                elif target_type == 'gated':
+                    target_value = re.compile(target_value)
                 setattr(parser.values, 'target', (target_type, target_value))
             parser.add_option("-f", "--file", help="spawn FILE", metavar="FILE",
                 type='string', action='callback', callback=store_target, callback_args=('file',))
@@ -131,6 +133,8 @@ class ConsoleApplication(object):
                 type='string', action='callback', callback=store_target, callback_args=('name',))
             parser.add_option("-p", "--attach-pid", help="attach to PID", metavar="PID",
                 type='int', action='callback', callback=store_target, callback_args=('pid',))
+            parser.add_option("-W", "--await", help="await spawn matching PATTERN", metavar="PATTERN",
+                type='string', action='callback', callback=store_target, callback_args=('gated',))
             parser.add_option("--stdio", help="stdio behavior when spawning (defaults to “inherit”)", metavar="inherit|pipe",
                 type='choice', choices=['inherit', 'pipe'], default='inherit')
             parser.add_option("--aux", help="set aux option when spawning, such as “uid=(int)42” (supported types are: string, bool, int)", metavar="option",
@@ -179,6 +183,7 @@ class ConsoleApplication(object):
             self._stun_server = None
             self._relays = None
         self._device = None
+        self._schedule_on_spawn_added = lambda spawn: self._reactor.schedule(lambda: self._on_spawn_added(spawn))
         self._schedule_on_output = lambda pid, fd, data: self._reactor.schedule(lambda: self._on_output(pid, fd, data))
         self._schedule_on_device_lost = lambda: self._reactor.schedule(self._on_device_lost)
         self._spawned_pid = None
@@ -215,7 +220,7 @@ class ConsoleApplication(object):
             target = getattr(options, 'target', None)
             if target is None:
                 if len(args) < 1:
-                    parser.error("target file, process name or pid must be specified")
+                    parser.error("target must be specified")
                 target = infer_target(args[0])
                 args.pop(0)
             target = expand_target(target)
@@ -334,9 +339,21 @@ class ConsoleApplication(object):
         self._device.on('output', self._schedule_on_output)
         self._device.on('lost', self._schedule_on_device_lost)
         if self._target is not None:
+            target_type, target_value = self._target
+
+            if target_type == 'gated':
+                self._device.on('spawn-added', self._schedule_on_spawn_added)
+                try:
+                    self._device.enable_spawn_gating()
+                except Exception as e:
+                    self._update_status("Failed to enable spawn gating: %s" % e)
+                    self._exit(1)
+                    return
+                self._update_status("Waiting for spawn to appear...")
+                return
+
             spawning = True
             try:
-                target_type, target_value = self._target
                 if target_type == 'frontmost':
                     try:
                         app = self._device.get_frontmost_application()
@@ -369,19 +386,7 @@ class ConsoleApplication(object):
                     if not self._quiet:
                         self._update_status("Attaching...")
                 spawning = False
-                self._target_pid = attach_target
-                self._session = self._device.attach(attach_target, realm=self._realm)
-                self._session.on('detached', self._schedule_on_session_detached)
-                if self._session_transport == 'p2p':
-                    peer_options = {}
-                    if self._stun_server is not None:
-                        peer_options['stun_server'] = self._stun_server
-                    if self._relays is not None:
-                        peer_options['relays'] = self._relays
-                    self._session.setup_peer_connection(**peer_options)
-                if self._enable_debugger:
-                    self._session.enable_debugger()
-                    self._print("Chrome Inspector server listening on port 9229\n")
+                self._attach(attach_target)
             except frida.OperationCancelledError:
                 self._exit(0)
                 return
@@ -395,6 +400,24 @@ class ConsoleApplication(object):
         self._start()
         self._started = True
 
+    def _attach(self, pid):
+        self._target_pid = pid
+
+        self._session = self._device.attach(pid, realm=self._realm)
+        self._session.on('detached', self._schedule_on_session_detached)
+
+        if self._session_transport == 'p2p':
+            peer_options = {}
+            if self._stun_server is not None:
+                peer_options['stun_server'] = self._stun_server
+            if self._relays is not None:
+                peer_options['relays'] = self._relays
+            self._session.setup_peer_connection(**peer_options)
+
+        if self._enable_debugger:
+            self._session.enable_debugger()
+            self._print("Chrome Inspector server listening on port 9229\n")
+
     def _show_message_if_no_device(self):
         if self._device is None:
             self._print("Waiting for USB device to appear...")
@@ -402,6 +425,29 @@ class ConsoleApplication(object):
     def _on_sigterm(self, n, f):
         self._reactor.cancel_io()
         self._exit(0)
+
+    def _on_spawn_added(self, spawn):
+        pid = spawn.pid
+
+        pattern = self._target[1]
+        if self._session is not None or pattern.match(spawn.identifier) is None:
+            self._print(Fore.YELLOW + Style.BRIGHT + "Ignoring: " + str(spawn) + Style.RESET_ALL)
+            self._device.resume(pid)
+            return
+
+        self._print(Fore.GREEN + Style.BRIGHT + "Handling: " + str(spawn) + Style.RESET_ALL)
+        try:
+            self._device.disable_spawn_gating()
+            self._device.off('spawn-added', self._schedule_on_spawn_added)
+
+            self._attach(pid)
+            self._spawned_pid = pid
+
+            self._start()
+            self._started = True
+        except Exception as e:
+            self._update_status("Failed to handle spawn: %s" % e)
+            self._exit(1)
 
     def _on_output(self, pid, fd, data):
         if pid != self._target_pid or data is None:
