@@ -296,6 +296,9 @@ class ConsoleApplication(object):
             return
         if self._spawned_pid is not None:
             self._device.resume(self._spawned_pid)
+            if self._target[0] == 'gated':
+                self._device.disable_spawn_gating()
+                self._device.off('spawn-added', self._schedule_on_spawn_added)
         self._resumed = True
 
     def _exit(self, exit_status):
@@ -437,9 +440,6 @@ class ConsoleApplication(object):
 
         self._print(Fore.GREEN + Style.BRIGHT + "Handling: " + str(spawn) + Style.RESET_ALL)
         try:
-            self._device.disable_spawn_gating()
-            self._device.off('spawn-added', self._schedule_on_spawn_added)
-
             self._attach(pid)
             self._spawned_pid = pid
 
