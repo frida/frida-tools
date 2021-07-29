@@ -183,11 +183,11 @@ class ConsoleApplication(object):
             self._stun_server = None
             self._relays = None
         self._device = None
-        self._schedule_on_spawn_added = lambda spawn: self._reactor.schedule(lambda: self._on_spawn_added(spawn))
         self._schedule_on_output = lambda pid, fd, data: self._reactor.schedule(lambda: self._on_output(pid, fd, data))
         self._schedule_on_device_lost = lambda: self._reactor.schedule(self._on_device_lost)
         self._spawned_pid = None
         self._spawned_argv = None
+        self._selected_spawn = None
         self._target_pid = None
         self._session = None
         if self._needs_target():
@@ -298,7 +298,7 @@ class ConsoleApplication(object):
             self._device.resume(self._spawned_pid)
             if self._target[0] == 'gated':
                 self._device.disable_spawn_gating()
-                self._device.off('spawn-added', self._schedule_on_spawn_added)
+                self._device.off('spawn-added', self._on_spawn_added)
         self._resumed = True
 
     def _exit(self, exit_status):
@@ -345,7 +345,7 @@ class ConsoleApplication(object):
             target_type, target_value = self._target
 
             if target_type == 'gated':
-                self._device.on('spawn-added', self._schedule_on_spawn_added)
+                self._device.on('spawn-added', self._on_spawn_added)
                 try:
                     self._device.enable_spawn_gating()
                 except Exception as e:
@@ -430,24 +430,39 @@ class ConsoleApplication(object):
         self._exit(0)
 
     def _on_spawn_added(self, spawn):
+        thread = threading.Thread(target=self._handle_spawn, args=(spawn,))
+        thread.start()
+
+    def _handle_spawn(self, spawn):
         pid = spawn.pid
 
         pattern = self._target[1]
-        if self._session is not None or pattern.match(spawn.identifier) is None:
+        if pattern.match(spawn.identifier) is None or self._selected_spawn is not None:
             self._print(Fore.YELLOW + Style.BRIGHT + "Ignoring: " + str(spawn) + Style.RESET_ALL)
-            self._device.resume(pid)
+            try:
+                self._device.resume(pid)
+            except:
+                pass
             return
+
+        self._selected_spawn = spawn
 
         self._print(Fore.GREEN + Style.BRIGHT + "Handling: " + str(spawn) + Style.RESET_ALL)
         try:
             self._attach(pid)
-            self._spawned_pid = pid
-
-            self._start()
-            self._started = True
+            self._reactor.schedule(lambda: self._on_spawn_handled(spawn))
         except Exception as e:
-            self._update_status("Failed to handle spawn: %s" % e)
-            self._exit(1)
+            error = e
+            self._reactor.schedule(lambda: self._on_spawn_unhandled(spawn, error))
+
+    def _on_spawn_handled(self, spawn):
+        self._spawned_pid = spawn.pid
+        self._start()
+        self._started = True
+
+    def _on_spawn_unhandled(self, spawn, error):
+        self._update_status("Failed to handle spawn: %s" % error)
+        self._exit(1)
 
     def _on_output(self, pid, fd, data):
         if pid != self._target_pid or data is None:
