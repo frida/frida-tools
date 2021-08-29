@@ -636,7 +636,7 @@ class FileRepository(Repository):
             handler_dir = os.path.dirname(handler_file)
             if not os.path.isdir(handler_dir):
                 os.makedirs(handler_dir)
-            with open(handler_file, 'w') as f:
+            with open(handler_file, 'w', encoding='utf-8') as f:
                 f.write(handler)
             self._notify_create(target, handler, handler_file)
 
