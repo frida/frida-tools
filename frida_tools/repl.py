@@ -547,65 +547,84 @@ def main():
 
             if self._user_script is not None:
                 with codecs.open(self._user_script, 'rb', 'utf-8') as f:
-                    user_script += f.read().rstrip("\r\n") + "\n\n// Frida REPL script:\n"
+                    user_script += f.read().rstrip("\r\n")
 
-            return "_init();" + user_script + """\
+            if len(user_script) == 0:
+                return "(function () {\n" + self._make_repl_runtime(indent=4) + "\n})();"
+
+            if user_script.startswith("📦\n"):
+                runtime = self._make_repl_runtime(indent=0)
+                raw_runtime = runtime.encode("utf-8")
+                return "📦\n{} /frida/repl.js\n✄\n{}\n✄\n{}".format(len(raw_runtime), runtime, user_script[2:])
+            else:
+                return "_init();" + user_script + """\n\n// Frida REPL script:\n\
 
 function _init() {
-    global.cm = null;
-    global.cs = {};
-
-    const rpcExports = {
-        fridaEvaluate(expression) {
-            try {
-                const result = (1, eval)(expression);
-                if (result instanceof ArrayBuffer) {
-                    return result;
-                } else {
-                    const type = (result === null) ? 'null' : typeof result;
-                    return [type, result];
-                }
-            } catch (e) {
-                return ['error', {
-                    name: e.name,
-                    message: e.message,
-                    stack: e.stack
-                }];
-            }
-        },
-        fridaLoadCmodule(code, toolchain) {
-            const cs = global.cs;
-
-            if (cs._frida_log === undefined)
-                cs._frida_log = new NativeCallback(onLog, 'void', ['pointer']);
-
-            if (code === null) {
-                recv('frida:cmodule-payload', (message, data) => {
-                    code = data;
-                });
-            }
-
-            global.cm = new CModule(code, cs, { toolchain });
-        },
-    };
-
-    Object.defineProperty(rpc, 'exports', {
-        get() {
-            return rpcExports;
-        },
-        set(value) {
-            for (const [k, v] of Object.entries(value)) {
-                rpcExports[k] = v;
-            }
-        }
-    });
-
-    function onLog(messagePtr) {
-        const message = messagePtr.readUtf8String();
-        console.log(message);
-    }
+    """ + self._make_repl_runtime(indent=4) + """
 }
 """
+
+        def _make_repl_runtime(self, indent):
+            code = """\
+global.cm = null;
+global.cs = {};
+
+const rpcExports = {
+    fridaEvaluate(expression) {
+        try {
+            const result = (1, eval)(expression);
+            if (result instanceof ArrayBuffer) {
+                return result;
+            } else {
+                const type = (result === null) ? 'null' : typeof result;
+                return [type, result];
+            }
+        } catch (e) {
+            return ['error', {
+                name: e.name,
+                message: e.message,
+                stack: e.stack
+            }];
+        }
+    },
+    fridaLoadCmodule(code, toolchain) {
+        const cs = global.cs;
+
+        if (cs._frida_log === undefined)
+            cs._frida_log = new NativeCallback(onLog, 'void', ['pointer']);
+
+        if (code === null) {
+            recv('frida:cmodule-payload', (message, data) => {
+                code = data;
+            });
+        }
+
+        global.cm = new CModule(code, cs, { toolchain });
+    },
+};
+
+Object.defineProperty(rpc, 'exports', {
+    get() {
+        return rpcExports;
+    },
+    set(value) {
+        for (const [k, v] of Object.entries(value)) {
+            rpcExports[k] = v;
+        }
+    }
+});
+
+function onLog(messagePtr) {
+    const message = messagePtr.readUtf8String();
+    console.log(message);
+}
+"""
+
+            if indent != 0:
+                indent_str = indent * " "
+                return "\n".join([indent_str + line for line in code.split("\n")])
+            else:
+                return code
 
         def _load_cmodule_code(self):
             if self._user_cmodule is None:
