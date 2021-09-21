@@ -547,7 +547,7 @@ def main():
 
             if self._user_script is not None:
                 with codecs.open(self._user_script, 'rb', 'utf-8') as f:
-                    user_script += f.read().rstrip("\r\n")
+                    user_script += f.read()
 
             if len(user_script) == 0:
                 return "(function () {\n" + self._make_repl_runtime(indent=4) + "\n})();"
