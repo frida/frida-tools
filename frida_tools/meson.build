@@ -1,5 +1,6 @@
 sources = [
   '__init__.py',
+  'apk.py',
   'application.py',
   'creator.py',
   'discoverer.py',

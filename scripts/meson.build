@@ -1,5 +1,6 @@
 scripts = [
   'frida',
+  'frida-apk',
   'frida-create',
   'frida-discover',
   'frida-kill',
