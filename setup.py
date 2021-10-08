@@ -66,6 +66,7 @@ setup(
             "frida-trace = frida_tools.tracer:main",
             "frida-join = frida_tools.join:main",
             "frida-create = frida_tools.creator:main",
+            "frida-apk = frida_tools.apk:main",
         ]
     }
 )
