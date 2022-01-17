@@ -11,6 +11,7 @@ sources = [
   'ps.py',
   'repl.py',
   'tracer.py',
+  'tracer_agent.js',
 ]
 
 install_data(sources, install_dir: join_paths(python_site_packages, 'frida_tools'))
