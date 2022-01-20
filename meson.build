@@ -9,10 +9,8 @@ if python == ''
 endif
 
 result = run_command(python, '-c',
-  'import sys; sys.stdout.write("%d.%d" % (sys.version_info[0], sys.version_info[1]))')
-if result.returncode() != 0
-  error('Unable to detect Python version: ' + result.stdout() + result.stderr())
-endif
+  'import sys; sys.stdout.write("%d.%d" % (sys.version_info[0], sys.version_info[1]))',
+  check: true)
 python_version = result.stdout()
 
 python_name = 'python' + python_version
