@@ -14,7 +14,10 @@ result = run_command(python, '-c',
 python_version = result.stdout()
 
 python_name = 'python' + python_version
-python_site_packages = join_paths(get_option('libdir'), python_name, 'site-packages')
+python_site_packages = get_option('libdir') / python_name / 'site-packages'
 
+pkgdir = python_site_packages / 'frida_tools'
+
+subdir('agents')
 subdir('frida_tools')
 subdir('scripts')
