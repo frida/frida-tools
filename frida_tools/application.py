@@ -605,6 +605,47 @@ class ConsoleApplication(object):
 
         return result[0]
 
+    def _get_default_frida_dir(self):
+        return os.path.join(os.path.expanduser('~'), '.frida')
+
+    def _get_windows_frida_dir(self):
+        appdata = os.getenv('LOCALAPPDATA')
+        return os.path.join(appdata, 'frida')
+
+    def _get_or_create_config_dir(self):
+        config_dir = os.path.join(self._get_default_frida_dir(), 'config')
+        if platform.system() == 'Linux':
+            xdg_config_home = os.getenv('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
+            config_dir = os.path.join(xdg_config_home, 'frida')
+        elif platform.system() == 'Windows':
+            config_dir = os.path.join(self._get_windows_frida_dir(), 'Config')
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir)
+        return config_dir
+
+    def _get_or_create_data_dir(self):
+        data_dir = os.path.join(self._get_default_frida_dir(), 'data')
+        if platform.system() == 'Linux':
+            xdg_data_home = os.getenv('XDG_DATA_HOME', os.path.expanduser('~/.local/share'))
+            data_dir = os.path.join(xdg_data_home, 'frida')
+        elif platform.system() == 'Windows':
+            data_dir = os.path.join(self._get_windows_frida_dir(), 'Data')
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+        return data_dir
+
+    def _get_or_create_state_dir(self):
+        state_dir = os.path.join(self._get_default_frida_dir(), 'state')
+        if platform.system() == 'Linux':
+            xdg_state_home = os.getenv('XDG_STATE_HOME', os.path.expanduser('~/.local/state'))
+            state_dir = os.path.join(xdg_state_home, 'frida')
+        elif platform.system() == 'Windows':
+            appdata = os.getenv('LOCALAPPDATA')
+            state_dir = os.path.join(appdata, 'frida', 'State')
+        if not os.path.exists(state_dir):
+            os.makedirs(state_dir)
+        return state_dir
+
 
 def compute_real_args(parser):
     real_args = normalize_options_file_args(sys.argv[1:])
