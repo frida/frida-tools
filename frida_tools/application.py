@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, print_function
 
+import argparse
 import codecs
 import collections
 import errno
 import numbers
-from optparse import OptionParser
 import os
 import platform
 import re
@@ -70,6 +70,23 @@ def await_enter(reactor):
         print("")
 
 
+def deserialize_relay(value):
+    address, username, password, kind = value.split(",")
+    return frida.Relay(address, username, password, kind)
+
+
+def create_target_parser(type):
+    def parse_target(value):
+        if type == 'file':
+            value = [value]
+        elif type == 'gated':
+            value = re.compile(value)
+        elif type == 'pid':
+            value = int(value)
+        return (type, value)
+    return parse_target
+
+
 class ConsoleState:
     EMPTY = 1
     STATUS = 2
@@ -86,83 +103,52 @@ class ConsoleApplication(object):
 
         colorama.init(strip=True if plain_terminal else None)
 
-        parser = OptionParser(usage=self._usage(), version=frida.__version__)
+        parser = argparse.ArgumentParser(usage=self._usage())
 
         if self._needs_device():
             relays = []
-            def add_relay(option, opt_str, value, parser):
-                try:
-                    address, username, password, kind = value.split(",")
-                    relays.append(frida.Relay(address, username, password, kind))
-                except:
-                    parser.error("Invalid relay, schema is: “address,username,password,turn-{udp,tcp,tls}”")
 
-            parser.add_option("-D", "--device", help="connect to device with the given ID",
-                    metavar="ID", type='string', action='store', dest="device_id", default=None)
-            parser.add_option("-U", "--usb", help="connect to USB device",
-                    action='store_const', const='usb', dest="device_type", default=None)
-            parser.add_option("-R", "--remote", help="connect to remote frida-server",
-                    action='store_const', const='remote', dest="device_type", default=None)
-            parser.add_option("-H", "--host", help="connect to remote frida-server on HOST",
-                    metavar="HOST", type='string', action='store', dest="host", default=None)
-            parser.add_option("--certificate", help="speak TLS with HOST, expecting CERTIFICATE",
-                    metavar="CERTIFICATE", type='string', action='store', dest="certificate", default=None)
-            parser.add_option("--origin", help="connect to remote server with “Origin” header set to ORIGIN",
-                    metavar="ORIGIN", type='string', action='store', dest="origin", default=None)
-            parser.add_option("--token", help="authenticate with HOST using TOKEN",
-                    metavar="TOKEN", type='string', action='store', dest="token", default=None)
-            parser.add_option("--keepalive-interval",
-                    help="set keepalive interval in seconds, or 0 to disable (defaults to -1 to auto-select based on transport)",
-                    metavar="INTERVAL", type='int', action='store', dest="keepalive_interval", default=None)
-            parser.add_option("--p2p", help="establish a peer-to-peer connection with target",
-                    action='store_const', const='p2p', dest="session_transport", default="multiplexed")
-            parser.add_option("--stun-server", help="set STUN server ADDRESS to use with --p2p",
-                    metavar="ADDRESS", type='string', action='store', dest="stun_server", default=None)
-            parser.add_option("--relay", help="add relay to use with --p2p",
-                    metavar="address,username,password,turn-{udp,tcp,tls}", type='string',
-                    action='callback', callback=add_relay)
+            parser.add_argument("-D", "--device", help="connect to device with the given ID", metavar="ID", dest="device_id")
+            parser.add_argument("-U", "--usb", help="connect to USB device", action='store_const', const='usb', dest="device_type")
+            parser.add_argument("-R", "--remote", help="connect to remote frida-server", action='store_const', const='remote', dest="device_type")
+            parser.add_argument("-H", "--host", help="connect to remote frida-server on HOST")
+            parser.add_argument("--certificate", help="speak TLS with HOST, expecting CERTIFICATE")
+            parser.add_argument("--origin", help="connect to remote server with “Origin” header set to ORIGIN")
+            parser.add_argument("--token", help="authenticate with HOST using TOKEN")
+            parser.add_argument("--keepalive-interval", help="set keepalive interval in seconds, or 0 to disable (defaults to -1 to auto-select based on transport)", metavar="INTERVAL", type=int)
+            parser.add_argument("--p2p", help="establish a peer-to-peer connection with target", action='store_const', const='p2p', dest="session_transport", default="multiplexed")
+            parser.add_argument("--stun-server", help="set STUN server ADDRESS to use with --p2p", metavar="ADDRESS")
+            parser.add_argument("--relay", help="add relay to use with --p2p", metavar="address,username,password,turn-{udp,tcp,tls}", action='append', type=deserialize_relay)
 
         if self._needs_target():
-            def store_target(option, opt_str, target_value, parser, target_type, *args, **kwargs):
-                if target_type == 'file':
-                    target_value = [target_value]
-                elif target_type == 'gated':
-                    target_value = re.compile(target_value)
-                setattr(parser.values, 'target', (target_type, target_value))
-            parser.add_option("-f", "--file", help="spawn FILE", metavar="FILE",
-                type='string', action='callback', callback=store_target, callback_args=('file',))
-            parser.add_option("-F", "--attach-frontmost", help="attach to frontmost application",
-                action='callback', callback=store_target, callback_args=('frontmost',))
-            parser.add_option("-n", "--attach-name", help="attach to NAME", metavar="NAME",
-                type='string', action='callback', callback=store_target, callback_args=('name',))
-            parser.add_option("-p", "--attach-pid", help="attach to PID", metavar="PID",
-                type='int', action='callback', callback=store_target, callback_args=('pid',))
-            parser.add_option("-W", "--await", help="await spawn matching PATTERN", metavar="PATTERN",
-                type='string', action='callback', callback=store_target, callback_args=('gated',))
-            parser.add_option("--stdio", help="stdio behavior when spawning (defaults to “inherit”)", metavar="inherit|pipe",
-                type='choice', choices=['inherit', 'pipe'], default='inherit')
-            parser.add_option("--aux", help="set aux option when spawning, such as “uid=(int)42” (supported types are: string, bool, int)", metavar="option",
-                type='string', action='append', dest="aux", default=[])
-            parser.add_option("--realm", help="realm to attach in", metavar="native|emulated",
-                type='choice', choices=['native', 'emulated'], default='native')
-            parser.add_option("--runtime", help="script runtime to use", metavar="qjs|v8",
-                type='choice', choices=['qjs', 'v8'], default=None)
-            parser.add_option("--debug", help="enable the Node.js compatible script debugger",
-                action='store_true', dest="enable_debugger", default=False)
-            parser.add_option("--squelch-crash", help="if enabled, will not dump crash report to console",
-                action='store_true', dest="squelch_crash", default=False)
+            parser.add_argument("-f", "--file", help="spawn FILE", dest="target", type=create_target_parser("file"))
+            parser.add_argument("-F", "--attach-frontmost", help="attach to frontmost application", dest="target", type=create_target_parser("frontmost"))
+            parser.add_argument("-n", "--attach-name", help="attach to NAME", metavar="NAME", dest="target", type=create_target_parser("name"))
+            parser.add_argument("-p", "--attach-pid", help="attach to PID", metavar="PID", dest="target", type=create_target_parser("pid"))
+            parser.add_argument("-W", "--await", help="await spawn matching PATTERN", metavar="PATTERN", dest="target", type=create_target_parser("gated"))
+            parser.add_argument("--stdio", help="stdio behavior when spawning (defaults to “inherit”)", choices=["inherit", "pipe"], default="inherit")
+            parser.add_argument("--aux", help="set aux option when spawning, such as “uid=(int)42” (supported types are: string, bool, int)", metavar="option", action="append", dest="aux", default=[])
+            parser.add_argument("--realm", help="realm to attach in", choices=["native", "emulated"], default="native")
+            parser.add_argument("--runtime", help="script runtime to use", choices=["qjs", "v8"])
+            parser.add_argument("--debug", help="enable the Node.js compatible script debugger", action="store_true", dest="enable_debugger", default=False)
+            parser.add_argument("--squelch-crash", help="if enabled, will not dump crash report to console", action="store_true", default=False)
+            parser.add_argument("args", help="extra arguments and/or target", nargs="*")
 
-        parser.add_option("-O", "--options-file", help="text file containing additional command line options",
-                metavar="FILE", type='string', action='store')
+        parser.add_argument("-O", "--options-file", help="text file containing additional command line options", metavar="FILE")
+        parser.add_argument('--version', action='version', version=frida.__version__)
 
         self._add_options(parser)
 
         real_args = compute_real_args(parser)
-        (options, args) = parser.parse_args(real_args)
+        options = parser.parse_args(real_args)
+
+        # handle scripts that don't need a target
+        if not hasattr(options, 'args'):
+            options.args = []
 
         if sys.version_info[0] < 3:
             input_encoding = sys.stdin.encoding or 'UTF-8'
-            args = [arg.decode(input_encoding) for arg in args]
+            options.args = [arg.decode(input_encoding) for arg in options.args]
 
         if self._needs_device():
             self._device_id = options.device_id
@@ -223,21 +209,21 @@ class ConsoleApplication(object):
         if self._needs_target():
             target = getattr(options, 'target', None)
             if target is None:
-                if len(args) < 1:
+                if len(options.args) < 1:
                     parser.error("target must be specified")
-                target = infer_target(args[0])
-                args.pop(0)
+                target = infer_target(options.args[0])
+                options.args.pop(0)
             target = expand_target(target)
             if target[0] == 'file':
                 argv = target[1]
-                argv.extend(args)
-                args = []
+                argv.extend(options.args)
+                options.args = []
             self._target = target
         else:
             self._target = None
 
         try:
-            self._initialize(parser, options, args)
+            self._initialize(parser, options, options.args)
         except Exception as e:
             parser.error(str(e))
 

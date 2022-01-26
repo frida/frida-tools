@@ -19,12 +19,9 @@ def main():
 
     class PSApplication(ConsoleApplication):
         def _add_options(self, parser):
-            parser.add_option("-a", "--applications", help="list only applications",
-                action='store_true', dest="list_only_applications", default=False)
-            parser.add_option("-i", "--installed", help="include all installed applications",
-                action='store_true', dest="include_all_applications", default=False)
-            parser.add_option("-j", "--json", help="output results as JSON",
-                action='store_const', dest="output_format", const='json', default='text')
+            parser.add_argument("-a", "--applications", help="list only applications", action='store_true', dest="list_only_applications", default=False)
+            parser.add_argument("-i", "--installed", help="include all installed applications", action='store_true', dest="include_all_applications", default=False)
+            parser.add_argument("-j", "--json", help="output results as JSON", action='store_const', dest="output_format", const='json', default='text')
 
         def _initialize(self, parser, options, args):
             if options.include_all_applications and not options.list_only_applications:
@@ -35,7 +32,7 @@ def main():
             self._terminal_type, self._icon_size = self._detect_terminal()
 
         def _usage(self):
-            return "usage: %prog [options]"
+            return "%(prog)s [options]"
 
         def _start(self):
             if self._list_only_applications:

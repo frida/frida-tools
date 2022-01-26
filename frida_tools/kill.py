@@ -8,7 +8,7 @@ def main():
 
     class KillApplication(ConsoleApplication):
         def _usage(self):
-            return "usage: %prog [options] process"
+            return "%(prog)s [options] process"
 
         def _initialize(self, parser, options, args):
             if len(args) < 1:

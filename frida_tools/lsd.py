@@ -8,7 +8,7 @@ def main():
 
     class LSDApplication(ConsoleApplication):
         def _usage(self):
-            return "usage: %prog [options]"
+            return "%(prog)s [options]"
 
         def _needs_device(self):
             return False
