@@ -31,6 +31,7 @@ def main():
     from pygments.token import Token
 
     from frida_tools.application import ConsoleApplication
+    from frida_tools import _repl_magic
 
     class REPLApplication(ConsoleApplication):
         def __init__(self):
@@ -333,7 +334,7 @@ def main():
                     except frida.InvalidOperationError:
                         return
                 elif expression == "help":
-                    self._print("Help: #TODO :)")
+                    self._do_magic("help")
                 elif expression in ("exit", "quit", "q"):
                     return
                 else:
@@ -426,12 +427,12 @@ def main():
 
         # Negative means at least abs(val) - 1
         _magic_command_args = {
-            'resume': 0,
-            'load': 1,
-            'reload': 0,
-            'unload': 0,
-            'autoperform': 1,
-            'time': -2  # At least 1 arg
+            'resume': _repl_magic.Resume(),
+            'reload': _repl_magic.Reload(),
+            'unload': _repl_magic.Unload(),
+            'autoperform': _repl_magic.Autoperform(),
+            'time': _repl_magic.Time(),
+            'help': _repl_magic.Help()
         }
 
         def _do_magic(self, statement):
@@ -439,13 +440,13 @@ def main():
             command = tokens[0]
             args = tokens[1:]
 
-            required_args = self._magic_command_args.get(command)
-
-            if required_args == None:
+            magic_command = self._magic_command_args.get(command)
+            if magic_command == None:
                 self._print("Unknown command: {}".format(command))
                 self._print("Valid commands: {}".format(", ".join(self._magic_command_args.keys())))
                 return
 
+            required_args = magic_command.required_args_count
             atleast_args = False
             if required_args < 0:
                 atleast_args = True
@@ -458,29 +459,7 @@ def main():
                     s='' if required_args == 1 else ' '))
                 return
 
-            if command == 'resume':
-                self._reactor.schedule(lambda: self._resume())
-            elif command == 'reload':
-                self._reload()
-            elif command == 'autoperform':
-                self._autoperform_command(args[0])
-            elif command == 'time':
-                self._eval_and_print('''
-                    (() => {{
-                        const _startTime = Date.now();
-                        const _result = eval({expression});
-                        const _endTime = Date.now();
-                        console.log('Time: ' + (_endTime - _startTime) + ' ms.');
-                        return _result;
-                    }})();'''.format(expression=json.dumps(" ".join(args))))
-
-        def _reload(self):
-            try:
-                self._perform_on_reactor_thread(lambda: self._load_script())
-                return True
-            except Exception as e:
-                self._print("Failed to load script: {}".format(e))
-                return False
+            magic_command.execute(self, args)
 
         def _autoperform_command(self, state_argument):
             if state_argument not in ("on", "off"):
