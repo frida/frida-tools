@@ -20,7 +20,7 @@ class Agent {
         for (const script of initScripts) {
             try {
                 (1, eval)(script.source);
-            } catch (e) {
+            } catch (e: any) {
                 throw new Error(`Unable to load ${script.filename}: ${e.stack}`);
             }
         }
@@ -199,7 +199,7 @@ class Agent {
 
                 try {
                     Interceptor.attach(address, this.makeNativeListenerCallbacks(id, handler));
-                } catch (e) {
+                } catch (e: any) {
                     send({
                         type: "agent:warning",
                         message: `Skipping "${name}": ${e.message}`
@@ -319,7 +319,7 @@ class Agent {
 
         try {
             return callback.call(instance, log, param, this.traceState);
-        } catch (e) {
+        } catch (e: any) {
             const isJavaException = e.$h !== undefined;
             if (isJavaException) {
                 throw e;
@@ -351,7 +351,7 @@ class Agent {
         try {
             const h = (1, eval)("(" + script + ")");
             return [h.onEnter ?? noop, h.onLeave ?? noop];
-        } catch (e) {
+        } catch (e: any) {
             send({
                 type: "agent:warning",
                 message: `Invalid handler for "${name}": ${e.message}`
@@ -554,7 +554,7 @@ class Agent {
         if (resolver === null) {
             try {
                 resolver = new ApiResolver("objc");
-            } catch (e) {
+            } catch (e: any) {
                 throw new Error("Objective-C runtime is not available");
             }
             this.cachedObjcResolver = resolver;
