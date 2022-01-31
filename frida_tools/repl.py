@@ -38,7 +38,6 @@ def main():
             self._ready = threading.Event()
             self._stopping = threading.Event()
             self._errors = 0
-            config_dir = self._get_or_create_config_dir()
             self._completer = FridaCompleter(self)
             self._cli = None
             self._last_change_id = 0
@@ -51,7 +50,7 @@ def main():
                     ("completion-menu", "bg:#3d3d3d #ef6456"),
                     ("completion-menu.completion.current", "bg:#ef6456 #3d3d3d"),
                 ])
-                history = FileHistory(os.path.join(config_dir, 'history'))
+                history = FileHistory(self._get_or_create_history_file())
                 self._cli = PromptSession(lexer=PygmentsLexer(JavascriptLexer),
                                           style=style,
                                           history=history,
@@ -713,30 +712,17 @@ URL: {url}
                     })
                     return script
 
-        def _get_or_create_config_dir(self):
-            xdg_home = os.getenv("XDG_CONFIG_HOME")
-            if xdg_home is not None:
-                config_dir = os.path.join(xdg_home, "frida")
-            else:
-                config_dir = os.path.join(os.path.expanduser("~"), ".frida")
-            if not os.path.exists(config_dir):
-                os.makedirs(config_dir)
-            return config_dir
-
         def _update_truststore(self, record):
             trust_store = self._get_or_create_truststore()
             trust_store.update(record)
 
-            config_dir = self._get_or_create_config_dir()
-            codeshare_trust_store = os.path.join(config_dir, "codeshare-truststore.json")
+            codeshare_trust_store = self._get_or_create_truststore_file()
 
             with open(codeshare_trust_store, 'w') as f:
                 f.write(json.dumps(trust_store))
 
         def _get_or_create_truststore(self):
-            config_dir = self._get_or_create_config_dir()
-
-            codeshare_trust_store = os.path.join(config_dir, "codeshare-truststore.json")
+            codeshare_trust_store = self._get_or_create_truststore_file()
 
             if os.path.exists(codeshare_trust_store):
                 try:
@@ -753,6 +739,38 @@ URL: {url}
                 trust_store = {}
 
             return trust_store
+
+        def _get_truststore_file(self):
+            truststore_file = os.path.join(self._get_or_create_data_dir(), 'codeshare-truststore.json')
+            if not os.path.isfile(truststore_file):
+                self._migrate_old_config_file('codeshare-truststore.json', truststore_file)
+            return truststore_file
+
+        def _get_or_create_history_file(self):
+            history_file = os.path.join(self._get_or_create_state_dir(), 'history')
+            if os.path.isfile(history_file):
+                return history_file
+
+            found_old = self._migrate_old_config_file('history', history_file)
+            if not found_old:
+                open(history_file, 'a').close()
+
+            return history_file
+
+        def _migrate_old_config_file(self, name, new_path):
+            xdg_config_home = os.getenv("XDG_CONFIG_HOME")
+            if xdg_config_home is not None:
+                old_file = os.path.exists(os.path.join(xdg_config_home, 'frida', name))
+                if os.path.isfile(old_file):
+                    os.rename(old_file, new_path)
+                    return True
+
+            old_file = os.path.join(os.path.expanduser('~'), '.frida', name)
+            if os.path.isfile(old_file):
+                os.rename(old_file, new_path)
+                return True
+
+            return False
 
     class FridaCompleter(Completer):
         def __init__(self, repl):
