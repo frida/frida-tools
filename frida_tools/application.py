@@ -329,6 +329,7 @@ class ConsoleApplication(object):
                 return
         else:
             self._device = frida.get_local_device()
+        self._on_device_found()
         self._device.on('output', self._schedule_on_output)
         self._device.on('lost', self._schedule_on_device_lost)
         if self._target is not None:
@@ -469,6 +470,9 @@ class ConsoleApplication(object):
             text = text[:-1]
         lines = text.split("\n")
         self._print(prefix + ("\n" + prefix).join(lines))
+
+    def _on_device_found(self):
+        pass
 
     def _on_device_lost(self):
         if self._exit_status is not None:
