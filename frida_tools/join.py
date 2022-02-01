@@ -14,17 +14,13 @@ def main():
             ConsoleApplication.__init__(self, self._await_ctrl_c)
 
         def _usage(self):
-            return "usage: %prog [options] target portal-location [portal-certificate] [portal-token]"
+            return "%(prog)s [options] target portal-location [portal-certificate] [portal-token]"
 
         def _add_options(self, parser):
-            parser.add_option("--portal-location", help="join portal at LOCATION",
-                    metavar="LOCATION", type='string', action='store', dest="portal_location", default=None)
-            parser.add_option("--portal-certificate", help="speak TLS with portal, expecting CERTIFICATE",
-                    metavar="CERTIFICATE", type='string', action='store', dest="portal_certificate", default=None)
-            parser.add_option("--portal-token", help="authenticate with portal using TOKEN",
-                    metavar="TOKEN", type='string', action='store', dest="portal_token", default=None)
-            parser.add_option("--portal-acl-allow", help="limit portal access to control channels with TAG",
-                    metavar="TAG", type='string', action='append', dest="portal_acl", default=None)
+            parser.add_argument("--portal-location", help="join portal at LOCATION", metavar="LOCATION", dest="portal_location")
+            parser.add_argument("--portal-certificate", help="speak TLS with portal, expecting CERTIFICATE", metavar="CERTIFICATE", dest="portal_certificate")
+            parser.add_argument("--portal-token", help="authenticate with portal using TOKEN", metavar="TOKEN", dest="portal_token")
+            parser.add_argument("--portal-acl-allow", help="limit portal access to control channels with TAG", metavar="TAG", action='append', dest="portal_acl")
 
         def _initialize(self, parser, options, args):
             location = args[0] if len(args) >= 1 else options.portal_location

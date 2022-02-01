@@ -29,43 +29,27 @@ def main():
 
         def _add_options(self, parser):
             pb = TracerProfileBuilder()
-            def process_builder_arg(option, opt_str, value, parser, method, **kwargs):
-                method(value)
-            parser.add_option("-I", "--include-module", help="include MODULE", metavar="MODULE",
-                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_modules,))
-            parser.add_option("-X", "--exclude-module", help="exclude MODULE", metavar="MODULE",
-                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.exclude_modules,))
-            parser.add_option("-i", "--include", help="include [MODULE!]FUNCTION", metavar="FUNCTION",
-                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include,))
-            parser.add_option("-x", "--exclude", help="exclude [MODULE!]FUNCTION", metavar="FUNCTION",
-                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.exclude,))
-            parser.add_option("-a", "--add", help="add MODULE!OFFSET", metavar="MODULE!OFFSET",
-                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_relative_address,))
-            parser.add_option("-T", "--include-imports", help="include program's imports",
-                    action='callback', callback=process_builder_arg, callback_args=(pb.include_imports,))
-            parser.add_option("-t", "--include-module-imports", help="include MODULE imports", metavar="MODULE",
-                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_imports,))
-            parser.add_option("-m", "--include-objc-method", help="include OBJC_METHOD", metavar="OBJC_METHOD",
-                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_objc_method,))
-            parser.add_option("-M", "--exclude-objc-method", help="exclude OBJC_METHOD", metavar="OBJC_METHOD",
-                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.exclude_objc_method,))
-            parser.add_option("-j", "--include-java-method", help="include JAVA_METHOD", metavar="JAVA_METHOD",
-                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_java_method,))
-            parser.add_option("-J", "--exclude-java-method", help="exclude JAVA_METHOD", metavar="JAVA_METHOD",
-                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.exclude_java_method,))
-            parser.add_option("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL",
-                    type='string', action='callback', callback=process_builder_arg, callback_args=(pb.include_debug_symbol,))
-            parser.add_option("-q", "--quiet", help="do not format output messages", action='store_true', default=False)
-            parser.add_option("-d", "--decorate", help="add module name to generated onEnter log statement", action='store_true', default=False)
-            parser.add_option("-S", "--init-session", help="path to JavaScript file used to initialize the session", metavar="PATH",
-                    type='string', action='append', default=[])
-            parser.add_option("-P", "--parameters", help="parameters as JSON, exposed as a global named 'parameters'", metavar="PARAMETERS_JSON",
-                    type='string', action='store', default=None)
-            parser.add_option("-o", "--output", help="dump messages to file", metavar="OUTPUT", type='string')
+            parser.add_argument("-I", "--include-module", help="include MODULE", metavar="MODULE", type=pb.include_modules)
+            parser.add_argument("-X", "--exclude-module", help="exclude MODULE", metavar="MODULE", type=pb.exclude_modules)
+            parser.add_argument("-i", "--include", help="include [MODULE!]FUNCTION", metavar="FUNCTION", type=pb.include)
+            parser.add_argument("-x", "--exclude", help="exclude [MODULE!]FUNCTION", metavar="FUNCTION", type=pb.exclude)
+            parser.add_argument("-a", "--add", help="add MODULE!OFFSET", metavar="MODULE!OFFSET", type=pb.include_relative_address)
+            parser.add_argument("-T", "--include-imports", help="include program's imports", type=pb.include_imports)
+            parser.add_argument("-t", "--include-module-imports", help="include MODULE imports", metavar="MODULE", type=pb.include_imports)
+            parser.add_argument("-m", "--include-objc-method", help="include OBJC_METHOD", metavar="OBJC_METHOD", type=pb.include_objc_method)
+            parser.add_argument("-M", "--exclude-objc-method", help="exclude OBJC_METHOD", metavar="OBJC_METHOD", type=pb.exclude_objc_method)
+            parser.add_argument("-j", "--include-java-method", help="include JAVA_METHOD", metavar="JAVA_METHOD", type=pb.include_java_method)
+            parser.add_argument("-J", "--exclude-java-method", help="exclude JAVA_METHOD", metavar="JAVA_METHOD", type=pb.exclude_java_method)
+            parser.add_argument("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL", type=pb.include_debug_symbol)
+            parser.add_argument("-q", "--quiet", help="do not format output messages", action='store_true', default=False)
+            parser.add_argument("-d", "--decorate", help="add module name to generated onEnter log statement", action='store_true', default=False)
+            parser.add_argument("-S", "--init-session", help="path to JavaScript file used to initialize the session", metavar="PATH", action='append', default=[])
+            parser.add_argument("-P", "--parameters", help="parameters as JSON, exposed as a global named 'parameters'", metavar="PARAMETERS_JSON")
+            parser.add_argument("-o", "--output", help="dump messages to file", metavar="OUTPUT")
             self._profile_builder = pb
 
         def _usage(self):
-            return "usage: %prog [options] target"
+            return "%(prog)s [options] target"
 
         def _initialize(self, parser, options, args):
             self._tracer = None

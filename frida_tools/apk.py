@@ -12,10 +12,10 @@ def main() -> None:
 
     class ApkApplication(ConsoleApplication):
         def _usage(self):
-            return "usage: %prog [options] path.apk"
+            return "%(prog)s [options] path.apk"
 
         def _add_options(self, parser):
-            parser.add_option("-o", "--output", help="output path", metavar="OUTPUT", type="string")
+            parser.add_argument("-o", "--output", help="output path", metavar="OUTPUT")
 
         def _needs_device(self):
             return False

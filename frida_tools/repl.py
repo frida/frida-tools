@@ -67,27 +67,17 @@ def main():
                 self._rpc_complete_server = start_completion_thread(self)
 
         def _add_options(self, parser):
-            parser.add_option("-l", "--load", help="load SCRIPT", metavar="SCRIPT",
-                              type='string', action='store', dest="user_script", default=None)
-            parser.add_option("-P", "--parameters", help="parameters as JSON, same as Gadget", metavar="PARAMETERS_JSON",
-                              type='string', action='store', dest="user_parameters", default=None)
-            parser.add_option("-C", "--cmodule", help="load CMODULE", metavar="CMODULE",
-                              type='string', action='store', dest="user_cmodule", default=None)
-            parser.add_option("--toolchain", help="CModule toolchain to use when compiling from source code",
-                              metavar="any|internal|external", type='choice', choices=['any', 'internal', 'external'], default='any')
-            parser.add_option("-c", "--codeshare", help="load CODESHARE_URI", metavar="CODESHARE_URI",
-                              type='string', action='store', dest="codeshare_uri", default=None)
-            parser.add_option("-e", "--eval", help="evaluate CODE", metavar="CODE",
-                              type='string', action='append', dest="eval_items", default=None)
-            parser.add_option("-q", help="quiet mode (no prompt) and quit after -l and -e",
-                              action='store_true', dest="quiet", default=False)
-            parser.add_option("--no-pause", help="automatically start main thread after startup",
-                              action='store_true', dest="no_pause", default=False)
-            parser.add_option("-o", "--output", help="output to log file", dest="logfile", default=None)
-            parser.add_option("--eternalize", help="eternalize the script before exit",
-                              action='store_true', dest="eternalize", default=False)
-            parser.add_option("--exit-on-error", help="exit with code 1 after encountering any exception in the SCRIPT",
-                              action='store_true', dest="exit_on_error", default=False)
+            parser.add_argument("-l", "--load", help="load SCRIPT", metavar="SCRIPT", dest="user_script")
+            parser.add_argument("-P", "--parameters", help="parameters as JSON, same as Gadget", metavar="PARAMETERS_JSON", dest="user_parameters")
+            parser.add_argument("-C", "--cmodule", help="load CMODULE", dest="user_cmodule")
+            parser.add_argument("--toolchain", help="CModule toolchain to use when compiling from source code", choices=['any', 'internal', 'external'], default='any')
+            parser.add_argument("-c", "--codeshare", help="load CODESHARE_URI", metavar="CODESHARE_URI", dest="codeshare_uri")
+            parser.add_argument("-e", "--eval", help="evaluate CODE", metavar="CODE", action='append', dest="eval_items")
+            parser.add_argument("-q", help="quiet mode (no prompt) and quit after -l and -e", action='store_true', dest="quiet", default=False)
+            parser.add_argument("--no-pause", help="automatically start main thread after startup", action='store_true', dest="no_pause", default=False)
+            parser.add_argument("-o", "--output", help="output to log file", dest="logfile")
+            parser.add_argument("--eternalize", help="eternalize the script before exit", action='store_true', dest="eternalize", default=False)
+            parser.add_argument("--exit-on-error", help="exit with code 1 after encountering any exception in the SCRIPT", action='store_true', dest="exit_on_error", default=False)
 
         def _initialize(self, parser, options, args):
             if options.user_script is not None:
@@ -137,7 +127,7 @@ def main():
                 self._logfile.write(text + "\n")
 
         def _usage(self):
-            return "usage: %prog [options] target"
+            return "%(prog)s [options] target"
 
         def _needs_target(self):
             return True

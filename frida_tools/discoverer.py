@@ -21,7 +21,7 @@ def main():
                 self._results_received.wait(0.5)
 
         def _usage(self):
-            return "usage: %prog [options] target"
+            return "%(prog)s [options] target"
 
         def _initialize(self, parser, options, args):
             self._discoverer = None
