@@ -1,5 +1,7 @@
 import abc
+import codecs
 import json
+import os
 
 
 class Magic(abc.ABC):
@@ -66,6 +68,29 @@ class Autoperform(Magic):
 
     def execute(self, repl, args):
         repl._autoperform_command(args[0])
+
+
+class Exec(Magic):
+    @property
+    def description(self):
+        return "execute the given file path in the context of the currently loaded scripts"
+
+    @property
+    def required_args_count(self):
+        return 1
+
+    def execute(self, repl, args):
+        if not os.path.exists(args[0]):
+            repl._print("Can't read the given file because it does not exist")
+            return
+
+        try:
+            with codecs.open(args[0], 'rb', 'utf-8') as f:
+                if not repl._eval_and_print(f.read()):
+                    repl._errors += 1
+        except PermissionError:
+            repl._print("Can't read the given file because of a permission error")
+
 
 
 class Time(Magic):
