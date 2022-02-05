@@ -488,7 +488,7 @@ def main():
             self._set_autoperform(state_argument == "on")
 
         def _set_autoperform(self, state):
-            if self._is_java_avilable():
+            if self._is_java_available():
                 self._autoperform = state
                 self._refresh_prompt()
             elif state:
