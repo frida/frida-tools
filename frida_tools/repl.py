@@ -69,7 +69,7 @@ def main():
                 self._rpc_complete_server = start_completion_thread(self)
 
         def _add_options(self, parser):
-            parser.add_argument("-l", "--load", help="load SCRIPT", metavar="SCRIPT", dest="user_script")
+            parser.add_argument("-l", "--load", help="load SCRIPT", metavar="SCRIPT", dest="user_scripts", action="append", default=[])
             parser.add_argument("-P", "--parameters", help="parameters as JSON, same as Gadget", metavar="PARAMETERS_JSON", dest="user_parameters")
             parser.add_argument("-C", "--cmodule", help="load CMODULE", dest="user_cmodule")
             parser.add_argument("--toolchain", help="CModule toolchain to use when compiling from source code", choices=['any', 'internal', 'external'], default='any')
@@ -83,12 +83,10 @@ def main():
             parser.add_argument("--auto-perform", help="wrap entered code with Java.perform", action='store_true', dest="autoperform", default=False)
 
         def _initialize(self, parser, options, args):
-            if options.user_script is not None:
-                self._user_script = os.path.abspath(options.user_script)
-                with codecs.open(self._user_script, 'rb', 'utf-8') as f:
+            self._user_scripts = list(map(os.path.abspath, options.user_scripts))
+            for user_script in self._user_scripts:
+                with codecs.open(user_script, 'rb', 'utf-8'):
                     pass
-            else:
-                self._user_script = None
 
             if options.user_parameters is not None:
                 try:
@@ -194,10 +192,10 @@ def main():
         def _load_script(self):
             self._monitor_all()
 
-            if self._user_script is not None:
-                name, ext = os.path.splitext(os.path.basename(self._user_script))
-            else:
+            if len(self._user_scripts) == 0:
                 name = "repl"
+            else:
+                name = "+".join(map(self._get_script_name, self._user_scripts))
 
             is_first_load = self._script is None
 
@@ -228,6 +226,9 @@ def main():
             except:
                 pass
 
+        def _get_script_name(self, path):
+            return os.path.splitext(os.path.basename(path))[0]
+
         def _eternalize_script(self):
             if self._script is None:
                 return
@@ -249,7 +250,7 @@ def main():
             self._script = None
 
         def _monitor_all(self):
-            for path in [self._user_script, self._user_cmodule]:
+            for path in self._user_scripts + [self._user_cmodule]:
                 self._monitor(path)
 
         def _demonitor_all(self):
@@ -564,24 +565,28 @@ def main():
                 self._print("Failed to load script: {error}".format(error=e))
 
         def _create_repl_script(self):
-            user_script = ""
+            generated_script = ""
 
             if self._codeshare_script is not None:
-                user_script = self._codeshare_script
+                generated_script = self._codeshare_script
 
-            if self._user_script is not None:
-                with codecs.open(self._user_script, 'rb', 'utf-8') as f:
-                    user_script += f.read()
+            for user_script in self._user_scripts:
+                with codecs.open(user_script, 'rb', 'utf-8') as f:
+                    generated_script += f.read()
+                    generated_script += '\n'
 
-            if len(user_script) == 0:
+            if len(generated_script) == 0:
                 return "(function () {\n" + self._make_repl_runtime(indent=4) + "\n})();"
 
-            if user_script.startswith("📦\n"):
+            if generated_script.startswith("📦\n"):
                 runtime = self._make_repl_runtime(indent=0)
                 raw_runtime = runtime.encode("utf-8")
-                return "📦\n{} /frida/repl.js\n✄\n{}\n✄\n{}".format(len(raw_runtime), runtime, user_script[2:])
+                return "📦\n{} /frida/repl.js\n✄\n{}\n✄\n{}".format(len(raw_runtime), runtime, generated_script[2:])
             else:
-                return "_init();" + user_script + """\n\n// Frida REPL script:\n\
+                return self._wrap_script_in_repl_runtime(generated_script)
+
+        def _wrap_script_in_repl_runtime(self, script):
+                return "_init();" + script + """\n\n// Frida REPL script:\n\
 
 function _init() {
     """ + self._make_repl_runtime(indent=4) + """
