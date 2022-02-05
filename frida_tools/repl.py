@@ -341,7 +341,7 @@ def main():
                             self._do_magic(expression[1:].rstrip())
                         else:
                             if self._autoperform:
-                                expression = "Java.performNow(() => {return %s\n/**/});" % expression
+                                expression = "Java.performNow(() => { return %s\n/**/ });" % expression
                             if not self._eval_and_print(expression):
                                 self._errors += 1
                     except frida.OperationCancelledError:
