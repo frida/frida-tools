@@ -483,7 +483,7 @@ def main():
 
         def _autoperform_command(self, state_argument):
             if state_argument not in ("on", "off"):
-                self._print("autoperform only accept on and off as parameters")
+                self._print("autoperform only accepts on and off as parameters")
                 return
             self._set_autoperform(state_argument == "on")
 
