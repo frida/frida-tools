@@ -494,7 +494,7 @@ def main():
             elif state:
                 self._print("autoperform is only available in Java processes")
 
-        def _is_java_avilable(self):
+        def _is_java_available(self):
             script = self._session.create_script(name="java_check", source="rpc.exports.javaAvailable = () => Java.available;", runtime=self._runtime)
             script.load()
             return script.exports.java_available()
