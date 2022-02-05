@@ -42,6 +42,8 @@ def main():
             self._cli = None
             self._last_change_id = 0
             self._monitored_files = {}
+            self._autoperform = False
+            self._autoperform_option = False
 
             super(REPLApplication, self).__init__(self._process_input, self._on_stop)
 
@@ -78,6 +80,7 @@ def main():
             parser.add_argument("-o", "--output", help="output to log file", dest="logfile")
             parser.add_argument("--eternalize", help="eternalize the script before exit", action='store_true', dest="eternalize", default=False)
             parser.add_argument("--exit-on-error", help="exit with code 1 after encountering any exception in the SCRIPT", action='store_true', dest="exit_on_error", default=False)
+            parser.add_argument("--auto-perform", help="wrap entered code with Java.perform", action='store_true', dest="autoperform", default=False)
 
         def _initialize(self, parser, options, args):
             if options.user_script is not None:
@@ -115,6 +118,7 @@ def main():
             self._no_pause = options.no_pause
             self._eternalize = options.eternalize
             self._exit_on_error = options.exit_on_error
+            self._autoperform_option = options.autoperform
 
             if options.logfile is not None:
                 self._logfile = codecs.open(options.logfile, 'w', 'utf-8')
@@ -133,7 +137,8 @@ def main():
             return True
 
         def _start(self):
-            self._prompt_string = self._create_prompt()
+            self._set_autoperform(self._autoperform_option)
+            self._refresh_prompt()
 
             if self._codeshare_uri is not None:
                 self._codeshare_script = self._load_codeshare_script(self._codeshare_uri)
@@ -335,6 +340,8 @@ def main():
                         if expression.startswith("%"):
                             self._do_magic(expression[1:].rstrip())
                         else:
+                            if self._autoperform:
+                                expression = "Java.performNow(() => { return %s\n/**/ });" % expression
                             if not self._eval_and_print(expression):
                                 self._errors += 1
                     except frida.OperationCancelledError:
@@ -422,6 +429,7 @@ def main():
             'load': 1,
             'reload': 0,
             'unload': 0,
+            'autoperform': 1,
             'time': -2  # At least 1 arg
         }
 
@@ -453,6 +461,8 @@ def main():
                 self._reactor.schedule(lambda: self._resume())
             elif command == 'reload':
                 self._reload()
+            elif command == 'autoperform':
+                self._autoperform_command(args[0])
             elif command == 'time':
                 self._eval_and_print('''
                     (() => {{
@@ -471,6 +481,27 @@ def main():
                 self._print("Failed to load script: {}".format(e))
                 return False
 
+        def _autoperform_command(self, state_argument):
+            if state_argument not in ("on", "off"):
+                self._print("autoperform only accepts on and off as parameters")
+                return
+            self._set_autoperform(state_argument == "on")
+
+        def _set_autoperform(self, state):
+            if self._is_java_available():
+                self._autoperform = state
+                self._refresh_prompt()
+            elif state:
+                self._print("autoperform is only available in Java processes")
+
+        def _is_java_available(self):
+            script = self._session.create_script(name="java_check", source="rpc.exports.javaAvailable = () => Java.available;", runtime=self._runtime)
+            script.load()
+            return script.exports.java_available()
+
+        def _refresh_prompt(self):
+            self._prompt_string = self._create_prompt()
+
         def _create_prompt(self):
             device_type = self._device.type
             type_name = self._target[0]
@@ -484,10 +515,14 @@ def main():
             else:
                 target = self._target[1]
 
+            suffix = ""
+            if self._autoperform:
+                suffix = "(ap)"
+
             if device_type in ('local', 'remote'):
-                prompt_string = "%s::%s" % (device_type.title(), target)
+                prompt_string = "%s::%s %s" % (device_type.title(), target, suffix)
             else:
-                prompt_string = "%s::%s" % (self._device.name, target)
+                prompt_string = "%s::%s %s" % (self._device.name, target, suffix)
 
             return prompt_string
 
