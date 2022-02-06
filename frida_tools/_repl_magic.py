@@ -92,7 +92,6 @@ class Exec(Magic):
             repl._print("Can't read the given file because of a permission error")
 
 
-
 class Time(Magic):
     @property
     def description(self):
