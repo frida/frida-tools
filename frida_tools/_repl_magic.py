@@ -102,7 +102,7 @@ class Time(Magic):
         return -2
 
     def execute(self, repl, args):
-        self._eval_and_print('''
+        repl._eval_and_print('''
             (() => {{
                 const _startTime = Date.now();
                 const _result = eval({expression});
