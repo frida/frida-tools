@@ -41,7 +41,7 @@ class Reload(Magic):
 
     def execute(self, repl, args):
         try:
-            repl._perform_on_reactor_thread(lambda: self._load_script())
+            repl._perform_on_reactor_thread(lambda: repl._load_script())
             return True
         except Exception as e:
             repl._print("Failed to load script: {}".format(e))
