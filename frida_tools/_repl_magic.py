@@ -27,7 +27,7 @@ class Resume(Magic):
         return 0
 
     def execute(self, repl, args):
-        repl._reactor.schedule(lambda: self._resume())
+        repl._reactor.schedule(lambda: repl._resume())
 
 
 class Reload(Magic):
