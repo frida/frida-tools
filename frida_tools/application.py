@@ -122,7 +122,7 @@ class ConsoleApplication(object):
 
         if self._needs_target():
             parser.add_argument("-f", "--file", help="spawn FILE", dest="target", type=create_target_parser("file"))
-            parser.add_argument("-F", "--attach-frontmost", help="attach to frontmost application", dest="target", type=create_target_parser("frontmost"))
+            parser.add_argument("-F", "--attach-frontmost", help="attach to frontmost application", dest="target", action="store_const", const=('frontmost', None))
             parser.add_argument("-n", "--attach-name", help="attach to NAME", metavar="NAME", dest="target", type=create_target_parser("name"))
             parser.add_argument("-p", "--attach-pid", help="attach to PID", metavar="PID", dest="target", type=create_target_parser("pid"))
             parser.add_argument("-W", "--await", help="await spawn matching PATTERN", metavar="PATTERN", dest="target", type=create_target_parser("gated"))
