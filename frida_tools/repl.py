@@ -750,7 +750,7 @@ URL: {url}
 
             return trust_store
 
-        def _get_truststore_file(self):
+        def _get_or_create_truststore_file(self):
             truststore_file = os.path.join(self._get_or_create_data_dir(), 'codeshare-truststore.json')
             if not os.path.isfile(truststore_file):
                 self._migrate_old_config_file('codeshare-truststore.json', truststore_file)
