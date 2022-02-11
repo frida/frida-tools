@@ -103,40 +103,7 @@ class ConsoleApplication(object):
 
         colorama.init(strip=True if plain_terminal else None)
 
-        parser = argparse.ArgumentParser(usage=self._usage())
-
-        if self._needs_device():
-            parser.add_argument("-D", "--device", help="connect to device with the given ID", metavar="ID", dest="device_id")
-            parser.add_argument("-U", "--usb", help="connect to USB device", action='store_const', const='usb', dest="device_type")
-            parser.add_argument("-R", "--remote", help="connect to remote frida-server", action='store_const', const='remote', dest="device_type")
-            parser.add_argument("-H", "--host", help="connect to remote frida-server on HOST")
-            parser.add_argument("--certificate", help="speak TLS with HOST, expecting CERTIFICATE")
-            parser.add_argument("--origin", help="connect to remote server with “Origin” header set to ORIGIN")
-            parser.add_argument("--token", help="authenticate with HOST using TOKEN")
-            parser.add_argument("--keepalive-interval", help="set keepalive interval in seconds, or 0 to disable (defaults to -1 to auto-select based on transport)", metavar="INTERVAL", type=int)
-            parser.add_argument("--p2p", help="establish a peer-to-peer connection with target", action='store_const', const='p2p', dest="session_transport", default="multiplexed")
-            parser.add_argument("--stun-server", help="set STUN server ADDRESS to use with --p2p", metavar="ADDRESS")
-            parser.add_argument("--relay", help="add relay to use with --p2p", metavar="address,username,password,turn-{udp,tcp,tls}", dest="relays", action='append', type=deserialize_relay)
-
-        if self._needs_target():
-            parser.add_argument("-f", "--file", help="spawn FILE", dest="target", type=create_target_parser("file"))
-            parser.add_argument("-F", "--attach-frontmost", help="attach to frontmost application", dest="target", action="store_const", const=('frontmost', None))
-            parser.add_argument("-n", "--attach-name", help="attach to NAME", metavar="NAME", dest="target", type=create_target_parser("name"))
-            parser.add_argument("-p", "--attach-pid", help="attach to PID", metavar="PID", dest="target", type=create_target_parser("pid"))
-            parser.add_argument("-W", "--await", help="await spawn matching PATTERN", metavar="PATTERN", dest="target", type=create_target_parser("gated"))
-            parser.add_argument("--stdio", help="stdio behavior when spawning (defaults to “inherit”)", choices=["inherit", "pipe"], default="inherit")
-            parser.add_argument("--aux", help="set aux option when spawning, such as “uid=(int)42” (supported types are: string, bool, int)", metavar="option", action="append", dest="aux", default=[])
-            parser.add_argument("--realm", help="realm to attach in", choices=["native", "emulated"], default="native")
-            parser.add_argument("--runtime", help="script runtime to use", choices=["qjs", "v8"])
-            parser.add_argument("--debug", help="enable the Node.js compatible script debugger", action="store_true", dest="enable_debugger", default=False)
-            parser.add_argument("--squelch-crash", help="if enabled, will not dump crash report to console", action="store_true", default=False)
-            parser.add_argument("args", help="extra arguments and/or target", nargs="*")
-
-        parser.add_argument("-O", "--options-file", help="text file containing additional command line options", metavar="FILE")
-        parser.add_argument('--version', action='version', version=frida.__version__)
-
-        self._add_options(parser)
-
+        parser = self._initialize_arguments_parser()
         real_args = compute_real_args(parser)
         options = parser.parse_args(real_args)
 
@@ -224,6 +191,52 @@ class ConsoleApplication(object):
             self._initialize(parser, options, options.args)
         except Exception as e:
             parser.error(str(e))
+
+    def _initialize_arguments_parser(self):
+        parser = self._initialize_base_arguments_parser()
+        self._add_options(parser)
+        return parser
+
+    def _initialize_base_arguments_parser(self):
+        parser = argparse.ArgumentParser(usage=self._usage())
+
+        if self._needs_device():
+            self._add_device_arguments(parser)
+
+        if self._needs_target():
+            self._add_target_arguments(parser)
+
+        parser.add_argument("-O", "--options-file", help="text file containing additional command line options", metavar="FILE")
+        parser.add_argument('--version', action='version', version=frida.__version__)
+
+        return parser
+
+    def _add_device_arguments(self, parser):
+        parser.add_argument("-D", "--device", help="connect to device with the given ID", metavar="ID", dest="device_id")
+        parser.add_argument("-U", "--usb", help="connect to USB device", action='store_const', const='usb', dest="device_type")
+        parser.add_argument("-R", "--remote", help="connect to remote frida-server", action='store_const', const='remote', dest="device_type")
+        parser.add_argument("-H", "--host", help="connect to remote frida-server on HOST")
+        parser.add_argument("--certificate", help="speak TLS with HOST, expecting CERTIFICATE")
+        parser.add_argument("--origin", help="connect to remote server with “Origin” header set to ORIGIN")
+        parser.add_argument("--token", help="authenticate with HOST using TOKEN")
+        parser.add_argument("--keepalive-interval", help="set keepalive interval in seconds, or 0 to disable (defaults to -1 to auto-select based on transport)", metavar="INTERVAL", type=int)
+        parser.add_argument("--p2p", help="establish a peer-to-peer connection with target", action='store_const', const='p2p', dest="session_transport", default="multiplexed")
+        parser.add_argument("--stun-server", help="set STUN server ADDRESS to use with --p2p", metavar="ADDRESS")
+        parser.add_argument("--relay", help="add relay to use with --p2p", metavar="address,username,password,turn-{udp,tcp,tls}", dest="relays", action='append', type=deserialize_relay)
+
+    def _add_target_arguments(self, parser):
+        parser.add_argument("-f", "--file", help="spawn FILE", dest="target", type=create_target_parser("file"))
+        parser.add_argument("-F", "--attach-frontmost", help="attach to frontmost application", dest="target", action="store_const", const=('frontmost', None))
+        parser.add_argument("-n", "--attach-name", help="attach to NAME", metavar="NAME", dest="target", type=create_target_parser("name"))
+        parser.add_argument("-p", "--attach-pid", help="attach to PID", metavar="PID", dest="target", type=create_target_parser("pid"))
+        parser.add_argument("-W", "--await", help="await spawn matching PATTERN", metavar="PATTERN", dest="target", type=create_target_parser("gated"))
+        parser.add_argument("--stdio", help="stdio behavior when spawning (defaults to “inherit”)", choices=["inherit", "pipe"], default="inherit")
+        parser.add_argument("--aux", help="set aux option when spawning, such as “uid=(int)42” (supported types are: string, bool, int)", metavar="option", action="append", dest="aux", default=[])
+        parser.add_argument("--realm", help="realm to attach in", choices=["native", "emulated"], default="native")
+        parser.add_argument("--runtime", help="script runtime to use", choices=["qjs", "v8"])
+        parser.add_argument("--debug", help="enable the Node.js compatible script debugger", action="store_true", dest="enable_debugger", default=False)
+        parser.add_argument("--squelch-crash", help="if enabled, will not dump crash report to console", action="store_true", default=False)
+        parser.add_argument("args", help="extra arguments and/or target", nargs="*")
 
     def run(self):
         mgr = frida.get_device_manager()
