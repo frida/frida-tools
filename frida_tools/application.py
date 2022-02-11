@@ -94,7 +94,7 @@ class ConsoleState:
 
 
 class ConsoleApplication(object):
-    def __init__(self, run_until_return=await_enter, on_stop=None):
+    def __init__(self, run_until_return=await_enter, on_stop=None, args=None):
         plain_terminal = os.environ.get("TERM", "").lower() == "none"
 
         # Windows doesn't have SIGPIPE
@@ -104,7 +104,7 @@ class ConsoleApplication(object):
         colorama.init(strip=True if plain_terminal else None)
 
         parser = self._initialize_arguments_parser()
-        real_args = compute_real_args(parser)
+        real_args = compute_real_args(parser, args=args)
         options = parser.parse_args(real_args)
 
         # handle scripts that don't need a target
@@ -648,8 +648,10 @@ class ConsoleApplication(object):
         return state_dir
 
 
-def compute_real_args(parser):
-    real_args = normalize_options_file_args(sys.argv[1:])
+def compute_real_args(parser, args=None):
+    if args is None:
+        args = sys.argv[1:]
+    real_args = normalize_options_file_args(args)
 
     files_processed = set()
     while True:
