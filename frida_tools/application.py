@@ -106,8 +106,6 @@ class ConsoleApplication(object):
         parser = argparse.ArgumentParser(usage=self._usage())
 
         if self._needs_device():
-            relays = []
-
             parser.add_argument("-D", "--device", help="connect to device with the given ID", metavar="ID", dest="device_id")
             parser.add_argument("-U", "--usb", help="connect to USB device", action='store_const', const='usb', dest="device_type")
             parser.add_argument("-R", "--remote", help="connect to remote frida-server", action='store_const', const='remote', dest="device_type")
@@ -118,7 +116,7 @@ class ConsoleApplication(object):
             parser.add_argument("--keepalive-interval", help="set keepalive interval in seconds, or 0 to disable (defaults to -1 to auto-select based on transport)", metavar="INTERVAL", type=int)
             parser.add_argument("--p2p", help="establish a peer-to-peer connection with target", action='store_const', const='p2p', dest="session_transport", default="multiplexed")
             parser.add_argument("--stun-server", help="set STUN server ADDRESS to use with --p2p", metavar="ADDRESS")
-            parser.add_argument("--relay", help="add relay to use with --p2p", metavar="address,username,password,turn-{udp,tcp,tls}", action='append', type=deserialize_relay)
+            parser.add_argument("--relay", help="add relay to use with --p2p", metavar="address,username,password,turn-{udp,tcp,tls}", dest="relays", action='append', type=deserialize_relay)
 
         if self._needs_target():
             parser.add_argument("-f", "--file", help="spawn FILE", dest="target", type=create_target_parser("file"))
@@ -160,7 +158,7 @@ class ConsoleApplication(object):
             self._keepalive_interval = options.keepalive_interval
             self._session_transport = options.session_transport
             self._stun_server = options.stun_server
-            self._relays = relays
+            self._relays = options.relays
         else:
             self._device_id = None
             self._device_type = None
