@@ -46,6 +46,7 @@ def main():
             self._monitored_files = {}
             self._autoperform = False
             self._autoperform_option = False
+            self._autoreload = True
 
             super(REPLApplication, self).__init__(self._process_input, self._on_stop)
 
@@ -83,6 +84,8 @@ def main():
             parser.add_argument("--eternalize", help="eternalize the script before exit", action='store_true', dest="eternalize", default=False)
             parser.add_argument("--exit-on-error", help="exit with code 1 after encountering any exception in the SCRIPT", action='store_true', dest="exit_on_error", default=False)
             parser.add_argument("--auto-perform", help="wrap entered code with Java.perform", action='store_true', dest="autoperform", default=False)
+            parser.add_argument("--auto-reload", help="Enable auto reload of provided scripts and c module (on by default, will be required in the future)", action='store_true', dest="autoreload", default=True)
+            parser.add_argument("--no-auto-reload", help="Disable auto reload of provided scripts and c module", action='store_false', dest="autoreload", default=True)
 
         def _initialize(self, parser, options, args):
             self._user_scripts = list(map(os.path.abspath, options.user_scripts))
@@ -119,6 +122,7 @@ def main():
             self._eternalize = options.eternalize
             self._exit_on_error = options.exit_on_error
             self._autoperform_option = options.autoperform
+            self._autoreload = options.autoreload
 
             if options.logfile is not None:
                 self._logfile = codecs.open(options.logfile, 'w', 'utf-8')
@@ -192,7 +196,8 @@ def main():
                 self._print("\nThank you for using Frida!")
 
         def _load_script(self):
-            self._monitor_all()
+            if self._autoreload:
+                self._monitor_all()
 
             if len(self._user_scripts) == 0:
                 name = "repl"
