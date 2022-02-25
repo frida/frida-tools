@@ -437,6 +437,7 @@ def main():
             'reload': _repl_magic.Reload(),
             'unload': _repl_magic.Unload(),
             'autoperform': _repl_magic.Autoperform(),
+            'autoreload': _repl_magic.Autoreload(),
             'exec': _repl_magic.Exec(),
             'time': _repl_magic.Time(),
             'help': _repl_magic.Help()
