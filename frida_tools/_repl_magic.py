@@ -70,6 +70,33 @@ class Autoperform(Magic):
         repl._autoperform_command(args[0])
 
 
+class Autoreload(Magic):
+    _VALID_ARGUMENTS = ("on", "off")
+
+    @property
+    def description(self):
+        return "disable or enable auto reloading of script files"
+
+    @property
+    def required_args_count(self):
+        return 1
+
+    def execute(self, repl, args):
+        if args[0] not in self._VALID_ARGUMENTS:
+            raise ValueError("Autoreload command only receive on or off as an argument")
+
+        required_state = args[0] == "on"
+        if required_state == repl._autoreload:
+            repl._print("Autoreloading is already in the desired state")
+            return
+
+        if required_state:
+            repl._monitor_all()
+        else:
+            repl._demonitor_all()
+        repl._autoreload = required_state
+
+
 class Exec(Magic):
     @property
     def description(self):
