@@ -468,7 +468,7 @@ class Repository(object):
                                 "annotate_post": annotate_post
                             })
                         break
-                except Exception as e:
+                except Exception:
                     pass
 
             if decorate:
