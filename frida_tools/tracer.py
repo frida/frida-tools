@@ -7,8 +7,6 @@ import os
 import platform
 import re
 import subprocess
-import threading
-import time
 
 import frida
 

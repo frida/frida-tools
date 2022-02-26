@@ -3,8 +3,6 @@ from __future__ import unicode_literals
 
 
 def main():
-    import threading
-
     import frida
 
     from frida_tools.application import ConsoleApplication, input_with_cancellable

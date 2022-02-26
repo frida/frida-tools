@@ -5,6 +5,7 @@ import os
 import signal
 import string
 import threading
+import sys
 
 
 def main():
@@ -14,7 +15,6 @@ def main():
     import os
     import platform
     import re
-    import sys
     try:
         from urllib.request import build_opener
     except:
@@ -1008,7 +1008,6 @@ if os.environ.get("TERM", "") == 'dumb':
     try:
         from collections import namedtuple
         from epc.client import EPCClient
-        import sys
     except ImportError:
         def start_completion_thread(repl, epc_port=None):
             # Do nothing when we cannot import the EPC module.
