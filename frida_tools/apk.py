@@ -7,8 +7,7 @@ import struct
 
 
 def main() -> None:
-    import frida
-    from frida_tools.application import ConsoleApplication, infer_target, expand_target
+    from frida_tools.application import ConsoleApplication
 
     class ApkApplication(ConsoleApplication):
         def _usage(self):
