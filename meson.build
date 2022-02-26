@@ -21,3 +21,4 @@ pkgdir = python_site_packages / 'frida_tools'
 subdir('agents')
 subdir('frida_tools')
 subdir('scripts')
+subdir('completions')
