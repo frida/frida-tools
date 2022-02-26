@@ -102,7 +102,7 @@ def main():
 
             if options.user_cmodule is not None:
                 self._user_cmodule = os.path.abspath(options.user_cmodule)
-                with open(self._user_cmodule, 'rb') as f:
+                with open(self._user_cmodule, 'rb'):
                     pass
             else:
                 self._user_cmodule = None
@@ -181,7 +181,7 @@ def main():
             else:
                 self._unload_script()
 
-            with frida.Cancellable() as c:
+            with frida.Cancellable():
                 self._demonitor_all()
 
             if self._logfile is not None:
