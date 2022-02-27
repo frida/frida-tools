@@ -13,19 +13,19 @@ def main():
 
     class CreatorApplication(ConsoleApplication):
         def _usage(self):
-            return "%(prog)s [options] agent|cmodule"
+            return "%(prog)s [options] -m agent|cmodule"
 
         def _add_options(self, parser):
             default_project_name = os.path.basename(os.getcwd())
             parser.add_argument("-n", "--project-name", help="project name", dest="project_name", default=default_project_name)
             parser.add_argument("-o", "--output-directory", help="output directory", dest="outdir", default=".")
+            parser.add_argument("-m", "--template", help="template file: cmodule|agent", dest="template", default=None)
 
-        def _initialize(self, parser, options, args):
-            if len(args) != 1:
+        def _initialize(self, parser, options, args):    
+            args = parser.parse_args()
+            if not args.template:
                 parser.error("template must be specified")
-
-            template = args[0]
-            impl = getattr(self, "_generate_" + template, None)
+            impl = getattr(self, "_generate_" + args.template, None)
             if impl is None:
                 parser.error("unknown template type")
             self._generate = impl
