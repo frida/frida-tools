@@ -13,13 +13,13 @@ def main():
 
     class CreatorApplication(ConsoleApplication):
         def _usage(self):
-            return "%(prog)s [options] -m agent|cmodule"
+            return "%(prog)s [options] -t agent|cmodule"
 
         def _add_options(self, parser):
             default_project_name = os.path.basename(os.getcwd())
             parser.add_argument("-n", "--project-name", help="project name", dest="project_name", default=default_project_name)
             parser.add_argument("-o", "--output-directory", help="output directory", dest="outdir", default=".")
-            parser.add_argument("-m", "--template", help="template file: cmodule|agent", dest="template", default=None)
+            parser.add_argument("-t", "--template", help="template file: cmodule|agent", dest="template", default=None)
 
         def _initialize(self, parser, options, args):    
             args = parser.parse_args()
