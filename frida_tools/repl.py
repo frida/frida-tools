@@ -7,6 +7,7 @@ import signal
 import string
 import threading
 import sys
+import time
 
 
 def main():
@@ -47,6 +48,7 @@ def main():
             self._autoperform = False
             self._autoperform_option = False
             self._autoreload = True
+            self._quiet_start = None
 
             super(REPLApplication, self).__init__(self._process_input, self._on_stop)
 
@@ -79,6 +81,7 @@ def main():
             parser.add_argument("-c", "--codeshare", help="load CODESHARE_URI", metavar="CODESHARE_URI", dest="codeshare_uri")
             parser.add_argument("-e", "--eval", help="evaluate CODE", metavar="CODE", action='append', dest="eval_items")
             parser.add_argument("-q", help="quiet mode (no prompt) and quit after -l and -e", action='store_true', dest="quiet", default=False)
+            parser.add_argument("-t", "--timeout", help="seconds to wait before terminating in quiet mode", dest="timeout", default=0)
             parser.add_argument("--no-pause", help="automatically start main thread after startup", action='store_true', dest="no_pause", default=False)
             parser.add_argument("-o", "--output", help="output to log file", dest="logfile")
             parser.add_argument("--eternalize", help="eternalize the script before exit", action='store_true', dest="eternalize", default=False)
@@ -118,6 +121,7 @@ def main():
             self._pending_eval = options.eval_items
 
             self._quiet = options.quiet
+            self._quiet_timeout = float(options.timeout)
             self._no_pause = options.no_pause
             self._eternalize = options.eternalize
             self._exit_on_error = options.exit_on_error
@@ -305,6 +309,12 @@ def main():
                             self._pending_eval = None
                     else:
                         if self._quiet:
+                            if self._quiet_timeout > 0:
+                                if self._quiet_start is None:
+                                    self._quiet_start = time.time()
+                                passed_time = time.time() - self._quiet_start
+                                if self._quiet_timeout > passed_time:
+                                    self._stopping.wait(self._quiet_timeout - passed_time)
                             self._exit_status = 0 if self._errors == 0 else 1
                             return
 
