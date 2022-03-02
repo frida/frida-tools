@@ -313,8 +313,16 @@ def main():
                                 if self._quiet_start is None:
                                     self._quiet_start = time.time()
                                 passed_time = time.time() - self._quiet_start
-                                if self._quiet_timeout > passed_time:
-                                    self._stopping.wait(self._quiet_timeout - passed_time)
+                                while self._quiet_timeout > passed_time and reactor.is_running():
+                                    sleep_time = min(1, self._quiet_timeout - passed_time)
+                                    if self._stopping.wait(sleep_time):
+                                        break
+                                    if self._dumb_stdin_reader is not None:
+                                        with self._dumb_stdin_reader._lock:
+                                            if self._dumb_stdin_reader._saw_sigint:
+                                                break
+                                    passed_time = time.time() - self._quiet_start
+
                             self._exit_status = 0 if self._errors == 0 else 1
                             return
 
@@ -967,6 +975,7 @@ class DumbStdinReader(object):
     def __init__(self, valid_until):
         self._valid_until = valid_until
 
+        self._saw_sigint = False
         self._prompt = None
         self._result = None
         self._lock = threading.Lock()
@@ -1017,6 +1026,7 @@ class DumbStdinReader(object):
 
     def _cancel_line(self):
         with self._lock:
+            self._saw_sigint = True
             self._prompt = None
             self._result = (None, KeyboardInterrupt())
             self._cond.notify()
