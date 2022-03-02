@@ -800,7 +800,8 @@ URL: {url}
             return False
 
         def _on_device_found(self):
-            self._print("""\
+            if not self._quiet:
+                self._print("""\
    . . . .
    . . . .   Connected to {device_name} (id={device_id})""".format(device_id=self._device.id, device_name=self._device.name))
 
