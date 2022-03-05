@@ -16,16 +16,15 @@ def main() -> None:
 
         def _add_options(self, parser):
             parser.add_argument("-o", "--output", help="output path", metavar="OUTPUT")
+            parser.add_argument("apk", help="apk file")
 
         def _needs_device(self):
             return False
 
         def _initialize(self, parser, options, args):
             self._output_path = options.output
+            self._path = options.apk
 
-            if len(args) < 1:
-                parser.error("path must be specified")
-            self._path = args[0]
             if not self._path.endswith(".apk"):
                 parser.error("path must end in .apk")
 
