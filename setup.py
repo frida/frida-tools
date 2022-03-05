@@ -8,7 +8,7 @@ from setuptools import setup
 pkg_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "frida_tools"))
 
 agents = glob.glob(os.path.join(pkg_dir, "*_agent.*"))
-assert len(agents) > 0, "Agents not compiled; run “npm install” in agents/"
+assert len(agents) > 0, "Agents not compiled; run “npm install && npm run build” in agents/tracer/"
 
 setup(
     name="frida-tools",
