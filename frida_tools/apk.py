@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations
+
+import os
+import struct
 from enum import IntEnum
 from io import BufferedReader
 from zipfile import ZipFile
-import os
-import struct
 
 
 def main() -> None:
@@ -58,11 +60,18 @@ def debug(path: str, output_path: str) -> None:
                             pool = StringPool(header)
                             debuggable_index = pool.append_str("debuggable")
 
+                        if header.type == ChunkType.RESOURCE_MAP:
+                            # The "debuggable" attribute name is not only a reference to the string pool, but
+                            # also to the resource map. We need to extend the resource map with a valid entry.
+                            # refs https://justanapplication.wordpress.com/category/android/android-binary-xml/android-xml-startelement-chunk/
+                            resource_map = ResourceMap(header)
+                            resource_map.add_debuggable(debuggable_index)
+
                         if header.type == ChunkType.START_ELEMENT:
                             start = StartElement(header)
                             name = pool.get_string(start.name)
                             if name == "application":
-                                start.insert_debuggable(debuggable_index)
+                                start.insert_debuggable(debuggable_index, resource_map)
 
                         size += header.size
 
@@ -105,6 +114,7 @@ class ChunkType(IntEnum):
     STRING_POOL = 0x001
     XML = 0x003
     START_ELEMENT = 0x102
+    RESOURCE_MAP = 0x180
 
 
 class ResourceType(IntEnum):
@@ -157,7 +167,7 @@ class StartElement:
             # There are no other attributes in the application tag
             self.namespace = -1
 
-    def insert_debuggable(self, name: int) -> None:
+    def insert_debuggable(self, name: int, resource_map: ResourceMap) -> None:
         # TODO: Instead of using the previous attribute to determine the probable
         # namespace for the debuggable tag we could scan the strings section
         # for the AndroidManifest schema tag
@@ -169,12 +179,19 @@ class StartElement:
         resource_size = 8
         resource_type = ResourceType.BOOL
         # Denotes a True value in AXML, 0 is used for False
-        resource_data = -1  
+        resource_data = -1
 
         debuggable = struct.pack(self.ATTRIBUTE_FORMAT, self.namespace,
                                  name, -1, resource_size, 0, resource_type, resource_data)
 
-        chunk_data.extend(debuggable)
+        # Some parts of Android expect this to be sorted by resource ID.
+        attr_offset = None
+        for insert_pos in range(self.attribute_count + 1):
+            attr_offset = 0x24 + 20 * insert_pos
+            idx = int.from_bytes(chunk_data[attr_offset + 4:attr_offset + 8], "little")
+            if resource_map.get_resource(idx) > ResourceMap.DEBUGGING_RESOURCE:
+                break
+        chunk_data[attr_offset:attr_offset] = debuggable
 
         self.header.size = len(chunk_data)
         chunk_data[4:4 + 4] = struct.pack("<I", self.header.size)
@@ -183,6 +200,33 @@ class StartElement:
         chunk_data[28:28 + 2] = struct.pack("<H", self.attribute_count)
 
         self.header.chunk_data = bytes(chunk_data)
+
+
+class ResourceMap:
+    DEBUGGING_RESOURCE = 0x101000f
+
+    def __init__(self, header: ChunkHeader):
+        self.header = header
+
+    def add_debuggable(self, idx: int) -> None:
+        assert idx is not None
+        data_size = len(self.header.chunk_data) - 8
+        target = (idx + 1) * 4
+        self.header.chunk_data += (
+            b"\x00" * (target - data_size - 4)
+            + self.DEBUGGING_RESOURCE.to_bytes(4, "little")
+        )
+
+        self.header.size = len(self.header.chunk_data)
+        self.header.chunk_data = (
+            self.header.chunk_data[:4] +
+            struct.pack("<I", self.header.size) +
+            self.header.chunk_data[8:]
+        )
+
+    def get_resource(self, index: int) -> int:
+        offset = index * 4 + 8
+        return int.from_bytes(self.header.chunk_data[offset:offset+4], "little")
 
 
 class StringPool:
