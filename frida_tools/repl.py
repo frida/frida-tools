@@ -2,6 +2,7 @@
 from __future__ import unicode_literals, print_function
 
 import os
+import shlex
 import signal
 import string
 import threading
@@ -437,7 +438,7 @@ def main():
         }
 
         def _do_magic(self, statement):
-            tokens = statement.split(" ")
+            tokens = shlex.split(statement)
             command = tokens[0]
             args = tokens[1:]
 
