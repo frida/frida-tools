@@ -24,6 +24,7 @@ def main():
 
     from colorama import Fore, Style
     import frida
+    from prompt_toolkit.shortcuts import prompt
     from prompt_toolkit import PromptSession
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.completion import Completion, Completer
@@ -373,6 +374,27 @@ def main():
                     except frida.OperationCancelledError:
                         return
 
+        def _get_confirmation(self, question, default_answer = False):
+            if default_answer:
+                prompt_string = question + " [Y/n] "
+            else:
+                prompt_string = question + " [y/N] "
+
+            if self._have_terminal and not self._plain_terminal:
+                answer = prompt(prompt_string)
+            else:
+                answer = self._dumb_stdin_reader.read_line(prompt_string)
+                self._print(answer)
+
+            if answer.lower() not in ("y", "yes", "n", "no", ""):
+                return self._get_confirmation(question, default_answer=default_answer)
+
+            if default_answer:
+                return answer.lower() != "n" and answer.lower() != "no"
+
+            return answer.lower() == "y" or answer.lower() == "yes"
+
+
         def _eval_and_print(self, expression):
             success = False
             try:
@@ -452,6 +474,7 @@ def main():
         # Negative means at least abs(val) - 1
         _magic_command_args = {
             'resume': _repl_magic.Resume(),
+            'load': _repl_magic.Load(),
             'reload': _repl_magic.Reload(),
             'unload': _repl_magic.Unload(),
             'autoperform': _repl_magic.Autoperform(),
