@@ -998,6 +998,11 @@ class DumbStdinReader(object):
         self._lock = threading.Lock()
         self._cond = threading.Condition(self._lock)
 
+        try:
+            self._get_input = raw_input
+        except NameError:
+            self._get_input = input
+
         worker = threading.Thread(target=self._process_requests, name="stdin-reader")
         worker.daemon = True
         worker.start()
@@ -1031,7 +1036,7 @@ class DumbStdinReader(object):
                 prompt = self._prompt
 
             try:
-                line = get_input(prompt)
+                line = self._get_input(prompt)
             except Exception as e:
                 line = None
                 error = e
@@ -1129,16 +1134,6 @@ else:
     def start_completion_thread(repl, epc_port=None):
         # Do nothing as completion-epc is not needed when not running in Emacs.
         _, _ = repl, epc_port
-
-
-try:
-    input_impl = raw_input
-except NameError:
-    input_impl = input
-
-
-def get_input(prompt_string):
-    return input_impl(prompt_string)
 
 
 if __name__ == '__main__':
