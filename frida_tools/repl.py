@@ -753,22 +753,16 @@ URL: {url}
                 url="https://codeshare.frida.re/@{}".format(uri)
             ))
 
-            while True:
-                prompt_string = "Are you sure you'd like to trust this project? [y/N] "
-                response = get_input(prompt_string)
-
-                if response.lower() in ('n', 'no') or response == '':
-                    return None
-
-                if response.lower() in ('y', 'yes'):
-                    self._print(
-                        "Adding fingerprint {} to the trust store! You won't be prompted again unless the code changes.".format(
-                            fingerprint))
-                    script = response_json['source']
-                    self._update_truststore({
-                        uri: fingerprint
-                    })
-                    return script
+            answer = self._get_confirmation("Are you sure you'd like to trust this project?")
+            if answer:
+                self._print(
+                    "Adding fingerprint {} to the trust store! You won't be prompted again unless the code changes.".format(
+                        fingerprint))
+                script = response_json['source']
+                self._update_truststore({
+                    uri: fingerprint
+                })
+                return script
 
         def _update_truststore(self, record):
             trust_store = self._get_or_create_truststore()
