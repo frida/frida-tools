@@ -30,6 +30,30 @@ class Resume(Magic):
         repl._reactor.schedule(lambda: repl._resume())
 
 
+class Load(Magic):
+    @property
+    def description(self):
+        return "Load an additional script and reload the current REPL state"
+
+    @property
+    def required_args_count(self):
+        return 1
+
+    def execute(self, repl, args):
+        try:
+            proceed = repl._get_confirmation(
+                "Are you sure you want to load a new script and discard all current state?"
+            )
+            if not proceed:
+                repl._print("Discarding load command")
+                return
+
+            repl._user_scripts.append(args[0])
+            repl._perform_on_reactor_thread(lambda: repl._load_script())
+        except Exception as e:
+            repl._print("Failed to load script: {}".format(e))
+
+
 class Reload(Magic):
     @property
     def description(self):
@@ -60,7 +84,9 @@ class Unload(Magic):
 class Autoperform(Magic):
     @property
     def description(self):
-        return "receive on/off as first and only argument, when switched on will wrap any REPL code with Java.performNow()"
+        return (
+            "receive on/off as first and only argument, when switched on will wrap any REPL code with Java.performNow()"
+        )
 
     @property
     def required_args_count(self):
@@ -112,7 +138,7 @@ class Exec(Magic):
             return
 
         try:
-            with codecs.open(args[0], 'rb', 'utf-8') as f:
+            with codecs.open(args[0], "rb", "utf-8") as f:
                 if not repl._eval_and_print(f.read()):
                     repl._errors += 1
         except PermissionError:
@@ -129,14 +155,18 @@ class Time(Magic):
         return -2
 
     def execute(self, repl, args):
-        repl._eval_and_print('''
+        repl._eval_and_print(
+            """
             (() => {{
                 const _startTime = Date.now();
                 const _result = eval({expression});
                 const _endTime = Date.now();
                 console.log('Time: ' + (_endTime - _startTime) + ' ms.');
                 return _result;
-            }})();'''.format(expression=json.dumps(" ".join(args))))
+            }})();""".format(
+                expression=json.dumps(" ".join(args))
+            )
+        )
 
 
 class Help(Magic):
