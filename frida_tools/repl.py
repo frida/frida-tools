@@ -526,7 +526,10 @@ def main():
         def _is_java_available(self):
             script = self._session.create_script(name="java_check", source="rpc.exports.javaAvailable = () => Java.available;", runtime=self._runtime)
             script.load()
-            return script.exports.java_available()
+            try:
+                return script.exports.java_available()
+            except:
+                return False
 
         def _refresh_prompt(self):
             self._prompt_string = self._create_prompt()
