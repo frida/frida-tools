@@ -369,10 +369,12 @@ def main():
                     try:
                         if expression.startswith("%"):
                             self._do_magic(expression[1:].rstrip())
+                        elif expression.startswith("."):
+                            self._do_quick_command(expression[1:].rstrip())
                         else:
                             if self._autoperform:
                                 expression = "Java.performNow(() => { return %s\n/**/ });" % expression
-                            if not self._eval_and_print(expression):
+                            if not self._exec_and_print(self._evaluate_expression, expression):
                                 self._errors += 1
                     except frida.OperationCancelledError:
                         return
@@ -397,11 +399,10 @@ def main():
 
             return answer.lower() == "y" or answer.lower() == "yes"
 
-
-        def _eval_and_print(self, expression):
+        def _exec_and_print(self, exec, arg):
             success = False
             try:
-                (t, value) = self._perform_on_reactor_thread(lambda: self._evaluate(expression))
+                (t, value) = self._perform_on_reactor_thread(lambda: exec(arg))
                 if t in ('function', 'undefined', 'null'):
                     output = t
                 elif t == 'binary':
@@ -445,10 +446,10 @@ def main():
                 expression = expression[:-2] + "?"
 
             obj_to_identify = [x for x in expression.split(' ') if x.endswith("?")][0][:-1]
-            (obj_type, obj_value) = self._evaluate(obj_to_identify)
+            (obj_type, obj_value) = self._evaluate_expression(obj_to_identify)
 
             if obj_type == "function":
-                signature = self._evaluate("%s.toString()" % obj_to_identify)[1]
+                signature = self._evaluate_expression("%s.toString()" % obj_to_identify)[1]
                 clean_signature = signature.split("{")[0][:-1].split('function ')[-1]
 
                 if "[native code]" in signature:
@@ -469,7 +470,7 @@ def main():
 
             elif obj_type == "string":
                 help_text += "Type:      Boolean\n"
-                help_text += "Text:      %s\n" % self._evaluate("%s.toString()" % obj_to_identify)[1]
+                help_text += "Text:      %s\n" % self._evaluate_expression("%s.toString()" % obj_to_identify)[1]
                 help_text += "Docstring: #TODO :)"
 
             self._print(help_text)
@@ -512,6 +513,15 @@ def main():
                 return
 
             magic_command.execute(self, args)
+
+        def _do_quick_command(self, statement):
+            tokens = shlex.split(statement)
+            if len(tokens) == 0:
+                self._print("Invalid quick command")
+                return
+
+            if not self._exec_and_print(self._evaluate_quick_command, tokens):
+                self._errors += 1
 
         def _autoperform_command(self, state_argument):
             if state_argument not in ("on", "off"):
@@ -561,16 +571,22 @@ def main():
 
             return prompt_string
 
-        def _evaluate(self, text):
-            result = self._script.exports.frida_evaluate(text)
+        def _evaluate_expression(self, expression):
+            result = self._script.exports.frida_evaluate_expression(expression)
+            return self._parse_evaluate_result(result)
+
+        def _evaluate_quick_command(self, tokens):
+            result = self._script.exports.frida_evaluate_quick_command(tokens)
+            return self._parse_evaluate_result(result)
+
+        def _parse_evaluate_result(self, result):
             if is_byte_array(result):
                 return ('binary', result)
             elif isinstance(result, dict):
                 return ('binary', bytes())
             elif result[0] == 'error':
                 raise JavaScriptError(result[1])
-            else:
-                return result
+            return result
 
         def _process_message(self, message, data):
             message_type = message['type']
@@ -659,23 +675,40 @@ def main():
 global.cm = null;
 global.cs = {};
 
-const rpcExports = {
-    fridaEvaluate(expression) {
-        try {
-            const result = (1, eval)(expression);
-            if (result instanceof ArrayBuffer) {
-                return result;
-            } else {
-                const type = (result === null) ? 'null' : typeof result;
-                return [type, result];
+class REPL {
+    #quickCommands;
+    constructor() {
+        this.#quickCommands = new Map();
+    }
+    registerQuickCommand(name, handler) {
+        this.#quickCommands.set(name, handler);
+    }
+    unregisterQuickCommand(name) {
+        this.#quickCommands.delete(name);
+    }
+    _invokeQuickCommand(tokens) {
+        const name = tokens[0];
+        const handler = this.#quickCommands.get(name);
+        if (handler !== undefined) {
+            const { minArity, onInvoke } = handler;
+            if (tokens.length - 1 < minArity) {
+                throw Error(`${name} needs at least ${minArity} arg${(minArity === 1) ? '' : 's'}`);
             }
-        } catch (e) {
-            return ['error', {
-                name: e.name,
-                message: e.message,
-                stack: e.stack
-            }];
+            return onInvoke(...tokens.slice(1));
+        } else {
+            throw Error(`Unknown command ${name}`);
         }
+    }
+}
+const repl = new REPL();
+global.REPL = repl;
+
+const rpcExports = {
+    fridaEvaluateExpression(expression) {
+        return evaluate(() => (1, eval)(expression));
+    },
+    fridaEvaluateQuickCommand(tokens) {
+        return evaluate(() => repl._invokeQuickCommand(tokens));
     },
     fridaLoadCmodule(code, toolchain) {
         const cs = global.cs;
@@ -692,6 +725,24 @@ const rpcExports = {
         global.cm = new CModule(code, cs, { toolchain });
     },
 };
+
+function evaluate(func) {
+    try {
+        const result = func();
+        if (result instanceof ArrayBuffer) {
+            return result;
+        } else {
+            const type = (result === null) ? 'null' : typeof result;
+            return [type, result];
+        }
+    } catch (e) {
+        return ['error', {
+            name: e.name,
+            message: e.message,
+            stack: e.stack
+        }];
+    }
+}
 
 Object.defineProperty(rpc, 'exports', {
     get() {
@@ -983,7 +1034,7 @@ URL: {url}
         def _get_keys(self, code):
             repl = self._repl
             with repl._reactor.io_cancellable:
-                (t, value) = repl._evaluate(code)
+                (t, value) = repl._evaluate_expression(code)
 
             if t == 'error':
                 return []
