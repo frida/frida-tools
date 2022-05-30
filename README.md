@@ -33,3 +33,12 @@ Now you can:
 
 1. make changes to `agents/tracer/node_modules/frida-java-bridge/*`
 2. run your frida-tools from this repo and see how it works!
+
+### Installing Fish completions
+
+Currently there is no mechanism to install Fish completions through the setup.py
+script so if you want to have completions in Fish you will have to install it
+manually. Unless you've changed your XDG_CONFIG_HOME location, you should just
+copy the completion file into `~/.config/fish/completions` like so:
+
+    cp completions/frida.fish ~/.config/fish/completions
