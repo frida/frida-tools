@@ -1,0 +1,17 @@
+{
+  "name": "fs-agent",
+  "version": "1.0.0",
+  "description": "Agent used by frida-ls and friends",
+  "private": true,
+  "main": "agent.ts",
+  "scripts": {
+    "build": "frida-compile agent.ts -c -o ../../frida_tools/fs_agent.js",
+    "watch": "frida-compile agent.ts -w -o ../../frida_tools/fs_agent.js"
+  },
+  "devDependencies": {
+    "@types/frida-gum": "^18.0.0",
+    "@types/node": "^17.0.36",
+    "frida-compile": "^11.1.0",
+    "frida-remote-stream": "^6.0.1"
+  }
+}

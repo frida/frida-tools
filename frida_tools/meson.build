@@ -7,10 +7,14 @@ sources = [
   'discoverer.py',
   'join.py',
   'kill.py',
+  'ls.py',
   'lsd.py',
   'model.py',
   'ps.py',
+  'pull.py',
+  'push.py',
   'repl.py',
+  'rm.py',
   'tracer.py',
 ]
 

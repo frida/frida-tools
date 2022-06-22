@@ -1,6 +1,6 @@
 *.pyc
 /*.egg-info/
-/agents/tracer/node_modules/
+/agents/*/node_modules/
 /build/
 /dist/
 /frida_tools/*_agent.js
