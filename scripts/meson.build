@@ -1,24 +1,33 @@
 scripts = [
-  'frida',
-  'frida-apk',
-  'frida-create',
-  'frida-discover',
-  'frida-kill',
-  'frida-ls-devices',
-  'frida-ps',
-  'frida-trace',
+  ['frida', 'repl'],
+  ['frida-apk', 'apk'],
+  ['frida-create', 'create'],
+  ['frida-discover', 'discover'],
+  ['frida-kill', 'kill'],
+  ['frida-ls', 'ls'],
+  ['frida-ls-devices', 'lsd'],
+  ['frida-ps', 'ps'],
+  ['frida-pull', 'pull'],
+  ['frida-push', 'push'],
+  ['frida-rm', 'rm'],
+  ['frida-trace', 'tracer'],
 ]
 
-cdata = configuration_data()
-cdata.set('PYTHON', python)
-cdata.set('pythondir', python_site_packages)
+common_cdata = configuration_data()
+common_cdata.set('PYTHON', python)
+common_cdata.set('pythondir', python_site_packages)
 
 foreach s : scripts
+  cdata = configuration_data()
+  cdata.merge_from(common_cdata)
+  cdata.set('module', s.get(1))
+
   generated_script = configure_file(
-    input: s + '.in',
-    output: s,
+    input: 'script.in',
+    output: s.get(0),
     configuration: cdata,
   )
+
   install_data(generated_script,
     install_dir: get_option('bindir'),
     install_mode: 'rwxr-xr-x',
