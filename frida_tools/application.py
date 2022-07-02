@@ -119,9 +119,13 @@ class ConsoleApplication(object):
             self._device_id = options.device_id
             self._device_type = options.device_type
             self._host = options.host
-            self._certificate = options.certificate
-            self._origin = options.origin
-            self._token = options.token
+            if all([x is None for x in [self._device_id, self._device_type, self._host]]):
+                self._device_id = os.environ.get("FRIDA_DEVICE")
+                if self._device_id is None:
+                    self._host = os.environ.get("FRIDA_HOST")
+            self._certificate = options.certificate or os.environ.get("FRIDA_CERTIFICATE")
+            self._origin = options.origin or os.environ.get("FRIDA_ORIGIN")
+            self._token = options.token or os.environ.get("FRIDA_TOKEN")
             self._keepalive_interval = options.keepalive_interval
             self._session_transport = options.session_transport
             self._stun_server = options.stun_server
