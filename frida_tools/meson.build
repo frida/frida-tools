@@ -3,6 +3,7 @@ sources = [
   '_repl_magic.py',
   'apk.py',
   'application.py',
+  'cli_formatting.py',
   'compiler.py',
   'creator.py',
   'discoverer.py',
