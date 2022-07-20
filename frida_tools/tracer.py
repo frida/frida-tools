@@ -15,11 +15,11 @@ def main():
     from colorama import Fore, Style
     import json
 
-    from frida_tools.application import ConsoleApplication, input_with_cancellable
+    from frida_tools.application import ConsoleApplication, await_ctrl_c
 
     class TracerApplication(ConsoleApplication, UI):
         def __init__(self):
-            super(TracerApplication, self).__init__(self._await_ctrl_c)
+            super(TracerApplication, self).__init__(await_ctrl_c)
             self._palette = [Fore.CYAN, Fore.MAGENTA, Fore.YELLOW, Fore.GREEN, Fore.RED, Fore.BLUE]
             self._next_color = 0
             self._attributes_by_thread_id = {}
@@ -97,15 +97,6 @@ def main():
             if self._output is not None:
                 self._output.close()
             self._output = None
-
-        def _await_ctrl_c(self, reactor):
-            while True:
-                try:
-                    input_with_cancellable(reactor.ui_cancellable)
-                except frida.OperationCancelledError:
-                    break
-                except KeyboardInterrupt:
-                    break
 
         def on_trace_progress(self, status, *params):
             if status == 'initializing':
