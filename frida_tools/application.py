@@ -70,6 +70,16 @@ def await_enter(reactor):
         print("")
 
 
+def await_ctrl_c(reactor):
+    while True:
+        try:
+            input_with_cancellable(reactor.ui_cancellable)
+        except frida.OperationCancelledError:
+            break
+        except KeyboardInterrupt:
+            break
+
+
 def deserialize_relay(value):
     address, username, password, kind = value.split(",")
     return frida.Relay(address, username, password, kind)

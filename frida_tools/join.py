@@ -5,11 +5,11 @@ from __future__ import unicode_literals
 def main():
     import frida
 
-    from frida_tools.application import ConsoleApplication, input_with_cancellable
+    from frida_tools.application import ConsoleApplication, await_ctrl_c
 
     class JoinApplication(ConsoleApplication):
         def __init__(self):
-            ConsoleApplication.__init__(self, self._await_ctrl_c)
+            ConsoleApplication.__init__(self, await_ctrl_c)
 
         def _usage(self):
             return "%(prog)s [options] target portal-location [portal-certificate] [portal-token]"
@@ -56,15 +56,6 @@ def main():
 
         def _stop(self):
             pass
-
-        def _await_ctrl_c(self, reactor):
-            while True:
-                try:
-                    input_with_cancellable(reactor.ui_cancellable)
-                except frida.OperationCancelledError:
-                    break
-                except KeyboardInterrupt:
-                    break
 
     app = JoinApplication()
     app.run()
