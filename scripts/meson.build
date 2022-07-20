@@ -1,6 +1,7 @@
 scripts = [
   ['frida', 'repl'],
   ['frida-apk', 'apk'],
+  ['frida-compile', 'compiler'],
   ['frida-create', 'create'],
   ['frida-discover', 'discover'],
   ['frida-kill', 'kill'],
