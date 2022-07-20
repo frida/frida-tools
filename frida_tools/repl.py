@@ -32,8 +32,10 @@ def main():
     from prompt_toolkit.styles import Style as PromptToolkitStyle
     from pygments.lexers.javascript import JavascriptLexer
     from pygments.token import Token
+    from timeit import default_timer as timer
 
     from frida_tools.application import ConsoleApplication
+    from frida_tools.cli_formatting import format_compiling, format_compiled, format_diagnostic
     from frida_tools import _repl_magic
 
     class REPLApplication(ConsoleApplication):
@@ -45,6 +47,7 @@ def main():
             self._completer = FridaCompleter(self)
             self._cli = None
             self._last_change_id = 0
+            self._compilers = {}
             self._monitored_files = {}
             self._autoperform = False
             self._autoperform_option = False
@@ -271,7 +274,7 @@ def main():
             self._monitored_files = {}
 
         def _monitor(self, path):
-            if path is None or path in self._monitored_files:
+            if path is None or path in self._monitored_files or script_needs_compilation(path):
                 return
 
             monitor = frida.FileMonitor(path)
@@ -590,42 +593,69 @@ def main():
         def _process_change(self, change_id):
             if change_id != self._last_change_id:
                 return
+            self._try_load_script()
+
+        def _try_load_script(self):
             try:
                 self._load_script()
             except Exception as e:
                 self._print("Failed to load script: {error}".format(error=e))
 
         def _create_repl_script(self):
-            generated_script = ""
+            raw_fragments = []
+
+            raw_fragments.append(self._make_repl_runtime())
 
             if self._codeshare_script is not None:
-                generated_script = self._codeshare_script
+                raw_fragments.append(self._codeshare_script)
 
             for user_script in self._user_scripts:
-                with codecs.open(user_script, 'rb', 'utf-8') as f:
-                    generated_script += f.read()
-                    generated_script += '\n'
+                if script_needs_compilation(user_script):
+                    compilation_started = None
 
-            if len(generated_script) == 0:
-                return "(function () {\n" + self._make_repl_runtime(indent=4) + "\n})();"
+                    context = self._compilers.get(user_script, None)
+                    if context is None:
+                        context = CompilerContext(user_script, self._autoreload, self._on_bundle_updated)
+                        context.compiler.on("diagnostics", self._on_compiler_diagnostics)
+                        self._compilers[user_script] = context
+                        self._update_status(format_compiling(user_script, os.getcwd()))
+                        compilation_started = timer()
 
-            if generated_script.startswith("📦\n"):
-                runtime = self._make_repl_runtime(indent=0)
-                raw_runtime = runtime.encode("utf-8")
-                return "📦\n{} /frida/repl.js\n✄\n{}\n✄\n{}".format(len(raw_runtime), runtime, generated_script[2:])
-            else:
-                return self._wrap_script_in_repl_runtime(generated_script)
+                    raw_fragments.append(context.get_bundle())
 
-        def _wrap_script_in_repl_runtime(self, script):
-                return "_init();" + script + """\n\n// Frida REPL script:\n\
+                    if compilation_started is not None:
+                        compilation_finished = timer()
+                        self._update_status(format_compiled(user_script, os.getcwd(), compilation_started, compilation_finished))
+                else:
+                    with codecs.open(user_script, 'rb', 'utf-8') as f:
+                        raw_fragments.append(f.read())
 
-function _init() {
-    """ + self._make_repl_runtime(indent=4) + """
-}
-"""
+            fragments = []
+            next_script_id = 1
+            for raw_fragment in raw_fragments:
+                if raw_fragment.startswith("📦\n"):
+                    fragments.append(raw_fragment[2:])
+                else:
+                    script_id = next_script_id
+                    next_script_id += 1
+                    size = len(raw_fragment.encode("utf-8"))
+                    fragments.append("{} /frida/repl-{}.js\n✄\n{}".format(size, script_id, raw_fragment))
 
-        def _make_repl_runtime(self, indent):
-            code = """\
+            return "📦\n" + "\n✄\n".join(fragments)
+
+        def _on_bundle_updated(self):
+            self._reactor.schedule(lambda: self._try_load_script())
+
+        def _on_compiler_diagnostics(self, diagnostics):
+            self._reactor.schedule(lambda: self._print_compiler_diagnostics(diagnostics))
+
+        def _print_compiler_diagnostics(self, diagnostics):
+            cwd = os.getcwd()
+            for diag in diagnostics:
+                self._print(format_diagnostic(diag, cwd))
+
+        def _make_repl_runtime(self):
+            return """\
 global.cm = null;
 global.cs = {};
 
@@ -679,12 +709,6 @@ function onLog(messagePtr) {
     console.log(message);
 }
 """
-
-            if indent != 0:
-                indent_str = indent * " "
-                return "\n".join([indent_str + line for line in code.split("\n")])
-            else:
-                return code
 
         def _load_cmodule_code(self):
             if self._user_cmodule is None:
@@ -833,6 +857,35 @@ URL: {url}
    . . . .
    . . . .   Connected to {device_name} (id={device_id})""".format(device_id=self._device.id, device_name=self._device.name))
 
+    class CompilerContext:
+        def __init__(self, user_script, autoreload, on_bundle_updated):
+            self._user_script = user_script
+            self._autoreload = autoreload
+            self._on_bundle_updated = on_bundle_updated
+
+            self.compiler = frida.Compiler()
+            self._bundle = None
+
+        def get_bundle(self):
+            compiler = self.compiler
+
+            if not self._autoreload:
+                return compiler.build(self._user_script)
+
+            if self._bundle is None:
+                ready = threading.Event()
+
+                def on_compiler_output(bundle):
+                    self._bundle = bundle
+                    ready.set()
+                    self._on_bundle_updated()
+
+                compiler.on("output", on_compiler_output)
+                compiler.watch(self._user_script)
+                ready.wait()
+
+            return self._bundle
+
     class FridaCompleter(Completer):
         def __init__(self, repl):
             self._repl = repl
@@ -943,6 +996,9 @@ URL: {url}
 
         def _pattern_matches(self, pattern, text):
             return re.search(re.escape(pattern), text, re.IGNORECASE) != None
+
+    def script_needs_compilation(path):
+        return path.endswith(".ts")
 
     def hexdump(src, length=16):
         try:
