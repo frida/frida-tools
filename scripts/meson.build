@@ -4,6 +4,7 @@ scripts = [
   ['frida-compile', 'compiler'],
   ['frida-create', 'create'],
   ['frida-discover', 'discover'],
+  ['frida-join', 'join'],
   ['frida-kill', 'kill'],
   ['frida-ls', 'ls'],
   ['frida-ls-devices', 'lsd'],
