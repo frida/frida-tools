@@ -21,7 +21,7 @@ def main():
             parser.add_argument("-o", "--output-directory", help="output directory", dest="outdir", default=".")
             parser.add_argument("-t", "--template", help="template file: cmodule|agent", dest="template", default=None)
 
-        def _initialize(self, parser, options, args):    
+        def _initialize(self, parser, options, args):
             args = parser.parse_args()
             if not args.template:
                 parser.error("template must be specified")
@@ -205,6 +205,7 @@ frida_log (const char * format,
 
             session = frida.attach(0)
             script = session.create_script("rpc.exports.getBuiltins = () => CModule.builtins;")
+            self._on_script_created(script)
             script.load()
             builtins = script.exports.get_builtins()
             script.unload()

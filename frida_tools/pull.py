@@ -67,6 +67,7 @@ class PullApplication(ConsoleApplication):
             script = self._session.create_script(name="pull", source=source)
             self._script = script
             script.on("message", on_message)
+            self._on_script_created(script)
             script.load()
 
             self._stream_controller = StreamController(self._post_stream_stanza,

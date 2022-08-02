@@ -84,6 +84,7 @@ class Discoverer(object):
                                              source=self._create_discover_script(),
                                              runtime=runtime)
         self._script.on('message', on_message)
+        self._on_script_created(script)
         self._script.load()
 
         params = self._script.exports.start()

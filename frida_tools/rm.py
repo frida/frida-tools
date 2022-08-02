@@ -48,6 +48,7 @@ class RmApplication(ConsoleApplication):
 
             script = self._session.create_script(name="pull", source=source)
             script.on("message", on_message)
+            self._on_script_created(script)
             script.load()
 
             errors = script.exports.rm(self._paths, self._flags)

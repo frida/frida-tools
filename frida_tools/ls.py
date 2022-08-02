@@ -49,6 +49,7 @@ class LsApplication(ConsoleApplication):
 
             script = self._session.create_script(name="ls", source=source)
             script.on("message", on_message)
+            self._on_script_created(script)
             script.load()
 
             groups = script.exports.ls(self._files)

@@ -446,8 +446,9 @@ class ConsoleApplication(object):
                 peer_options['relays'] = self._relays
             self._session.setup_peer_connection(**peer_options)
 
+    def _on_script_created(self, script):
         if self._enable_debugger:
-            self._session.enable_debugger()
+            script.enable_debugger()
             self._print("Chrome Inspector server listening on port 9229\n")
 
     def _show_message_if_no_device(self):

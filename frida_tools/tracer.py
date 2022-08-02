@@ -98,6 +98,9 @@ def main():
                 self._output.close()
             self._output = None
 
+        def on_script_created(self, script):
+            self._on_script_created(script)
+
         def on_trace_progress(self, status, *params):
             if status == 'initializing':
                 self._update_status("Instrumenting...")
@@ -264,6 +267,7 @@ class Tracer(object):
         self._script = script
         script.set_log_handler(self._log_handler)
         script.on('message', on_message)
+        ui.on_script_created(script)
         script.load()
 
         self._agent = script.exports
@@ -677,6 +681,9 @@ class OutputFile(object):
 
 
 class UI(object):
+    def on_script_created(self, script):
+        pass
+
     def on_trace_progress(self, status):
         pass
 

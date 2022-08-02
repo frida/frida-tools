@@ -225,6 +225,7 @@ def main():
                 self._reactor.schedule(lambda: self._process_message(message, data))
 
             script.on('message', on_message)
+            self._on_script_created(script)
             script.load()
 
             cmodule_code = self._load_cmodule_code()
