@@ -139,7 +139,7 @@ class Exec(Magic):
 
         try:
             with codecs.open(args[0], "rb", "utf-8") as f:
-                if not repl._eval_and_print(f.read()):
+                if not repl._exec_and_print(repl._evaluate_expression, f.read()):
                     repl._errors += 1
         except PermissionError:
             repl._print("Can't read the given file because of a permission error")
@@ -155,7 +155,8 @@ class Time(Magic):
         return -2
 
     def execute(self, repl, args):
-        repl._eval_and_print(
+        repl._exec_and_print(
+            repl._evaluate_expression,
             """
             (() => {{
                 const _startTime = Date.now();
