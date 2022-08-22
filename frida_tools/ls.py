@@ -75,7 +75,7 @@ class LsApplication(ConsoleApplication):
                 mtime = datetime.fromtimestamp(raw_mtime / 1000.0, tz=timezone.utc)
                 rows.append((type + access, str(nlink), owner, group, str(size), mtime.strftime("%c"), name, target))
             
-            if not len(rows):
+            if len(rows) == 0:
                 break
 
             widths = []
