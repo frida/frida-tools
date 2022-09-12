@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
 
 import codecs
 import os
 import sys
-from threading import Thread
 import time
+from threading import Thread
 
 from colorama import Fore, Style
 
@@ -70,9 +70,11 @@ class PullApplication(ConsoleApplication):
             self._on_script_created(script)
             script.load()
 
-            self._stream_controller = StreamController(self._post_stream_stanza,
-                                                       self._on_incoming_stream_request,
-                                                       on_stats_updated=self._on_stream_stats_updated)
+            self._stream_controller = StreamController(
+                self._post_stream_stanza,
+                self._on_incoming_stream_request,
+                on_stats_updated=self._on_stream_stats_updated,
+            )
 
             worker = Thread(target=self._perform_pull)
             worker.start()
@@ -131,13 +133,16 @@ class PullApplication(ConsoleApplication):
         bytes_received = sc.bytes_received
         megabytes_per_second = bytes_to_megabytes(bytes_received) / duration
 
-        self._update_status("{}{} file{} pulled. {:.1f} MB/s ({} bytes in {:.3f}s)" \
-                .format(prefix,
-                        sc.streams_opened,
-                        "s" if sc.streams_opened != 1 else "",
-                        megabytes_per_second,
-                        bytes_received,
-                        duration))
+        self._update_status(
+            "{}{} file{} pulled. {:.1f} MB/s ({} bytes in {:.3f}s)".format(
+                prefix,
+                sc.streams_opened,
+                "s" if sc.streams_opened != 1 else "",
+                megabytes_per_second,
+                bytes_received,
+                duration,
+            )
+        )
 
     def _on_message(self, message, data):
         handled = False
@@ -167,10 +172,7 @@ class PullApplication(ConsoleApplication):
         self._failed_paths.append((local_path, "partial"))
 
     def _post_stream_stanza(self, stanza, data=None):
-        self._script.post({
-            "type": "stream",
-            "payload": stanza
-        }, data=data)
+        self._script.post({"type": "stream", "payload": stanza}, data=data)
 
     def _on_incoming_stream_request(self, label, details):
         local_path = self._local_paths[int(label)]

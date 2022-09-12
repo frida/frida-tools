@@ -7,11 +7,7 @@ class StreamController:
         self.bytes_received = 0
         self.bytes_sent = 0
 
-        self._handlers = {
-            ".create": self._on_create,
-            ".finish": self._on_finish,
-            ".write": self._on_write
-        }
+        self._handlers = {".create": self._on_create, ".finish": self._on_finish, ".write": self._on_write}
 
         self._post = post
         self._on_incoming_stream_request = on_incoming_stream_request
@@ -35,11 +31,7 @@ class StreamController:
         eid = self._next_endpoint_id
         self._next_endpoint_id += 1
 
-        endpoint = {
-            "id": eid,
-            "label": label,
-            "details": details
-        }
+        endpoint = {"id": eid, "label": label, "details": details}
 
         sink = Sink(self, endpoint)
 
@@ -108,11 +100,7 @@ class StreamController:
         request = [completed, None, None]
         self._requests[rid] = request
 
-        self._post({
-            "id": rid,
-            "name": name,
-            "payload": payload
-        }, data=data)
+        self._post({"id": rid, "name": name, "payload": payload}, data=data)
 
         completed.wait()
 
@@ -136,20 +124,10 @@ class StreamController:
         self._resolve(sid, result)
 
     def _resolve(self, sid, value):
-        self._post({
-            "id": sid,
-            "name": "+result",
-            "payload": value
-        })
+        self._post({"id": sid, "name": "+result", "payload": value})
 
     def _reject(self, sid, error):
-        self._post({
-            "id": sid,
-            "name": "+error",
-            "payload": {
-                "message": str(error)
-            }
-        })
+        self._post({"id": sid, "name": "+error", "payload": {"message": str(error)}})
 
     def _on_notification(self, sid, name, payload):
         request = self._requests.pop(sid, None)
@@ -175,15 +153,15 @@ class Sink:
         self._controller = controller
         self._endpoint = endpoint
 
-        controller._request(".create", { "endpoint": endpoint })
+        controller._request(".create", {"endpoint": endpoint})
 
     def close(self):
-        self._controller._request(".finish", { "endpoint": self._endpoint })
+        self._controller._request(".finish", {"endpoint": self._endpoint})
 
     def write(self, chunk):
         ctrl = self._controller
 
-        ctrl._request(".write", { "endpoint": self._endpoint }, chunk)
+        ctrl._request(".write", {"endpoint": self._endpoint}, chunk)
 
         ctrl.bytes_sent += len(chunk)
         ctrl._notify_stats_updated()

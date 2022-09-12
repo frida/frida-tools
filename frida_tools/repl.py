@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
 
 import os
 import shlex
 import signal
 import string
-import threading
 import sys
+import threading
 import time
 
 
@@ -17,26 +17,28 @@ def main():
     import os
     import platform
     import re
+
     try:
         from urllib.request import build_opener
     except:
         from urllib2 import build_opener
 
-    from colorama import Fore, Style
+    from timeit import default_timer as timer
+
     import frida
-    from prompt_toolkit.shortcuts import prompt
+    from colorama import Fore, Style
     from prompt_toolkit import PromptSession
+    from prompt_toolkit.completion import Completer, Completion
     from prompt_toolkit.history import FileHistory
-    from prompt_toolkit.completion import Completion, Completer
     from prompt_toolkit.lexers import PygmentsLexer
+    from prompt_toolkit.shortcuts import prompt
     from prompt_toolkit.styles import Style as PromptToolkitStyle
     from pygments.lexers.javascript import JavascriptLexer
     from pygments.token import Token
-    from timeit import default_timer as timer
 
-    from frida_tools.application import ConsoleApplication
-    from frida_tools.cli_formatting import format_compiling, format_compiled, format_diagnostic
     from frida_tools import _repl_magic
+    from frida_tools.application import ConsoleApplication
+    from frida_tools.cli_formatting import format_compiled, format_compiling, format_diagnostic
 
     class REPLApplication(ConsoleApplication):
         def __init__(self):
@@ -57,18 +59,22 @@ def main():
             super(REPLApplication, self).__init__(self._process_input, self._on_stop)
 
             if self._have_terminal and not self._plain_terminal:
-                style = PromptToolkitStyle([
-                    ("completion-menu", "bg:#3d3d3d #ef6456"),
-                    ("completion-menu.completion.current", "bg:#ef6456 #3d3d3d"),
-                ])
+                style = PromptToolkitStyle(
+                    [
+                        ("completion-menu", "bg:#3d3d3d #ef6456"),
+                        ("completion-menu.completion.current", "bg:#ef6456 #3d3d3d"),
+                    ]
+                )
                 history = FileHistory(self._get_or_create_history_file())
-                self._cli = PromptSession(lexer=PygmentsLexer(JavascriptLexer),
-                                          style=style,
-                                          history=history,
-                                          completer=self._completer,
-                                          complete_in_thread=True,
-                                          enable_open_in_editor=True,
-                                          tempfile_suffix=".js")
+                self._cli = PromptSession(
+                    lexer=PygmentsLexer(JavascriptLexer),
+                    style=style,
+                    history=history,
+                    completer=self._completer,
+                    complete_in_thread=True,
+                    enable_open_in_editor=True,
+                    tempfile_suffix=".js",
+                )
                 self._dumb_stdin_reader = None
             else:
                 self._cli = None
@@ -78,26 +84,88 @@ def main():
                 self._rpc_complete_server = start_completion_thread(self)
 
         def _add_options(self, parser):
-            parser.add_argument("-l", "--load", help="load SCRIPT", metavar="SCRIPT", dest="user_scripts", action="append", default=[])
-            parser.add_argument("-P", "--parameters", help="parameters as JSON, same as Gadget", metavar="PARAMETERS_JSON", dest="user_parameters")
+            parser.add_argument(
+                "-l", "--load", help="load SCRIPT", metavar="SCRIPT", dest="user_scripts", action="append", default=[]
+            )
+            parser.add_argument(
+                "-P",
+                "--parameters",
+                help="parameters as JSON, same as Gadget",
+                metavar="PARAMETERS_JSON",
+                dest="user_parameters",
+            )
             parser.add_argument("-C", "--cmodule", help="load CMODULE", dest="user_cmodule")
-            parser.add_argument("--toolchain", help="CModule toolchain to use when compiling from source code", choices=['any', 'internal', 'external'], default='any')
-            parser.add_argument("-c", "--codeshare", help="load CODESHARE_URI", metavar="CODESHARE_URI", dest="codeshare_uri")
-            parser.add_argument("-e", "--eval", help="evaluate CODE", metavar="CODE", action='append', dest="eval_items")
-            parser.add_argument("-q", help="quiet mode (no prompt) and quit after -l and -e", action='store_true', dest="quiet", default=False)
-            parser.add_argument("-t", "--timeout", help="seconds to wait before terminating in quiet mode", dest="timeout", default=0)
-            parser.add_argument("--pause", help="leave main thread paused after spawning program", action='store_const', const='pause', dest="on_spawn_complete", default='resume')
+            parser.add_argument(
+                "--toolchain",
+                help="CModule toolchain to use when compiling from source code",
+                choices=["any", "internal", "external"],
+                default="any",
+            )
+            parser.add_argument(
+                "-c", "--codeshare", help="load CODESHARE_URI", metavar="CODESHARE_URI", dest="codeshare_uri"
+            )
+            parser.add_argument(
+                "-e", "--eval", help="evaluate CODE", metavar="CODE", action="append", dest="eval_items"
+            )
+            parser.add_argument(
+                "-q",
+                help="quiet mode (no prompt) and quit after -l and -e",
+                action="store_true",
+                dest="quiet",
+                default=False,
+            )
+            parser.add_argument(
+                "-t", "--timeout", help="seconds to wait before terminating in quiet mode", dest="timeout", default=0
+            )
+            parser.add_argument(
+                "--pause",
+                help="leave main thread paused after spawning program",
+                action="store_const",
+                const="pause",
+                dest="on_spawn_complete",
+                default="resume",
+            )
             parser.add_argument("-o", "--output", help="output to log file", dest="logfile")
-            parser.add_argument("--eternalize", help="eternalize the script before exit", action='store_true', dest="eternalize", default=False)
-            parser.add_argument("--exit-on-error", help="exit with code 1 after encountering any exception in the SCRIPT", action='store_true', dest="exit_on_error", default=False)
-            parser.add_argument("--auto-perform", help="wrap entered code with Java.perform", action='store_true', dest="autoperform", default=False)
-            parser.add_argument("--auto-reload", help="Enable auto reload of provided scripts and c module (on by default, will be required in the future)", action='store_true', dest="autoreload", default=True)
-            parser.add_argument("--no-auto-reload", help="Disable auto reload of provided scripts and c module", action='store_false', dest="autoreload", default=True)
+            parser.add_argument(
+                "--eternalize",
+                help="eternalize the script before exit",
+                action="store_true",
+                dest="eternalize",
+                default=False,
+            )
+            parser.add_argument(
+                "--exit-on-error",
+                help="exit with code 1 after encountering any exception in the SCRIPT",
+                action="store_true",
+                dest="exit_on_error",
+                default=False,
+            )
+            parser.add_argument(
+                "--auto-perform",
+                help="wrap entered code with Java.perform",
+                action="store_true",
+                dest="autoperform",
+                default=False,
+            )
+            parser.add_argument(
+                "--auto-reload",
+                help="Enable auto reload of provided scripts and c module (on by default, will be required in the future)",
+                action="store_true",
+                dest="autoreload",
+                default=True,
+            )
+            parser.add_argument(
+                "--no-auto-reload",
+                help="Disable auto reload of provided scripts and c module",
+                action="store_false",
+                dest="autoreload",
+                default=True,
+            )
 
         def _initialize(self, parser, options, args):
             self._user_scripts = list(map(os.path.abspath, options.user_scripts))
             for user_script in self._user_scripts:
-                with codecs.open(user_script, 'rb', 'utf-8'):
+                with codecs.open(user_script, "rb", "utf-8"):
                     pass
 
             if options.user_parameters is not None:
@@ -113,7 +181,7 @@ def main():
 
             if options.user_cmodule is not None:
                 self._user_cmodule = os.path.abspath(options.user_cmodule)
-                with open(self._user_cmodule, 'rb'):
+                with open(self._user_cmodule, "rb"):
                     pass
             else:
                 self._user_cmodule = None
@@ -133,7 +201,7 @@ def main():
             self._autoreload = options.autoreload
 
             if options.logfile is not None:
-                self._logfile = codecs.open(options.logfile, 'w', 'utf-8')
+                self._logfile = codecs.open(options.logfile, "w", "utf-8")
             else:
                 self._logfile = None
 
@@ -167,15 +235,18 @@ def main():
                 return
 
             if self._spawned_argv is not None or self._selected_spawn is not None:
-                command = " ".join(self._spawned_argv) if self._spawned_argv is not None else self._selected_spawn.identifier
-                if self._on_spawn_complete == 'resume':
-                    self._update_status(
-                        "Spawned `{command}`. Resuming main thread!".format(command=command))
+                command = (
+                    " ".join(self._spawned_argv) if self._spawned_argv is not None else self._selected_spawn.identifier
+                )
+                if self._on_spawn_complete == "resume":
+                    self._update_status("Spawned `{command}`. Resuming main thread!".format(command=command))
                     self._do_magic("resume")
                 else:
                     self._update_status(
                         "Spawned `{command}`. Use %resume to let the main thread start executing!".format(
-                            command=command))
+                            command=command
+                        )
+                    )
             else:
                 self._clear_status()
             self._ready.set()
@@ -215,9 +286,7 @@ def main():
 
             is_first_load = self._script is None
 
-            script = self._session.create_script(name=name,
-                                                 source=self._create_repl_script(),
-                                                 runtime=self._runtime)
+            script = self._session.create_script(name=name, source=self._create_repl_script(), runtime=self._runtime)
             script.set_log_handler(self._log)
             self._unload_script()
             self._script = script
@@ -225,7 +294,7 @@ def main():
             def on_message(message, data):
                 self._reactor.schedule(lambda: self._process_message(message, data))
 
-            script.on('message', on_message)
+            script.on("message", on_message)
             self._on_script_created(script)
             script.load()
 
@@ -233,11 +302,11 @@ def main():
             if cmodule_code is not None:
                 # TODO: Remove this hack once RPC implementation supports passing binary data in both directions.
                 if is_byte_array(cmodule_code):
-                    script.post({'type': 'frida:cmodule-payload'}, data=cmodule_code)
+                    script.post({"type": "frida:cmodule-payload"}, data=cmodule_code)
                     cmodule_code = None
                 script.exports.frida_load_cmodule(cmodule_code, self._toolchain)
 
-            stage = 'early' if self._target[0] == 'file' and is_first_load else 'late'
+            stage = "early" if self._target[0] == "file" and is_first_load else "late"
             try:
                 script.exports.init(stage, self._user_parameters)
             except:
@@ -280,7 +349,7 @@ def main():
                 return
 
             monitor = frida.FileMonitor(path)
-            monitor.on('change', self._on_change)
+            monitor.on("change", self._on_change)
             monitor.enable()
             self._monitored_files[path] = monitor
 
@@ -341,7 +410,7 @@ def main():
                                 line = self._dumb_stdin_reader.read_line(prompt)
                                 self._print(line)
                         except EOFError:
-                            if not self._have_terminal and os.environ.get("TERM", '') != "dumb":
+                            if not self._have_terminal and os.environ.get("TERM", "") != "dumb":
                                 while not self._stopping.wait(1):
                                     pass
                             return
@@ -360,7 +429,7 @@ def main():
                         self._print_help(expression)
                     except JavaScriptError as e:
                         error = e.error
-                        self._print(Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message'])
+                        self._print(Style.BRIGHT + error["name"] + Style.RESET_ALL + ": " + error["message"])
                     except frida.InvalidOperationError:
                         return
                 elif expression == "help":
@@ -381,7 +450,7 @@ def main():
                     except frida.OperationCancelledError:
                         return
 
-        def _get_confirmation(self, question, default_answer = False):
+        def _get_confirmation(self, question, default_answer=False):
             if default_answer:
                 prompt_string = question + " [Y/n] "
             else:
@@ -405,9 +474,9 @@ def main():
             success = False
             try:
                 (t, value) = self._perform_on_reactor_thread(lambda: exec(arg))
-                if t in ('function', 'undefined', 'null'):
+                if t in ("function", "undefined", "null"):
                     output = t
-                elif t == 'binary':
+                elif t == "binary":
                     output = hexdump(value).rstrip("\n")
                 else:
                     output = json.dumps(value, sort_keys=True, indent=4, separators=(",", ": "))
@@ -415,11 +484,11 @@ def main():
             except JavaScriptError as e:
                 error = e.error
 
-                output = Fore.RED + Style.BRIGHT + error['name'] + Style.RESET_ALL + ": " + error['message']
+                output = Fore.RED + Style.BRIGHT + error["name"] + Style.RESET_ALL + ": " + error["message"]
 
-                stack = error.get('stack', None)
+                stack = error.get("stack", None)
                 if stack is not None:
-                    trim_amount = 5 if self._runtime == 'v8' else 6
+                    trim_amount = 5 if self._runtime == "v8" else 6
                     trimmed_stack = stack.split("\n")[1:-trim_amount]
                     if len(trimmed_stack) > 0:
                         output += "\n" + "\n".join(trimmed_stack)
@@ -430,7 +499,8 @@ def main():
             return success
 
         def _print_startup_message(self):
-            self._print("""\
+            self._print(
+                """\
      ____
     / _  |   Frida {version} - A world-class dynamic instrumentation toolkit
    | (_| |
@@ -439,7 +509,10 @@ def main():
    . . . .       object?   -> Display information about 'object'
    . . . .       exit/quit -> Exit
    . . . .
-   . . . .   More info at https://frida.re/docs/home/""".format(version=frida.__version__))
+   . . . .   More info at https://frida.re/docs/home/""".format(
+                    version=frida.__version__
+                )
+            )
 
         def _print_help(self, expression):
             # TODO: Figure out docstrings and implement here. This is real jankaty right now.
@@ -447,12 +520,12 @@ def main():
             if expression.endswith(".?"):
                 expression = expression[:-2] + "?"
 
-            obj_to_identify = [x for x in expression.split(' ') if x.endswith("?")][0][:-1]
+            obj_to_identify = [x for x in expression.split(" ") if x.endswith("?")][0][:-1]
             (obj_type, obj_value) = self._evaluate_expression(obj_to_identify)
 
             if obj_type == "function":
                 signature = self._evaluate_expression("%s.toString()" % obj_to_identify)[1]
-                clean_signature = signature.split("{")[0][:-1].split('function ')[-1]
+                clean_signature = signature.split("{")[0][:-1].split("function ")[-1]
 
                 if "[native code]" in signature:
                     help_text += "Type:      Function (native)\n"
@@ -479,15 +552,15 @@ def main():
 
         # Negative means at least abs(val) - 1
         _magic_command_args = {
-            'resume': _repl_magic.Resume(),
-            'load': _repl_magic.Load(),
-            'reload': _repl_magic.Reload(),
-            'unload': _repl_magic.Unload(),
-            'autoperform': _repl_magic.Autoperform(),
-            'autoreload': _repl_magic.Autoreload(),
-            'exec': _repl_magic.Exec(),
-            'time': _repl_magic.Time(),
-            'help': _repl_magic.Help()
+            "resume": _repl_magic.Resume(),
+            "load": _repl_magic.Load(),
+            "reload": _repl_magic.Reload(),
+            "unload": _repl_magic.Unload(),
+            "autoperform": _repl_magic.Autoperform(),
+            "autoreload": _repl_magic.Autoreload(),
+            "exec": _repl_magic.Exec(),
+            "time": _repl_magic.Time(),
+            "help": _repl_magic.Help(),
         }
 
         def _do_magic(self, statement):
@@ -507,11 +580,15 @@ def main():
                 atleast_args = True
                 required_args = abs(required_args) - 1
 
-            if (not atleast_args and len(args) != required_args) or \
-                    (atleast_args and len(args) < required_args):
-                self._print("{cmd} command expects {atleast}{n} argument{s}".format(
-                    cmd=command, atleast='atleast ' if atleast_args else '', n=required_args,
-                    s='' if required_args == 1 else ' '))
+            if (not atleast_args and len(args) != required_args) or (atleast_args and len(args) < required_args):
+                self._print(
+                    "{cmd} command expects {atleast}{n} argument{s}".format(
+                        cmd=command,
+                        atleast="atleast " if atleast_args else "",
+                        n=required_args,
+                        s="" if required_args == 1 else " ",
+                    )
+                )
                 return
 
             magic_command.execute(self, args)
@@ -539,7 +616,9 @@ def main():
                 self._print("autoperform is only available in Java processes")
 
         def _is_java_available(self):
-            script = self._session.create_script(name="java_check", source="rpc.exports.javaAvailable = () => Java.available;", runtime=self._runtime)
+            script = self._session.create_script(
+                name="java_check", source="rpc.exports.javaAvailable = () => Java.available;", runtime=self._runtime
+            )
             script.load()
             try:
                 return script.exports.java_available()
@@ -552,12 +631,12 @@ def main():
         def _create_prompt(self):
             device_type = self._device.type
             type_name = self._target[0]
-            if type_name == 'pid':
+            if type_name == "pid":
                 if self._target[1] == 0:
-                    target = 'SystemSession'
+                    target = "SystemSession"
                 else:
-                    target = 'PID::%u' % self._target[1]
-            elif type_name == 'file':
+                    target = "PID::%u" % self._target[1]
+            elif type_name == "file":
                 target = os.path.basename(self._target[1][0])
             else:
                 target = self._target[1]
@@ -566,7 +645,7 @@ def main():
             if self._autoperform:
                 suffix = "(ap)"
 
-            if device_type in ('local', 'remote'):
+            if device_type in ("local", "remote"):
                 prompt_string = "%s::%s %s" % (device_type.title(), target, suffix)
             else:
                 prompt_string = "%s::%s %s" % (self._device.name, target, suffix)
@@ -583,18 +662,18 @@ def main():
 
         def _parse_evaluate_result(self, result):
             if is_byte_array(result):
-                return ('binary', result)
+                return ("binary", result)
             elif isinstance(result, dict):
-                return ('binary', bytes())
-            elif result[0] == 'error':
+                return ("binary", bytes())
+            elif result[0] == "error":
                 raise JavaScriptError(result[1])
             return result
 
         def _process_message(self, message, data):
-            message_type = message['type']
-            if message_type == 'error':
-                text = message.get('stack', message['description'])
-                self._log('error', text)
+            message_type = message["type"]
+            if message_type == "error":
+                text = message.get("stack", message["description"])
+                self._log("error", text)
                 self._errors += 1
                 if self._exit_on_error:
                     self._exit(1)
@@ -602,7 +681,7 @@ def main():
                 self._print("message:", message, "data:", data)
 
         def _on_change(self, changed_file, other_file, event_type):
-            if event_type == 'changes-done-hint':
+            if event_type == "changes-done-hint":
                 return
             self._last_change_id += 1
             change_id = self._last_change_id
@@ -643,9 +722,11 @@ def main():
 
                     if compilation_started is not None:
                         compilation_finished = timer()
-                        self._update_status(format_compiled(user_script, os.getcwd(), compilation_started, compilation_finished))
+                        self._update_status(
+                            format_compiled(user_script, os.getcwd(), compilation_started, compilation_finished)
+                        )
                 else:
-                    with codecs.open(user_script, 'rb', 'utf-8') as f:
+                    with codecs.open(user_script, "rb", "utf-8") as f:
                         raw_fragments.append(f.read())
 
             fragments = []
@@ -767,15 +848,18 @@ function onLog(messagePtr) {
             if self._user_cmodule is None:
                 return None
 
-            with open(self._user_cmodule, 'rb') as f:
+            with open(self._user_cmodule, "rb") as f:
                 code = f.read()
             if code_is_native(code):
                 return code
-            source = code.decode('utf-8')
+            source = code.decode("utf-8")
 
             name = os.path.basename(self._user_cmodule)
 
-            return """static void frida_log (const char * format, ...);\n#line 1 "{name}"\n""".format(name=name) + source + """\
+            return (
+                """static void frida_log (const char * format, ...);\n#line 1 "{name}"\n""".format(name=name)
+                + source
+                + """\
 #line 1 "frida-repl-builtins.c"
 #include <glib.h>
 
@@ -797,6 +881,7 @@ frida_log (const char * format,
   g_free (message);
 }
 """
+            )
 
         def _load_codeshare_script(self, uri):
             trust_store = self._get_or_create_truststore()
@@ -805,20 +890,21 @@ frida_log (const char * format,
             response_json = None
             try:
                 request = build_opener()
-                request.addheaders = [('User-Agent', 'Frida v{} | {}'.format(frida.__version__, platform.platform()))]
+                request.addheaders = [("User-Agent", "Frida v{} | {}".format(frida.__version__, platform.platform()))]
                 response = request.open(project_url)
-                response_content = response.read().decode('utf-8')
+                response_content = response.read().decode("utf-8")
                 response_json = json.loads(response_content)
             except Exception as e:
                 self._print("Got an unhandled exception while trying to retrieve {} - {}".format(uri, e))
                 return None
 
             trusted_signature = trust_store.get(uri, "")
-            fingerprint = hashlib.sha256(response_json['source'].encode('utf-8')).hexdigest()
+            fingerprint = hashlib.sha256(response_json["source"].encode("utf-8")).hexdigest()
             if fingerprint == trusted_signature:
-                return response_json['source']
+                return response_json["source"]
 
-            self._print("""Hello! This is the first time you're running this particular snippet, or the snippet's source code has changed.
+            self._print(
+                """Hello! This is the first time you're running this particular snippet, or the snippet's source code has changed.
 
 Project Name: {project_name}
 Author: {author}
@@ -826,22 +912,23 @@ Slug: {slug}
 Fingerprint: {fingerprint}
 URL: {url}
             """.format(
-                project_name=response_json['project_name'],
-                author="@" + uri.split('/')[0],
-                slug=uri,
-                fingerprint=fingerprint,
-                url="https://codeshare.frida.re/@{}".format(uri)
-            ))
+                    project_name=response_json["project_name"],
+                    author="@" + uri.split("/")[0],
+                    slug=uri,
+                    fingerprint=fingerprint,
+                    url="https://codeshare.frida.re/@{}".format(uri),
+                )
+            )
 
             answer = self._get_confirmation("Are you sure you'd like to trust this project?")
             if answer:
                 self._print(
                     "Adding fingerprint {} to the trust store! You won't be prompted again unless the code changes.".format(
-                        fingerprint))
-                script = response_json['source']
-                self._update_truststore({
-                    uri: fingerprint
-                })
+                        fingerprint
+                    )
+                )
+                script = response_json["source"]
+                self._update_truststore({uri: fingerprint})
                 return script
 
         def _update_truststore(self, record):
@@ -850,7 +937,7 @@ URL: {url}
 
             codeshare_trust_store = self._get_or_create_truststore_file()
 
-            with open(codeshare_trust_store, 'w') as f:
+            with open(codeshare_trust_store, "w") as f:
                 f.write(json.dumps(trust_store))
 
         def _get_or_create_truststore(self):
@@ -863,41 +950,43 @@ URL: {url}
                 except Exception as e:
                     self._print(
                         "Unable to load the codeshare truststore ({}), defaulting to an empty truststore. You will be prompted every time you want to run a script!".format(
-                            e))
+                            e
+                        )
+                    )
                     trust_store = {}
             else:
-                with open(codeshare_trust_store, 'w') as f:
+                with open(codeshare_trust_store, "w") as f:
                     f.write(json.dumps({}))
                 trust_store = {}
 
             return trust_store
 
         def _get_or_create_truststore_file(self):
-            truststore_file = os.path.join(self._get_or_create_data_dir(), 'codeshare-truststore.json')
+            truststore_file = os.path.join(self._get_or_create_data_dir(), "codeshare-truststore.json")
             if not os.path.isfile(truststore_file):
-                self._migrate_old_config_file('codeshare-truststore.json', truststore_file)
+                self._migrate_old_config_file("codeshare-truststore.json", truststore_file)
             return truststore_file
 
         def _get_or_create_history_file(self):
-            history_file = os.path.join(self._get_or_create_state_dir(), 'history')
+            history_file = os.path.join(self._get_or_create_state_dir(), "history")
             if os.path.isfile(history_file):
                 return history_file
 
-            found_old = self._migrate_old_config_file('history', history_file)
+            found_old = self._migrate_old_config_file("history", history_file)
             if not found_old:
-                open(history_file, 'a').close()
+                open(history_file, "a").close()
 
             return history_file
 
         def _migrate_old_config_file(self, name, new_path):
             xdg_config_home = os.getenv("XDG_CONFIG_HOME")
             if xdg_config_home is not None:
-                old_file = os.path.exists(os.path.join(xdg_config_home, 'frida', name))
+                old_file = os.path.exists(os.path.join(xdg_config_home, "frida", name))
                 if os.path.isfile(old_file):
                     os.rename(old_file, new_path)
                     return True
 
-            old_file = os.path.join(os.path.expanduser('~'), '.frida', name)
+            old_file = os.path.join(os.path.expanduser("~"), ".frida", name)
             if os.path.isfile(old_file):
                 os.rename(old_file, new_path)
                 return True
@@ -906,9 +995,13 @@ URL: {url}
 
         def _on_device_found(self):
             if not self._quiet:
-                self._print("""\
+                self._print(
+                    """\
    . . . .
-   . . . .   Connected to {device_name} (id={device_id})""".format(device_id=self._device.id, device_name=self._device.name))
+   . . . .   Connected to {device_name} (id={device_id})""".format(
+                        device_id=self._device.id, device_name=self._device.name
+                    )
+                )
 
     class CompilerContext:
         def __init__(self, user_script, autoreload, on_bundle_updated):
@@ -947,30 +1040,33 @@ URL: {url}
         def get_completions(self, document, complete_event):
             prefix = document.text_before_cursor
 
-            magic = len(prefix) > 0 and prefix[0] == '%' and not any(map(lambda c: c.isspace(), prefix))
+            magic = len(prefix) > 0 and prefix[0] == "%" and not any(map(lambda c: c.isspace(), prefix))
 
             tokens = list(self._lexer.get_tokens(prefix))[:-1]
 
             # 0.toString() is invalid syntax,
             # but pygments doesn't seem to know that
             for i in range(len(tokens) - 1):
-                if tokens[i][0] == Token.Literal.Number.Integer \
-                        and tokens[i + 1][0] == Token.Punctuation and tokens[i + 1][1] == '.':
+                if (
+                    tokens[i][0] == Token.Literal.Number.Integer
+                    and tokens[i + 1][0] == Token.Punctuation
+                    and tokens[i + 1][1] == "."
+                ):
                     tokens[i] = (Token.Literal.Number.Float, tokens[i][1] + tokens[i + 1][1])
                     del tokens[i + 1]
 
-            before_dot = ''
-            after_dot = ''
+            before_dot = ""
+            after_dot = ""
             encountered_dot = False
             for t in tokens[::-1]:
                 if t[0] in Token.Name.subtypes:
                     before_dot = t[1] + before_dot
-                elif t[0] == Token.Punctuation and t[1] == '.':
-                    before_dot = '.' + before_dot
+                elif t[0] == Token.Punctuation and t[1] == ".":
+                    before_dot = "." + before_dot
                     if not encountered_dot:
                         encountered_dot = True
                         after_dot = before_dot[1:]
-                        before_dot = ''
+                        before_dot = ""
                 else:
                     if encountered_dot:
                         # The value/contents of the string, number or array doesn't matter,
@@ -978,10 +1074,10 @@ URL: {url}
                         if t[0] in Token.Literal.String.subtypes:
                             before_dot = '""' + before_dot
                         elif t[0] in Token.Literal.Number.subtypes:
-                            before_dot = '0.0' + before_dot
-                        elif t[0] == Token.Punctuation and t[1] == ']':
-                            before_dot = '[]' + before_dot
-                        elif t[0] == Token.Punctuation and t[1] == ')':
+                            before_dot = "0.0" + before_dot
+                        elif t[0] == Token.Punctuation and t[1] == "]":
+                            before_dot = "[]" + before_dot
+                        elif t[0] == Token.Punctuation and t[1] == ")":
                             # we don't know the returned value of the function call so we abort the completion
                             return
 
@@ -991,11 +1087,14 @@ URL: {url}
                 if encountered_dot:
                     if before_dot == "" or before_dot.endswith("."):
                         return
-                    for key in self._get_keys("""\
+                    for key in self._get_keys(
+                        """\
                             (() => {
                                 let o;
                                 try {
-                                    o = """ + before_dot + """;
+                                    o = """
+                        + before_dot
+                        + """;
                                 } catch (e) {
                                     return [];
                                 }
@@ -1014,7 +1113,8 @@ URL: {url}
                                     k = k.concat(Object.getOwnPropertyNames(p));
 
                                 return k;
-                            })();"""):
+                            })();"""
+                    ):
                         if self._pattern_matches(after_dot, key):
                             yield Completion(key, -len(after_dot))
                 else:
@@ -1023,7 +1123,7 @@ URL: {url}
                     else:
                         keys = self._get_keys("Object.getOwnPropertyNames(this)")
                     for key in keys:
-                        if not self._pattern_matches(before_dot, key) or (key.startswith('_') and before_dot == ''):
+                        if not self._pattern_matches(before_dot, key) or (key.startswith("_") and before_dot == ""):
                             continue
                         yield Completion(key, -len(before_dot))
             except frida.InvalidOperationError:
@@ -1038,7 +1138,7 @@ URL: {url}
             with repl._reactor.io_cancellable:
                 (t, value) = repl._evaluate_expression(code)
 
-            if t == 'error':
+            if t == "error":
                 return []
 
             return sorted(filter(self._is_valid_name, set(value)))
@@ -1061,9 +1161,9 @@ URL: {url}
         FILTER = "".join([(len(repr(chr(x))) == 3) and chr(x) or "." for x in range(256)])
         lines = []
         for c in xrange(0, len(src), length):
-            chars = src[c:c + length]
+            chars = src[c : c + length]
             hex = " ".join(["%02x" % x for x in iterbytes(chars)])
-            printable = ''.join(["%s" % ((x <= 127 and FILTER[x]) or ".") for x in iterbytes(chars)])
+            printable = "".join(["%s" % ((x <= 127 and FILTER[x]) or ".") for x in iterbytes(chars)])
             lines.append("%04x  %-*s  %s\n" % (c, length * 3, hex, printable))
         return "".join(lines)
 
@@ -1076,15 +1176,18 @@ URL: {url}
     if sys.version_info[0] >= 3:
         iterbytes = lambda x: iter(x)
     else:
+
         def iterbytes(data):
             return (ord(char) for char in data)
 
-    OS_BINARY_SIGNATURES = set([
-        b"\x4d\x5a",         # PE
-        b"\xca\xfe\xba\xbe", # Fat Mach-O
-        b"\xcf\xfa\xed\xfe", # Mach-O
-        b"\x7fELF",          # ELF
-    ])
+    OS_BINARY_SIGNATURES = set(
+        [
+            b"\x4d\x5a",  # PE
+            b"\xca\xfe\xba\xbe",  # Fat Mach-O
+            b"\xcf\xfa\xed\xfe",  # Mach-O
+            b"\x7fELF",  # ELF
+        ]
+    )
 
     def code_is_native(code):
         return (code[:4] in OS_BINARY_SIGNATURES) or (code[:2] in OS_BINARY_SIGNATURES)
@@ -1095,7 +1198,7 @@ URL: {url}
 
 class JavaScriptError(Exception):
     def __init__(self, error):
-        super(JavaScriptError, self).__init__(error['message'])
+        super(JavaScriptError, self).__init__(error["message"])
 
         self.error = error
 
@@ -1166,15 +1269,19 @@ class DumbStdinReader(object):
             self._cond.notify()
 
 
-if os.environ.get("TERM", "") == 'dumb':
+if os.environ.get("TERM", "") == "dumb":
     try:
         from collections import namedtuple
+
         from epc.client import EPCClient
     except ImportError:
+
         def start_completion_thread(repl, epc_port=None):
             # Do nothing when we cannot import the EPC module.
             _, _ = repl, epc_port
+
     else:
+
         class EPCCompletionClient(EPCClient):
             def __init__(self, address="localhost", port=None, *args, **kargs):
                 if port is not None:
@@ -1183,12 +1290,19 @@ if os.environ.get("TERM", "") == 'dumb':
 
                 def complete(*cargs, **ckargs):
                     return self.complete(*cargs, **ckargs)
+
                 self.register_function(complete)
 
-        EpcDocument = namedtuple('Document', ['text_before_cursor',])
+        EpcDocument = namedtuple(
+            "Document",
+            [
+                "text_before_cursor",
+            ],
+        )
 
         SYMBOL_CHARS = "._" + string.ascii_letters + string.digits
         FIRST_SYMBOL_CHARS = "_" + string.ascii_letters
+
         class ReplEPCCompletion(object):
             def __init__(self, repl, *args, **kargs):
                 _, _ = args, kargs
@@ -1196,7 +1310,7 @@ if os.environ.get("TERM", "") == 'dumb':
 
             def complete(self, *to_complete):
                 to_complete = "".join(to_complete)
-                prefix = ''
+                prefix = ""
                 if len(to_complete) != 0:
                     for i, x in enumerate(to_complete[::-1]):
                         if x not in SYMBOL_CHARS:
@@ -1209,7 +1323,8 @@ if os.environ.get("TERM", "") == 'dumb':
                     prefix += to_complete.rsplit(".", 1)[0] + "."
                 try:
                     completions = self._repl._completer.get_completions(
-                        EpcDocument(text_before_cursor=to_complete), None)
+                        EpcDocument(text_before_cursor=to_complete), None
+                    )
                 except Exception as ex:
                     _ = ex
                     return tuple()
@@ -1237,18 +1352,21 @@ if os.environ.get("TERM", "") == 'dumb':
                 rpc_complete_thread = threading.Thread(
                     target=rpc_complete.connect,
                     name="PythonModeEPCCompletion",
-                    kwargs={'socket_or_address': ("localhost", epc_port)})
+                    kwargs={"socket_or_address": ("localhost", epc_port)},
+                )
             if rpc_complete_thread is not None:
                 rpc_complete_thread.daemon = True
                 rpc_complete_thread.start()
                 return rpc_complete_thread
+
 else:
+
     def start_completion_thread(repl, epc_port=None):
         # Do nothing as completion-epc is not needed when not running in Emacs.
         _, _ = repl, epc_port
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:

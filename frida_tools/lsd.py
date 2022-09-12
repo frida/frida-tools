@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
 
 
 def main():
     import frida
+
     from frida_tools.application import ConsoleApplication
 
     class LSDApplication(ConsoleApplication):
@@ -23,14 +24,30 @@ def main():
             id_column_width = max(map(lambda device: len(device.id), devices))
             type_column_width = max(map(lambda device: len(device.type), devices))
             name_column_width = max(map(lambda device: len(device.name), devices))
-            header_format = "%-" + str(id_column_width) + "s  " + \
-                "%-" + str(type_column_width) + "s  " + \
-                "%-" + str(name_column_width) + "s"
+            header_format = (
+                "%-"
+                + str(id_column_width)
+                + "s  "
+                + "%-"
+                + str(type_column_width)
+                + "s  "
+                + "%-"
+                + str(name_column_width)
+                + "s"
+            )
             self._print(header_format % ("Id", "Type", "Name"))
             self._print("%s  %s  %s" % (id_column_width * "-", type_column_width * "-", name_column_width * "-"))
-            line_format = "%-" + str(id_column_width) + "s  " + \
-                "%-" + str(type_column_width) + "s  " + \
-                "%-" + str(name_column_width) + "s"
+            line_format = (
+                "%-"
+                + str(id_column_width)
+                + "s  "
+                + "%-"
+                + str(type_column_width)
+                + "s  "
+                + "%-"
+                + str(name_column_width)
+                + "s"
+            )
             for device in sorted(devices, key=cmp_to_key(compare_devices)):
                 self._print(line_format % (device.id, device.type, device.name))
             self._exit(0)
@@ -55,37 +72,45 @@ def main():
 
     def score(device):
         type = device.type
-        if type == 'local':
+        if type == "local":
             return 3
-        elif type == 'usb':
+        elif type == "usb":
             return 2
         else:
             return 1
 
     def cmp_to_key(mycmp):
         "Convert a cmp= function into a key= function"
+
         class K:
             def __init__(self, obj, *args):
                 self.obj = obj
+
             def __lt__(self, other):
                 return mycmp(self.obj, other.obj) < 0
+
             def __gt__(self, other):
                 return mycmp(self.obj, other.obj) > 0
+
             def __eq__(self, other):
                 return mycmp(self.obj, other.obj) == 0
+
             def __le__(self, other):
                 return mycmp(self.obj, other.obj) <= 0
+
             def __ge__(self, other):
                 return mycmp(self.obj, other.obj) >= 0
+
             def __ne__(self, other):
                 return mycmp(self.obj, other.obj) != 0
+
         return K
 
     app = LSDApplication()
     app.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:

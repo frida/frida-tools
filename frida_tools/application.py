@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
 
 import argparse
 import codecs
@@ -15,18 +15,18 @@ import signal
 import sys
 import threading
 import time
-if platform.system() == 'Windows':
+
+if platform.system() == "Windows":
     import msvcrt
 
 import colorama
 import frida
 
-
 AUX_OPTION_PATTERN = re.compile(r"(.+)=\((string|bool|int)\)(.+)")
 
 
 def input_with_cancellable(cancellable):
-    if platform.system() == 'Windows':
+    if platform.system() == "Windows":
         result = ""
         done = False
 
@@ -86,13 +86,14 @@ def deserialize_relay(value):
 
 def create_target_parser(type):
     def parse_target(value):
-        if type == 'file':
+        if type == "file":
             value = [value]
-        elif type == 'gated':
+        elif type == "gated":
             value = re.compile(value)
-        elif type == 'pid':
+        elif type == "pid":
             value = int(value)
         return (type, value)
+
     return parse_target
 
 
@@ -118,7 +119,7 @@ class ConsoleApplication(object):
         plain_terminal = os.environ.get("TERM", "").lower() == "none"
 
         # Windows doesn't have SIGPIPE
-        if hasattr(signal, 'SIGPIPE'):
+        if hasattr(signal, "SIGPIPE"):
             signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
         colorama.init(strip=True if plain_terminal else None)
@@ -128,11 +129,11 @@ class ConsoleApplication(object):
         options = parser.parse_args(real_args)
 
         # handle scripts that don't need a target
-        if not hasattr(options, 'args'):
+        if not hasattr(options, "args"):
             options.args = []
 
         if sys.version_info[0] < 3:
-            input_encoding = sys.stdin.encoding or 'UTF-8'
+            input_encoding = sys.stdin.encoding or "UTF-8"
             options.args = [arg.decode(input_encoding) for arg in options.args]
 
         self._initialize_device_arguments(parser, options)
@@ -146,13 +147,15 @@ class ConsoleApplication(object):
         self._selected_spawn = None
         self._target_pid = None
         self._session = None
-        self._schedule_on_session_detached = lambda reason, crash: self._reactor.schedule(lambda: self._on_session_detached(reason, crash))
+        self._schedule_on_session_detached = lambda reason, crash: self._reactor.schedule(
+            lambda: self._on_session_detached(reason, crash)
+        )
         self._started = False
         self._resumed = False
         self._reactor = Reactor(run_until_return, on_stop)
         self._exit_status = None
         self._console_state = ConsoleState.EMPTY
-        self._have_terminal = sys.stdin.isatty() and sys.stdout.isatty() and not os.environ.get("TERM", '') == "dumb"
+        self._have_terminal = sys.stdin.isatty() and sys.stdout.isatty() and not os.environ.get("TERM", "") == "dumb"
         self._plain_terminal = plain_terminal
         self._quiet = False
         if sum(map(lambda v: int(v is not None), (self._device_id, self._device_type, self._host))) > 1:
@@ -189,7 +192,7 @@ class ConsoleApplication(object):
             self._origin = None
             self._token = None
             self._keepalive_interval = None
-            self._session_transport = 'multiplexed'
+            self._session_transport = "multiplexed"
             self._stun_server = None
             self._relays = None
 
@@ -202,23 +205,23 @@ class ConsoleApplication(object):
             self._enable_debugger = options.enable_debugger
             self._squelch_crash = options.squelch_crash
         else:
-            self._stdio = 'inherit'
+            self._stdio = "inherit"
             self._aux = []
-            self._realm = 'native'
-            self._runtime = 'qjs'
+            self._realm = "native"
+            self._runtime = "qjs"
             self._enable_debugger = False
             self._squelch_crash = False
 
     def _initialize_target(self, parser, options):
         if self._needs_target():
-            target = getattr(options, 'target', None)
+            target = getattr(options, "target", None)
             if target is None:
                 if len(options.args) < 1:
                     parser.error("target must be specified")
                 target = infer_target(options.args[0])
                 options.args.pop(0)
             target = expand_target(target)
-            if target[0] == 'file':
+            if target[0] == "file":
                 argv = target[1]
                 argv.extend(options.args)
                 options.args = []
@@ -240,44 +243,129 @@ class ConsoleApplication(object):
         if self._needs_target():
             self._add_target_arguments(parser)
 
-        parser.add_argument("-O", "--options-file", help="text file containing additional command line options", metavar="FILE")
-        parser.add_argument('--version', action='version', version=frida.__version__)
+        parser.add_argument(
+            "-O", "--options-file", help="text file containing additional command line options", metavar="FILE"
+        )
+        parser.add_argument("--version", action="version", version=frida.__version__)
 
         return parser
 
     def _add_device_arguments(self, parser):
-        parser.add_argument("-D", "--device", help="connect to device with the given ID", metavar="ID", dest="device_id")
-        parser.add_argument("-U", "--usb", help="connect to USB device", action='store_const', const='usb', dest="device_type")
-        parser.add_argument("-R", "--remote", help="connect to remote frida-server", action='store_const', const='remote', dest="device_type")
+        parser.add_argument(
+            "-D", "--device", help="connect to device with the given ID", metavar="ID", dest="device_id"
+        )
+        parser.add_argument(
+            "-U", "--usb", help="connect to USB device", action="store_const", const="usb", dest="device_type"
+        )
+        parser.add_argument(
+            "-R",
+            "--remote",
+            help="connect to remote frida-server",
+            action="store_const",
+            const="remote",
+            dest="device_type",
+        )
         parser.add_argument("-H", "--host", help="connect to remote frida-server on HOST")
         parser.add_argument("--certificate", help="speak TLS with HOST, expecting CERTIFICATE")
         parser.add_argument("--origin", help="connect to remote server with “Origin” header set to ORIGIN")
         parser.add_argument("--token", help="authenticate with HOST using TOKEN")
-        parser.add_argument("--keepalive-interval", help="set keepalive interval in seconds, or 0 to disable (defaults to -1 to auto-select based on transport)", metavar="INTERVAL", type=int)
-        parser.add_argument("--p2p", help="establish a peer-to-peer connection with target", action='store_const', const='p2p', dest="session_transport", default="multiplexed")
+        parser.add_argument(
+            "--keepalive-interval",
+            help="set keepalive interval in seconds, or 0 to disable (defaults to -1 to auto-select based on transport)",
+            metavar="INTERVAL",
+            type=int,
+        )
+        parser.add_argument(
+            "--p2p",
+            help="establish a peer-to-peer connection with target",
+            action="store_const",
+            const="p2p",
+            dest="session_transport",
+            default="multiplexed",
+        )
         parser.add_argument("--stun-server", help="set STUN server ADDRESS to use with --p2p", metavar="ADDRESS")
-        parser.add_argument("--relay", help="add relay to use with --p2p", metavar="address,username,password,turn-{udp,tcp,tls}", dest="relays", action='append', type=deserialize_relay)
+        parser.add_argument(
+            "--relay",
+            help="add relay to use with --p2p",
+            metavar="address,username,password,turn-{udp,tcp,tls}",
+            dest="relays",
+            action="append",
+            type=deserialize_relay,
+        )
 
     def _add_target_arguments(self, parser):
         parser.add_argument("-f", "--file", help="spawn FILE", dest="target", type=create_target_parser("file"))
-        parser.add_argument("-F", "--attach-frontmost", help="attach to frontmost application", dest="target", action="store_const", const=('frontmost', None))
-        parser.add_argument("-n", "--attach-name", help="attach to NAME", metavar="NAME", dest="target", type=create_target_parser("name"))
-        parser.add_argument("-N", "--attach-identifier", help="attach to IDENTIFIER", metavar="IDENTIFIER", dest="target", type=create_target_parser("identifier"))
-        parser.add_argument("-p", "--attach-pid", help="attach to PID", metavar="PID", dest="target", type=create_target_parser("pid"))
-        parser.add_argument("-W", "--await", help="await spawn matching PATTERN", metavar="PATTERN", dest="target", type=create_target_parser("gated"))
-        parser.add_argument("--stdio", help="stdio behavior when spawning (defaults to “inherit”)", choices=["inherit", "pipe"], default="inherit")
-        parser.add_argument("--aux", help="set aux option when spawning, such as “uid=(int)42” (supported types are: string, bool, int)", metavar="option", action="append", dest="aux", default=[])
+        parser.add_argument(
+            "-F",
+            "--attach-frontmost",
+            help="attach to frontmost application",
+            dest="target",
+            action="store_const",
+            const=("frontmost", None),
+        )
+        parser.add_argument(
+            "-n",
+            "--attach-name",
+            help="attach to NAME",
+            metavar="NAME",
+            dest="target",
+            type=create_target_parser("name"),
+        )
+        parser.add_argument(
+            "-N",
+            "--attach-identifier",
+            help="attach to IDENTIFIER",
+            metavar="IDENTIFIER",
+            dest="target",
+            type=create_target_parser("identifier"),
+        )
+        parser.add_argument(
+            "-p", "--attach-pid", help="attach to PID", metavar="PID", dest="target", type=create_target_parser("pid")
+        )
+        parser.add_argument(
+            "-W",
+            "--await",
+            help="await spawn matching PATTERN",
+            metavar="PATTERN",
+            dest="target",
+            type=create_target_parser("gated"),
+        )
+        parser.add_argument(
+            "--stdio",
+            help="stdio behavior when spawning (defaults to “inherit”)",
+            choices=["inherit", "pipe"],
+            default="inherit",
+        )
+        parser.add_argument(
+            "--aux",
+            help="set aux option when spawning, such as “uid=(int)42” (supported types are: string, bool, int)",
+            metavar="option",
+            action="append",
+            dest="aux",
+            default=[],
+        )
         parser.add_argument("--realm", help="realm to attach in", choices=["native", "emulated"], default="native")
         parser.add_argument("--runtime", help="script runtime to use", choices=["qjs", "v8"])
-        parser.add_argument("--debug", help="enable the Node.js compatible script debugger", action="store_true", dest="enable_debugger", default=False)
-        parser.add_argument("--squelch-crash", help="if enabled, will not dump crash report to console", action="store_true", default=False)
+        parser.add_argument(
+            "--debug",
+            help="enable the Node.js compatible script debugger",
+            action="store_true",
+            dest="enable_debugger",
+            default=False,
+        )
+        parser.add_argument(
+            "--squelch-crash",
+            help="if enabled, will not dump crash report to console",
+            action="store_true",
+            default=False,
+        )
         parser.add_argument("args", help="extra arguments and/or target", nargs="*")
 
     def run(self):
         mgr = frida.get_device_manager()
 
         on_devices_changed = lambda: self._reactor.schedule(self._try_start)
-        mgr.on('changed', on_devices_changed)
+        mgr.on("changed", on_devices_changed)
 
         self._reactor.schedule(self._try_start)
         self._reactor.schedule(self._show_message_if_no_device, delay=1)
@@ -293,7 +381,7 @@ class ConsoleApplication(object):
                 pass
 
         if self._session is not None:
-            self._session.off('detached', self._schedule_on_session_detached)
+            self._session.off("detached", self._schedule_on_session_detached)
             try:
                 self._perform_on_background_thread(self._session.detach)
             except frida.OperationCancelledError:
@@ -301,10 +389,10 @@ class ConsoleApplication(object):
             self._session = None
 
         if self._device is not None:
-            self._device.off('output', self._schedule_on_output)
-            self._device.off('lost', self._schedule_on_device_lost)
+            self._device.off("output", self._schedule_on_output)
+            self._device.off("lost", self._schedule_on_device_lost)
 
-        mgr.off('changed', on_devices_changed)
+        mgr.off("changed", on_devices_changed)
 
         frida.shutdown()
         sys.exit(self._exit_status)
@@ -360,9 +448,9 @@ class ConsoleApplication(object):
             return
         if self._spawned_pid is not None:
             self._device.resume(self._spawned_pid)
-            if self._target[0] == 'gated':
+            if self._target[0] == "gated":
                 self._device.disable_spawn_gating()
-                self._device.off('spawn-added', self._on_spawn_added)
+                self._device.off("spawn-added", self._on_spawn_added)
         self._resumed = True
 
     def _exit(self, exit_status):
@@ -379,24 +467,25 @@ class ConsoleApplication(object):
                 self._update_status("Device '%s' not found" % self._device_id)
                 self._exit(1)
                 return
-        elif (self._host is not None) or (self._device_type == 'remote'):
+        elif (self._host is not None) or (self._device_type == "remote"):
             host = self._host
 
             options = {}
             if self._certificate is not None:
-                options['certificate'] = self._certificate
+                options["certificate"] = self._certificate
             if self._origin is not None:
-                options['origin'] = self._origin
+                options["origin"] = self._origin
             if self._token is not None:
-                options['token'] = self._token
+                options["token"] = self._token
             if self._keepalive_interval is not None:
-                options['keepalive_interval'] = self._keepalive_interval
+                options["keepalive_interval"] = self._keepalive_interval
 
             if host is None and len(options) == 0:
                 self._device = frida.get_remote_device()
             else:
-                self._device = frida.get_device_manager().add_remote_device(host if host is not None else "127.0.0.1",
-                                                                            **options)
+                self._device = frida.get_device_manager().add_remote_device(
+                    host if host is not None else "127.0.0.1", **options
+                )
         elif self._device_type is not None:
             self._device = find_device(self._device_type)
             if self._device is None:
@@ -404,13 +493,13 @@ class ConsoleApplication(object):
         else:
             self._device = frida.get_local_device()
         self._on_device_found()
-        self._device.on('output', self._schedule_on_output)
-        self._device.on('lost', self._schedule_on_device_lost)
+        self._device.on("output", self._schedule_on_output)
+        self._device.on("lost", self._schedule_on_device_lost)
         if self._target is not None:
             target_type, target_value = self._target
 
-            if target_type == 'gated':
-                self._device.on('spawn-added', self._on_spawn_added)
+            if target_type == "gated":
+                self._device.on("spawn-added", self._on_spawn_added)
                 try:
                     self._device.enable_spawn_gating()
                 except Exception as e:
@@ -422,20 +511,22 @@ class ConsoleApplication(object):
 
             spawning = True
             try:
-                if target_type == 'frontmost':
+                if target_type == "frontmost":
                     try:
                         app = self._device.get_frontmost_application()
                     except Exception as e:
-                        self._update_status("Unable to get frontmost application on {}: {}".format(self._device.name, e))
+                        self._update_status(
+                            "Unable to get frontmost application on {}: {}".format(self._device.name, e)
+                        )
                         self._exit(1)
                         return
                     if app is None:
                         self._update_status("No frontmost application on {}".format(self._device.name))
                         self._exit(1)
                         return
-                    self._target = ('name', app.name)
+                    self._target = ("name", app.name)
                     attach_target = app.pid
-                elif target_type == 'identifier':
+                elif target_type == "identifier":
                     spawning = False
                     app_list = self._device.enumerate_applications()
                     app_identifier_lc = target_value.lower()
@@ -443,11 +534,13 @@ class ConsoleApplication(object):
                     if len(matching) == 1 and matching[0].pid != 0:
                         attach_target = matching[0].pid
                     elif len(matching) > 1:
-                        raise frida.ProcessNotFoundError("ambiguous identifier; it matches: %s" % ", ".join(
-                            ["%s (pid: %d)" % (process.identifier, process.pid) for process in matching]))
+                        raise frida.ProcessNotFoundError(
+                            "ambiguous identifier; it matches: %s"
+                            % ", ".join(["%s (pid: %d)" % (process.identifier, process.pid) for process in matching])
+                        )
                     else:
                         raise frida.ProcessNotFoundError("unable to find process with identifier '%s'" % target_value)
-                elif target_type == 'file':
+                elif target_type == "file":
                     argv = target_value
                     if not self._quiet:
                         self._update_status("Spawning `%s`..." % " ".join(argv))
@@ -484,14 +577,14 @@ class ConsoleApplication(object):
         self._target_pid = pid
 
         self._session = self._device.attach(pid, realm=self._realm)
-        self._session.on('detached', self._schedule_on_session_detached)
+        self._session.on("detached", self._schedule_on_session_detached)
 
-        if self._session_transport == 'p2p':
+        if self._session_transport == "p2p":
             peer_options = {}
             if self._stun_server is not None:
-                peer_options['stun_server'] = self._stun_server
+                peer_options["stun_server"] = self._stun_server
             if self._relays is not None:
-                peer_options['relays'] = self._relays
+                peer_options["relays"] = self._relays
             self._session.setup_peer_connection(**peer_options)
 
     def _on_script_created(self, script):
@@ -516,7 +609,9 @@ class ConsoleApplication(object):
 
         pattern = self._target[1]
         if pattern.match(spawn.identifier) is None or self._selected_spawn is not None:
-            self._print(colorama.Fore.YELLOW + colorama.Style.BRIGHT + "Ignoring: " + str(spawn) + colorama.Style.RESET_ALL)
+            self._print(
+                colorama.Fore.YELLOW + colorama.Style.BRIGHT + "Ignoring: " + str(spawn) + colorama.Style.RESET_ALL
+            )
             try:
                 self._device.resume(pid)
             except:
@@ -551,8 +646,8 @@ class ConsoleApplication(object):
         else:
             prefix = "stderr> "
             stream = sys.stderr
-        encoding = stream.encoding or 'UTF-8'
-        text = data.decode(encoding, errors='replace')
+        encoding = stream.encoding or "UTF-8"
+        text = data.decode(encoding, errors="replace")
         if text.endswith("\n"):
             text = text[:-1]
         lines = text.split("\n")
@@ -597,8 +692,8 @@ class ConsoleApplication(object):
 
     def _print(self, *args, **kwargs):
         encoded_args = []
-        encoding = sys.stdout.encoding or 'UTF-8'
-        if encoding == 'UTF-8':
+        encoding = sys.stdout.encoding or "UTF-8"
+        if encoding == "UTF-8":
             encoded_args = args
         else:
             if sys.version_info[0] >= 3:
@@ -607,19 +702,19 @@ class ConsoleApplication(object):
                 string_type = unicode
             for arg in args:
                 if isinstance(arg, string_type):
-                    encoded_args.append(arg.encode(encoding, errors='backslashreplace').decode(encoding))
+                    encoded_args.append(arg.encode(encoding, errors="backslashreplace").decode(encoding))
                 else:
                     encoded_args.append(arg)
         print(*encoded_args, **kwargs)
         self._console_state = ConsoleState.TEXT
 
     def _log(self, level, text):
-        if level == 'info':
+        if level == "info":
             self._print(text)
         else:
-            color = colorama.Fore.RED if level == 'error' else colorama.Fore.YELLOW
+            color = colorama.Fore.RED if level == "error" else colorama.Fore.YELLOW
             text = color + colorama.Style.BRIGHT + text + colorama.Style.RESET_ALL
-            if level == 'error':
+            if level == "error":
                 self._print(text, file=sys.stderr)
             else:
                 self._print(text)
@@ -683,42 +778,42 @@ class ConsoleApplication(object):
         return result[0]
 
     def _get_default_frida_dir(self):
-        return os.path.join(os.path.expanduser('~'), '.frida')
+        return os.path.join(os.path.expanduser("~"), ".frida")
 
     def _get_windows_frida_dir(self):
-        appdata = os.getenv('LOCALAPPDATA')
-        return os.path.join(appdata, 'frida')
+        appdata = os.getenv("LOCALAPPDATA")
+        return os.path.join(appdata, "frida")
 
     def _get_or_create_config_dir(self):
-        config_dir = os.path.join(self._get_default_frida_dir(), 'config')
-        if platform.system() == 'Linux':
-            xdg_config_home = os.getenv('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
-            config_dir = os.path.join(xdg_config_home, 'frida')
-        elif platform.system() == 'Windows':
-            config_dir = os.path.join(self._get_windows_frida_dir(), 'Config')
+        config_dir = os.path.join(self._get_default_frida_dir(), "config")
+        if platform.system() == "Linux":
+            xdg_config_home = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+            config_dir = os.path.join(xdg_config_home, "frida")
+        elif platform.system() == "Windows":
+            config_dir = os.path.join(self._get_windows_frida_dir(), "Config")
         if not os.path.exists(config_dir):
             os.makedirs(config_dir)
         return config_dir
 
     def _get_or_create_data_dir(self):
-        data_dir = os.path.join(self._get_default_frida_dir(), 'data')
-        if platform.system() == 'Linux':
-            xdg_data_home = os.getenv('XDG_DATA_HOME', os.path.expanduser('~/.local/share'))
-            data_dir = os.path.join(xdg_data_home, 'frida')
-        elif platform.system() == 'Windows':
-            data_dir = os.path.join(self._get_windows_frida_dir(), 'Data')
+        data_dir = os.path.join(self._get_default_frida_dir(), "data")
+        if platform.system() == "Linux":
+            xdg_data_home = os.getenv("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+            data_dir = os.path.join(xdg_data_home, "frida")
+        elif platform.system() == "Windows":
+            data_dir = os.path.join(self._get_windows_frida_dir(), "Data")
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
         return data_dir
 
     def _get_or_create_state_dir(self):
-        state_dir = os.path.join(self._get_default_frida_dir(), 'state')
-        if platform.system() == 'Linux':
-            xdg_state_home = os.getenv('XDG_STATE_HOME', os.path.expanduser('~/.local/state'))
-            state_dir = os.path.join(xdg_state_home, 'frida')
-        elif platform.system() == 'Windows':
-            appdata = os.getenv('LOCALAPPDATA')
-            state_dir = os.path.join(appdata, 'frida', 'State')
+        state_dir = os.path.join(self._get_default_frida_dir(), "state")
+        if platform.system() == "Linux":
+            xdg_state_home = os.getenv("XDG_STATE_HOME", os.path.expanduser("~/.local/state"))
+            state_dir = os.path.join(xdg_state_home, "frida")
+        elif platform.system() == "Windows":
+            appdata = os.getenv("LOCALAPPDATA")
+            state_dir = os.path.join(appdata, "frida", "State")
         if not os.path.exists(state_dir):
             os.makedirs(state_dir)
         return state_dir
@@ -740,7 +835,7 @@ def compute_real_args(parser, args=None):
             parser.error("File '{}' given twice as -O argument".format(file_path))
 
         if os.path.isfile(file_path):
-            with codecs.open(file_path, 'r', 'utf-8') as f:
+            with codecs.open(file_path, "r", "utf-8") as f:
                 new_arg_text = f.read()
         else:
             parser.error("File '{}' following -O option is not a valid file".format(file_path))
@@ -775,7 +870,7 @@ def find_options_file_offset(arglist, parser):
 def insert_options_file_args_in_list(args, offset, new_arg_text):
     new_args = shlex.split(new_arg_text)
     new_args = normalize_options_file_args(new_args)
-    new_args_list = args[:offset] + new_args + args[offset + 2:]
+    new_args_list = args[:offset] + new_args + args[offset + 2 :]
     return new_args_list
 
 
@@ -787,25 +882,30 @@ def find_device(type):
 
 
 def infer_target(target_value):
-    if target_value.startswith('.') or target_value.startswith(os.path.sep) \
-            or (platform.system() == 'Windows' \
-                and target_value[0].isalpha() \
-                and target_value[1] == ":" \
-                and target_value[2] == "\\"):
-        target_type = 'file'
+    if (
+        target_value.startswith(".")
+        or target_value.startswith(os.path.sep)
+        or (
+            platform.system() == "Windows"
+            and target_value[0].isalpha()
+            and target_value[1] == ":"
+            and target_value[2] == "\\"
+        )
+    ):
+        target_type = "file"
         target_value = [target_value]
     else:
         try:
             target_value = int(target_value)
-            target_type = 'pid'
+            target_type = "pid"
         except:
-            target_type = 'name'
+            target_type = "name"
     return (target_type, target_value)
 
 
 def expand_target(target):
     target_type, target_value = target
-    if target_type == 'file':
+    if target_type == "file":
         target_value = [target_value[0]]
     return (target_type, target_value)
 
@@ -818,9 +918,9 @@ def parse_aux_option(option):
     name = m.group(1)
     type_decl = m.group(2)
     raw_value = m.group(3)
-    if type_decl == 'string':
+    if type_decl == "string":
         value = raw_value
-    elif type_decl == 'bool':
+    elif type_decl == "bool":
         value = bool(raw_value)
     else:
         value = int(raw_value)

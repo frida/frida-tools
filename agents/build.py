@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 import os
-from pathlib import Path
 import platform
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 
 def build(inputs, output_js, priv_dir):
@@ -25,21 +25,20 @@ def build(inputs, output_js, priv_dir):
 
     npm = os.environ.get("NPM", "npm")
     try:
-        subprocess.run([npm, "install"],
-                       capture_output=True,
-                       cwd=priv_dir,
-                       check=True)
+        subprocess.run([npm, "install"], capture_output=True, cwd=priv_dir, check=True)
     except Exception as e:
-        message = "\n".join([
-            "",
-            "***",
-            f"Failed to build {inputs[0].name}:",
-            "\t" + str(e),
-            "This is most likely because Node.js is not installed.",
-            "We need it for processing JavaScript code at build-time.",
-            "Check PATH or set NPM to the absolute path of your npm binary.",
-            "***\n",
-        ])
+        message = "\n".join(
+            [
+                "",
+                "***",
+                f"Failed to build {inputs[0].name}:",
+                "\t" + str(e),
+                "This is most likely because Node.js is not installed.",
+                "We need it for processing JavaScript code at build-time.",
+                "Check PATH or set NPM to the absolute path of your npm binary.",
+                "***\n",
+            ]
+        )
         raise EnvironmentError(message)
 
     frida_compile = Path("node_modules") / ".bin" / ("frida-compile" + script_suffix())
@@ -49,10 +48,10 @@ def build(inputs, output_js, priv_dir):
 
 def script_suffix():
     build_os = platform.system().lower()
-    return ".cmd" if build_os == 'windows' else ""
+    return ".cmd" if build_os == "windows" else ""
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     paths = [Path(p).resolve() for p in sys.argv[1:]]
     inputs = paths[:-2]
     output_js = paths[-2]

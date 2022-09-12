@@ -2,8 +2,8 @@
 
 import glob
 import os
-from setuptools import setup
 
+from setuptools import setup
 
 pkg_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "frida_tools"))
 
@@ -23,7 +23,7 @@ setup(
         "colorama >= 0.2.7, < 1.0.0",
         "frida >= 16.0.0, < 17.0.0",
         "prompt-toolkit >= 2.0.0, < 4.0.0",
-        "pygments >= 2.0.2, < 3.0.0"
+        "pygments >= 2.0.2, < 3.0.0",
     ],
     license="wxWindows Library Licence, Version 3.1",
     zip_safe=True,
@@ -50,14 +50,14 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: JavaScript",
         "Topic :: Software Development :: Debuggers",
-        "Topic :: Software Development :: Libraries :: Python Modules"
+        "Topic :: Software Development :: Libraries :: Python Modules",
     ],
     packages=["frida_tools"],
     package_data={
         "frida_tools": agents,
     },
     entry_points={
-        'console_scripts': [
+        "console_scripts": [
             "frida = frida_tools.repl:main",
             "frida-ls-devices = frida_tools.lsd:main",
             "frida-ps = frida_tools.ps:main",
@@ -73,5 +73,5 @@ setup(
             "frida-compile = frida_tools.compiler:main",
             "frida-apk = frida_tools.apk:main",
         ]
-    }
+    },
 )

@@ -166,7 +166,7 @@ class Time(Magic):
                 return _result;
             }})();""".format(
                 expression=json.dumps(" ".join(args))
-            )
+            ),
         )
 
 

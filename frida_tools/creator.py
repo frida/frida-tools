@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
 
 
 def main():
@@ -17,7 +17,9 @@ def main():
 
         def _add_options(self, parser):
             default_project_name = os.path.basename(os.getcwd())
-            parser.add_argument("-n", "--project-name", help="project name", dest="project_name", default=default_project_name)
+            parser.add_argument(
+                "-n", "--project-name", help="project name", dest="project_name", default=default_project_name
+            )
             parser.add_argument("-o", "--output-directory", help="output directory", dest="outdir", default=".")
             parser.add_argument("-t", "--template", help="template file: cmodule|agent", dest="template", default=None)
 
@@ -49,7 +51,7 @@ def main():
                 except:
                     pass
 
-                with codecs.open(asset_path, 'wb', 'utf-8') as f:
+                with codecs.open(asset_path, "wb", "utf-8") as f:
                     f.write(data)
 
                 self._print("Created", asset_path)
@@ -61,7 +63,9 @@ def main():
         def _generate_agent(self):
             assets = {}
 
-            assets["package.json"] = """{{
+            assets[
+                "package.json"
+            ] = """{{
   "name": "{project_name}-agent",
   "version": "1.0.0",
   "description": "Frida agent written in TypeScript",
@@ -78,9 +82,13 @@ def main():
     "frida-compile": "^10.0.0"
   }}
 }}
-""".format(project_name=self._project_name)
+""".format(
+                project_name=self._project_name
+            )
 
-            assets["tsconfig.json"] = """{
+            assets[
+                "tsconfig.json"
+            ] = """{
   "compilerOptions": {
     "target": "es2020",
     "lib": ["es2020"],
@@ -92,7 +100,9 @@ def main():
 }
 """
 
-            assets["agent/index.ts"] = """import { log } from "./logger";
+            assets[
+                "agent/index.ts"
+            ] = """import { log } from "./logger";
 
 const header = Memory.alloc(16);
 header
@@ -116,7 +126,9 @@ Interceptor.attach(Module.getExportByName(null, "open"), {
 });
 """
 
-            assets["agent/logger.ts"] = """export function log(message: string): void {
+            assets[
+                "agent/logger.ts"
+            ] = """export function log(message: string): void {
     console.log(message);
 }
 """
@@ -137,7 +149,9 @@ Tip: Use an editor like Visual Studio Code for code completion, inline docs,
         def _generate_cmodule(self):
             assets = {}
 
-            assets["meson.build"] = """project('{project_name}', 'c',
+            assets[
+                "meson.build"
+            ] = """project('{project_name}', 'c',
   default_options: 'buildtype=release',
 )
 
@@ -145,9 +159,13 @@ shared_module('{project_name}', '{project_name}.c',
   name_prefix: '',
   include_directories: include_directories('include'),
 )
-""".format(project_name=self._project_name)
+""".format(
+                project_name=self._project_name
+            )
 
-            assets[self._project_name + ".c"] = """#include <gum/guminterceptor.h>
+            assets[
+                self._project_name + ".c"
+            ] = """#include <gum/guminterceptor.h>
 
 static void frida_log (const char * format, ...);
 extern void _frida_log (const gchar * message);
@@ -211,16 +229,16 @@ frida_log (const char * format,
             script.unload()
             session.detach()
 
-            for name, data in builtins['headers'].items():
+            for name, data in builtins["headers"].items():
                 assets["include/" + name] = data
 
             system = platform.system()
-            if system == 'Windows':
-                module_extension = 'dll'
-            elif system == 'Darwin':
-                module_extension = 'dylib'
+            if system == "Windows":
+                module_extension = "dll"
+            elif system == "Darwin":
+                module_extension = "dylib"
             else:
-                module_extension = 'so'
+                module_extension = "so"
 
             cmodule_path = os.path.join(self._outdir, "build", self._project_name + "." + module_extension)
 
@@ -228,7 +246,9 @@ frida_log (const char * format,
 - Inject CModule using the REPL: frida Calculator -C {cmodule_path}
 - Edit *.c, and build incrementally through `ninja -C build`
 - REPL will live-reload whenever {cmodule_path} changes on disk
-""".format(cmodule_path=cmodule_path)
+""".format(
+                cmodule_path=cmodule_path
+            )
 
             return (assets, message)
 
@@ -236,7 +256,7 @@ frida_log (const char * format,
     app.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:

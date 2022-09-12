@@ -15,10 +15,25 @@ def main():
             return "%(prog)s [options] target portal-location [portal-certificate] [portal-token]"
 
         def _add_options(self, parser):
-            parser.add_argument("--portal-location", help="join portal at LOCATION", metavar="LOCATION", dest="portal_location")
-            parser.add_argument("--portal-certificate", help="speak TLS with portal, expecting CERTIFICATE", metavar="CERTIFICATE", dest="portal_certificate")
-            parser.add_argument("--portal-token", help="authenticate with portal using TOKEN", metavar="TOKEN", dest="portal_token")
-            parser.add_argument("--portal-acl-allow", help="limit portal access to control channels with TAG", metavar="TAG", action='append', dest="portal_acl")
+            parser.add_argument(
+                "--portal-location", help="join portal at LOCATION", metavar="LOCATION", dest="portal_location"
+            )
+            parser.add_argument(
+                "--portal-certificate",
+                help="speak TLS with portal, expecting CERTIFICATE",
+                metavar="CERTIFICATE",
+                dest="portal_certificate",
+            )
+            parser.add_argument(
+                "--portal-token", help="authenticate with portal using TOKEN", metavar="TOKEN", dest="portal_token"
+            )
+            parser.add_argument(
+                "--portal-acl-allow",
+                help="limit portal access to control channels with TAG",
+                metavar="TAG",
+                action="append",
+                dest="portal_acl",
+            )
 
         def _initialize(self, parser, options, args):
             location = args[0] if len(args) >= 1 else options.portal_location
@@ -27,15 +42,15 @@ def main():
             acl = options.portal_acl
 
             if location is None:
-                parser.error('portal location must be specified')
+                parser.error("portal location must be specified")
 
             options = {}
             if certificate is not None:
-                options['certificate'] = certificate
+                options["certificate"] = certificate
             if token is not None:
-                options['token'] = token
+                options["token"] = token
             if acl is not None:
-                options['acl'] = acl
+                options["acl"] = acl
 
             self._location = location
             self._options = options
@@ -61,7 +76,7 @@ def main():
     app.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:

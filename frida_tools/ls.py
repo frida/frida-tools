@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
 
 import codecs
+import os
 from datetime import datetime, timezone
 from operator import itemgetter
-import os
 
 from colorama import Fore, Style
 from frida.core import RPCException
 
 from frida_tools.application import ConsoleApplication
-
 
 STYLE_DIR = Fore.BLUE + Style.BRIGHT
 STYLE_EXECUTABLE = Fore.GREEN + Style.BRIGHT

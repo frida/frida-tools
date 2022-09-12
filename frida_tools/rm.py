@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
 
 import codecs
 import os
@@ -18,8 +18,10 @@ def main():
 class RmApplication(ConsoleApplication):
     def _add_options(self, parser):
         parser.add_argument("files", help="files to remove", nargs="+")
-        parser.add_argument("-f", "--force", help="ignore nonexistent files", action='store_true')
-        parser.add_argument("-r", "--recursive", help="remove directories and their contents recursively", action='store_true')
+        parser.add_argument("-f", "--force", help="ignore nonexistent files", action="store_true")
+        parser.add_argument(
+            "-r", "--recursive", help="remove directories and their contents recursively", action="store_true"
+        )
 
     def _usage(self):
         return "%(prog)s [options] FILE..."

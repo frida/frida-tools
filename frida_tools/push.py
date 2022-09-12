@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
 
 import codecs
 import os
 import sys
-from threading import Event, Thread
 import time
+from threading import Event, Thread
 
 from colorama import Fore, Style
 
@@ -60,8 +60,9 @@ class PushApplication(ConsoleApplication):
             self._on_script_created(script)
             script.load()
 
-            self._stream_controller = StreamController(self._post_stream_stanza,
-                                                       on_stats_updated=self._on_stream_stats_updated)
+            self._stream_controller = StreamController(
+                self._post_stream_stanza, on_stats_updated=self._on_stream_stats_updated
+            )
 
             worker = Thread(target=self._perform_push)
             worker.start()
@@ -91,10 +92,7 @@ class PushApplication(ConsoleApplication):
 
             try:
                 with open(path, "rb") as f:
-                    sink = self._stream_controller.open(str(i), {
-                        "filename": filename,
-                        "target": self._remote_path
-                    })
+                    sink = self._stream_controller.open(str(i), {"filename": filename, "target": self._remote_path})
                     while True:
                         chunk = f.read(4 * 1024 * 1024)
                         if len(chunk) == 0:
@@ -144,13 +142,16 @@ class PushApplication(ConsoleApplication):
         bytes_sent = sc.bytes_sent
         megabytes_per_second = bytes_to_megabytes(bytes_sent) / duration
 
-        self._update_status("{}{} file{} pushed. {:.1f} MB/s ({} bytes in {:.3f}s)" \
-                .format(prefix,
-                        files_transferred,
-                        "s" if files_transferred != 1 else "",
-                        megabytes_per_second,
-                        bytes_sent,
-                        duration))
+        self._update_status(
+            "{}{} file{} pushed. {:.1f} MB/s ({} bytes in {:.3f}s)".format(
+                prefix,
+                files_transferred,
+                "s" if files_transferred != 1 else "",
+                megabytes_per_second,
+                bytes_sent,
+                duration,
+            )
+        )
 
     def _on_message(self, message, data):
         handled = False
@@ -187,10 +188,7 @@ class PushApplication(ConsoleApplication):
             self._completed.set()
 
     def _post_stream_stanza(self, stanza, data=None):
-        self._script.post({
-            "type": "stream",
-            "payload": stanza
-        }, data=data)
+        self._script.post({"type": "stream", "payload": stanza}, data=data)
 
     def _on_stream_stats_updated(self):
         self._render_progress_ui()

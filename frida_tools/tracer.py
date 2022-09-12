@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
 
 import binascii
 import codecs
@@ -12,8 +12,9 @@ import frida
 
 
 def main():
-    from colorama import Fore, Style
     import json
+
+    from colorama import Fore, Style
 
     from frida_tools.application import ConsoleApplication, await_ctrl_c
 
@@ -27,22 +28,88 @@ def main():
 
         def _add_options(self, parser):
             pb = TracerProfileBuilder()
-            parser.add_argument("-I", "--include-module", help="include MODULE", metavar="MODULE", type=pb.include_modules)
-            parser.add_argument("-X", "--exclude-module", help="exclude MODULE", metavar="MODULE", type=pb.exclude_modules)
-            parser.add_argument("-i", "--include", help="include [MODULE!]FUNCTION", metavar="FUNCTION", type=pb.include)
-            parser.add_argument("-x", "--exclude", help="exclude [MODULE!]FUNCTION", metavar="FUNCTION", type=pb.exclude)
-            parser.add_argument("-a", "--add", help="add MODULE!OFFSET", metavar="MODULE!OFFSET", type=pb.include_relative_address)
+            parser.add_argument(
+                "-I", "--include-module", help="include MODULE", metavar="MODULE", type=pb.include_modules
+            )
+            parser.add_argument(
+                "-X", "--exclude-module", help="exclude MODULE", metavar="MODULE", type=pb.exclude_modules
+            )
+            parser.add_argument(
+                "-i", "--include", help="include [MODULE!]FUNCTION", metavar="FUNCTION", type=pb.include
+            )
+            parser.add_argument(
+                "-x", "--exclude", help="exclude [MODULE!]FUNCTION", metavar="FUNCTION", type=pb.exclude
+            )
+            parser.add_argument(
+                "-a", "--add", help="add MODULE!OFFSET", metavar="MODULE!OFFSET", type=pb.include_relative_address
+            )
             parser.add_argument("-T", "--include-imports", help="include program's imports", type=pb.include_imports)
-            parser.add_argument("-t", "--include-module-imports", help="include MODULE imports", metavar="MODULE", type=pb.include_imports)
-            parser.add_argument("-m", "--include-objc-method", help="include OBJC_METHOD", metavar="OBJC_METHOD", type=pb.include_objc_method)
-            parser.add_argument("-M", "--exclude-objc-method", help="exclude OBJC_METHOD", metavar="OBJC_METHOD", type=pb.exclude_objc_method)
-            parser.add_argument("-j", "--include-java-method", help="include JAVA_METHOD", metavar="JAVA_METHOD", type=pb.include_java_method)
-            parser.add_argument("-J", "--exclude-java-method", help="exclude JAVA_METHOD", metavar="JAVA_METHOD", type=pb.exclude_java_method)
-            parser.add_argument("-s", "--include-debug-symbol", help="include DEBUG_SYMBOL", metavar="DEBUG_SYMBOL", type=pb.include_debug_symbol)
-            parser.add_argument("-q", "--quiet", help="do not format output messages", action='store_true', default=False)
-            parser.add_argument("-d", "--decorate", help="add module name to generated onEnter log statement", action='store_true', default=False)
-            parser.add_argument("-S", "--init-session", help="path to JavaScript file used to initialize the session", metavar="PATH", action='append', default=[])
-            parser.add_argument("-P", "--parameters", help="parameters as JSON, exposed as a global named 'parameters'", metavar="PARAMETERS_JSON")
+            parser.add_argument(
+                "-t",
+                "--include-module-imports",
+                help="include MODULE imports",
+                metavar="MODULE",
+                type=pb.include_imports,
+            )
+            parser.add_argument(
+                "-m",
+                "--include-objc-method",
+                help="include OBJC_METHOD",
+                metavar="OBJC_METHOD",
+                type=pb.include_objc_method,
+            )
+            parser.add_argument(
+                "-M",
+                "--exclude-objc-method",
+                help="exclude OBJC_METHOD",
+                metavar="OBJC_METHOD",
+                type=pb.exclude_objc_method,
+            )
+            parser.add_argument(
+                "-j",
+                "--include-java-method",
+                help="include JAVA_METHOD",
+                metavar="JAVA_METHOD",
+                type=pb.include_java_method,
+            )
+            parser.add_argument(
+                "-J",
+                "--exclude-java-method",
+                help="exclude JAVA_METHOD",
+                metavar="JAVA_METHOD",
+                type=pb.exclude_java_method,
+            )
+            parser.add_argument(
+                "-s",
+                "--include-debug-symbol",
+                help="include DEBUG_SYMBOL",
+                metavar="DEBUG_SYMBOL",
+                type=pb.include_debug_symbol,
+            )
+            parser.add_argument(
+                "-q", "--quiet", help="do not format output messages", action="store_true", default=False
+            )
+            parser.add_argument(
+                "-d",
+                "--decorate",
+                help="add module name to generated onEnter log statement",
+                action="store_true",
+                default=False,
+            )
+            parser.add_argument(
+                "-S",
+                "--init-session",
+                help="path to JavaScript file used to initialize the session",
+                metavar="PATH",
+                action="append",
+                default=[],
+            )
+            parser.add_argument(
+                "-P",
+                "--parameters",
+                help="parameters as JSON, exposed as a global named 'parameters'",
+                metavar="PARAMETERS_JSON",
+            )
             parser.add_argument("-o", "--output", help="dump messages to file", metavar="OUTPUT")
             self._profile_builder = pb
 
@@ -59,7 +126,7 @@ def main():
 
             self._init_scripts = []
             for path in options.init_session:
-                with codecs.open(path, 'rb', 'utf-8') as f:
+                with codecs.open(path, "rb", "utf-8") as f:
                     source = f.read()
                 self._init_scripts.append(InitScript(path, source))
 
@@ -81,10 +148,15 @@ def main():
             if self._output_path is not None:
                 self._output = OutputFile(self._output_path)
 
-            stage = 'early' if self._target[0] == 'file' else 'late'
+            stage = "early" if self._target[0] == "file" else "late"
 
-            self._tracer = Tracer(self._reactor, FileRepository(self._reactor, self._decorate), self._profile,
-                    self._init_scripts, log_handler=self._log)
+            self._tracer = Tracer(
+                self._reactor,
+                FileRepository(self._reactor, self._decorate),
+                self._profile,
+                self._init_scripts,
+                log_handler=self._log,
+            )
             try:
                 self._tracer.start_trace(self._session, stage, self._parameters, self._runtime, self)
             except Exception as e:
@@ -102,11 +174,11 @@ def main():
             self._on_script_created(script)
 
         def on_trace_progress(self, status, *params):
-            if status == 'initializing':
+            if status == "initializing":
                 self._update_status("Instrumenting...")
-            elif status == 'initialized':
+            elif status == "initialized":
                 self._resume()
-            elif status == 'started':
+            elif status == "started":
                 (count,) = params
                 if count == 1:
                     plural = ""
@@ -139,12 +211,12 @@ def main():
         def on_trace_handler_create(self, target, handler, source):
             if self._quiet:
                 return
-            self._print("%s: Auto-generated handler at \"%s\"" % (target, source.replace("\\", "\\\\")))
+            self._print('%s: Auto-generated handler at "%s"' % (target, source.replace("\\", "\\\\")))
 
         def on_trace_handler_load(self, target, handler, source):
             if self._quiet:
                 return
-            self._print("%s: Loaded handler at \"%s\"" % (target, source.replace("\\", "\\\\")))
+            self._print('%s: Loaded handler at "%s"' % (target, source.replace("\\", "\\\\")))
 
         def _get_attributes(self, thread_id):
             attributes = self._attributes_by_thread_id.get(thread_id, None)
@@ -167,57 +239,57 @@ class TracerProfileBuilder(object):
 
     def include_modules(self, *module_name_globs):
         for m in module_name_globs:
-            self._spec.append(('include', 'module', m))
+            self._spec.append(("include", "module", m))
         return self
 
     def exclude_modules(self, *module_name_globs):
         for m in module_name_globs:
-            self._spec.append(('exclude', 'module', m))
+            self._spec.append(("exclude", "module", m))
         return self
 
     def include(self, *function_name_globs):
         for f in function_name_globs:
-            self._spec.append(('include', 'function', f))
+            self._spec.append(("include", "function", f))
         return self
 
     def exclude(self, *function_name_globs):
         for f in function_name_globs:
-            self._spec.append(('exclude', 'function', f))
+            self._spec.append(("exclude", "function", f))
         return self
 
     def include_relative_address(self, *address_rel_offsets):
         for f in address_rel_offsets:
-            self._spec.append(('include', 'relative-function', f))
+            self._spec.append(("include", "relative-function", f))
         return self
 
     def include_imports(self, *module_name_globs):
         for m in module_name_globs:
-            self._spec.append(('include', 'imports', m))
+            self._spec.append(("include", "imports", m))
         return self
 
     def include_objc_method(self, *function_name_globs):
         for f in function_name_globs:
-            self._spec.append(('include', 'objc-method', f))
+            self._spec.append(("include", "objc-method", f))
         return self
 
     def exclude_objc_method(self, *function_name_globs):
         for f in function_name_globs:
-            self._spec.append(('exclude', 'objc-method', f))
+            self._spec.append(("exclude", "objc-method", f))
         return self
 
     def include_java_method(self, *function_name_globs):
         for f in function_name_globs:
-            self._spec.append(('include', 'java-method', f))
+            self._spec.append(("include", "java-method", f))
         return self
 
     def exclude_java_method(self, *function_name_globs):
         for f in function_name_globs:
-            self._spec.append(('exclude', 'java-method', f))
+            self._spec.append(("exclude", "java-method", f))
         return self
 
     def include_debug_symbol(self, *function_name_globs):
         for f in function_name_globs:
-            self._spec.append(('include', 'debug-symbol', f))
+            self._spec.append(("include", "debug-symbol", f))
         return self
 
     def build(self):
@@ -242,37 +314,38 @@ class Tracer(object):
     def start_trace(self, session, stage, parameters, runtime, ui):
         def on_create(*args):
             ui.on_trace_handler_create(*args)
+
         self._repository.on_create(on_create)
 
         def on_load(*args):
             ui.on_trace_handler_load(*args)
+
         self._repository.on_load(on_load)
 
         def on_update(target, handler, source):
             self._agent.update(target.identifier, target.display_name, handler)
+
         self._repository.on_update(on_update)
 
         def on_message(message, data):
             self._reactor.schedule(lambda: self._on_message(message, data, ui))
 
-        ui.on_trace_progress('initializing')
+        ui.on_trace_progress("initializing")
         data_dir = os.path.dirname(__file__)
-        with codecs.open(os.path.join(data_dir, "tracer_agent.js"), 'r', 'utf-8') as f:
+        with codecs.open(os.path.join(data_dir, "tracer_agent.js"), "r", "utf-8") as f:
             source = f.read()
-        runtime = 'v8' if runtime == 'v8' else 'qjs'
-        script = session.create_script(name="tracer",
-                                       source=source,
-                                       runtime=runtime)
+        runtime = "v8" if runtime == "v8" else "qjs"
+        script = session.create_script(name="tracer", source=source, runtime=runtime)
 
         self._script = script
         script.set_log_handler(self._log_handler)
-        script.on('message', on_message)
+        script.on("message", on_message)
         ui.on_script_created(script)
         script.load()
 
         self._agent = script.exports
 
-        raw_init_scripts = [{ 'filename': script.filename, 'source': script.source } for script in self._init_scripts]
+        raw_init_scripts = [{"filename": script.filename, "source": script.source} for script in self._init_scripts]
         self._agent.init(stage, parameters, raw_init_scripts, self._profile.spec)
 
     def stop(self):
@@ -286,10 +359,10 @@ class Tracer(object):
     def _on_message(self, message, data, ui):
         handled = False
 
-        if message['type'] == 'send':
+        if message["type"] == "send":
             try:
-                payload = message['payload']
-                mtype = payload['type']
+                payload = message["payload"]
+                mtype = payload["type"]
                 params = (mtype, payload, data, ui)
             except:
                 # As user scripts may use send() we need to be prepared for this.
@@ -302,25 +375,25 @@ class Tracer(object):
 
     def _try_handle_message(self, mtype, params, data, ui):
         if mtype == "events:add":
-            events = [(timestamp, thread_id, depth, message) for target_id, timestamp, thread_id, depth, message in params['events']]
+            events = [
+                (timestamp, thread_id, depth, message)
+                for target_id, timestamp, thread_id, depth, message in params["events"]
+            ]
             ui.on_trace_events(events)
             return True
 
         if mtype == "handlers:get":
-            flavor = params['flavor']
-            base_id = params['baseId']
+            flavor = params["flavor"]
+            base_id = params["baseId"]
 
             scripts = []
-            response = {
-                'type': "reply:{}".format(base_id),
-                'scripts': scripts
-            }
+            response = {"type": "reply:{}".format(base_id), "scripts": scripts}
 
             repo = self._repository
             next_id = base_id
-            for scope in params['scopes']:
-                scope_name = scope['name']
-                for member_name in scope['members']:
+            for scope in params["scopes"]:
+                scope_name = scope["name"]
+                for member_name in scope["members"]:
                     target = TraceTarget(next_id, flavor, scope_name, member_name)
                     next_id += 1
                     handler = repo.ensure_handler(target)
@@ -331,20 +404,20 @@ class Tracer(object):
             return True
 
         if mtype == "agent:initialized":
-            ui.on_trace_progress('initialized')
+            ui.on_trace_progress("initialized")
             return True
 
         if mtype == "agent:started":
             self._repository.commit_handlers()
-            ui.on_trace_progress('started', params['count'])
+            ui.on_trace_progress("started", params["count"])
             return True
 
         if mtype == "agent:warning":
-            ui.on_trace_warning(params['message'])
+            ui.on_trace_warning(params["message"])
             return True
 
         if mtype == "agent:error":
-            ui.on_trace_error(params['message'])
+            ui.on_trace_error(params["message"])
             return True
 
         return False
@@ -401,34 +474,41 @@ class Repository(object):
             self._on_update_callback(target, handler, source)
 
     def _create_stub_handler(self, target, decorate):
-        if target.flavor == 'java':
+        if target.flavor == "java":
             return self._create_stub_java_handler(target, decorate)
         else:
             return self._create_stub_native_handler(target, decorate)
 
     def _create_stub_native_handler(self, target, decorate):
-        if target.flavor == 'objc':
+        if target.flavor == "objc":
             state = {"index": 2}
+
             def objc_arg(m):
                 index = state["index"]
                 r = ":${args[%d]} " % index
                 state["index"] = index + 1
                 return r
 
-            log_str = "`" + re.sub(r':', objc_arg, target.display_name) + "`"
+            log_str = "`" + re.sub(r":", objc_arg, target.display_name) + "`"
             if log_str.endswith("} ]`"):
                 log_str = log_str[:-3] + "]`"
         else:
             for man_section in (2, 3):
                 args = []
                 try:
-                    with open(os.devnull, 'w') as devnull:
+                    with open(os.devnull, "w") as devnull:
                         man_argv = ["man"]
                         if platform.system() != "Darwin":
                             man_argv.extend(["-E", "UTF-8"])
                         man_argv.extend(["-P", "col -b", str(man_section), target.name])
                         output = subprocess.check_output(man_argv, stderr=devnull)
-                    match = re.search(r"^SYNOPSIS(?:.|\n)*?((?:^.+$\n)* {5}\w+[ \*\n]*" + target.name + r"\((?:.+\,\s*?$\n)*?(?:.+\;$\n))(?:.|\n)*^DESCRIPTION", output.decode('UTF-8', errors='replace'), re.MULTILINE)
+                    match = re.search(
+                        r"^SYNOPSIS(?:.|\n)*?((?:^.+$\n)* {5}\w+[ \*\n]*"
+                        + target.name
+                        + r"\((?:.+\,\s*?$\n)*?(?:.+\;$\n))(?:.|\n)*^DESCRIPTION",
+                        output.decode("UTF-8", errors="replace"),
+                        re.MULTILINE,
+                    )
                     if match:
                         decl = match.group(1)
 
@@ -438,7 +518,7 @@ class Repository(object):
                             if arg == "void":
                                 continue
                             if arg == "...":
-                                args.append("\", ...\" +");
+                                args.append('", ..." +')
                                 continue
 
                             read_ops = ""
@@ -450,18 +530,21 @@ class Repository(object):
                                 normalized_type = normalized_type[:-8]
                             if normalized_type in ("char*", "constchar*"):
                                 read_ops = ".readUtf8String()"
-                                annotate_pre = "\""
-                                annotate_post = "\""
+                                annotate_pre = '"'
+                                annotate_post = '"'
 
                             arg_index = len(args)
 
-                            args.append("%(arg_name)s=%(annotate_pre)s${args[%(arg_index)s]%(read_ops)s}%(annotate_post)s" % {
-                                "arg_name": arg,
-                                "arg_index": arg_index,
-                                "read_ops": read_ops,
-                                "annotate_pre": annotate_pre,
-                                "annotate_post": annotate_post
-                            })
+                            args.append(
+                                "%(arg_name)s=%(annotate_pre)s${args[%(arg_index)s]%(read_ops)s}%(annotate_post)s"
+                                % {
+                                    "arg_name": arg,
+                                    "arg_index": arg_index,
+                                    "read_ops": read_ops,
+                                    "annotate_pre": annotate_pre,
+                                    "annotate_post": annotate_post,
+                                }
+                            )
                         break
                 except Exception:
                     pass
@@ -472,12 +555,12 @@ class Repository(object):
                 module_string = ""
 
             if len(args) == 0:
-                log_str = "'%(name)s()%(module_string)s'" % { "name": target.name, "module_string" : module_string }
+                log_str = "'%(name)s()%(module_string)s'" % {"name": target.name, "module_string": module_string}
             else:
                 log_str = "`%(name)s(%(args)s)%(module_string)s`" % {
                     "name": target.name,
                     "args": ", ".join(args),
-                    "module_string": module_string
+                    "module_string": module_string,
                 }
 
         return """\
@@ -519,7 +602,10 @@ class Repository(object):
   onLeave(log, retval, state) {
   }
 }
-""" % {"display_name": target.display_name, "log_str": log_str}
+""" % {
+            "display_name": target.display_name,
+            "log_str": log_str,
+        }
 
     def _create_stub_java_handler(self, target, decorate):
         return """\
@@ -558,7 +644,9 @@ class Repository(object):
     }
   }
 }
-""" % {"display_name": target.display_name}
+""" % {
+            "display_name": target.display_name
+        }
 
 
 class MemoryRepository(Repository):
@@ -599,12 +687,14 @@ class FileRepository(Repository):
 
         scope = target.scope
         if len(scope) > 0:
-            handler_file = os.path.join(self._repo_dir, to_filename(os.path.basename(scope)), to_handler_filename(target.name))
+            handler_file = os.path.join(
+                self._repo_dir, to_filename(os.path.basename(scope)), to_handler_filename(target.name)
+            )
         else:
             handler_file = os.path.join(self._repo_dir, to_handler_filename(target.name))
 
         if os.path.isfile(handler_file):
-            with codecs.open(handler_file, 'r', 'utf-8') as f:
+            with codecs.open(handler_file, "r", "utf-8") as f:
                 handler = f.read()
             self._notify_load(target, handler, handler_file)
 
@@ -613,7 +703,7 @@ class FileRepository(Repository):
             handler_dir = os.path.dirname(handler_file)
             if not os.path.isdir(handler_dir):
                 os.makedirs(handler_dir)
-            with codecs.open(handler_file, 'w', 'utf-8') as f:
+            with codecs.open(handler_file, "w", "utf-8") as f:
                 f.write(handler)
             self._notify_create(target, handler, handler_file)
 
@@ -630,7 +720,7 @@ class FileRepository(Repository):
         monitor = self._repo_monitors.get(handler_dir)
         if monitor is None:
             monitor = frida.FileMonitor(handler_dir)
-            monitor.on('change', self._on_change)
+            monitor.on("change", self._on_change)
             self._repo_monitors[handler_dir] = monitor
 
     def commit_handlers(self):
@@ -638,7 +728,7 @@ class FileRepository(Repository):
             monitor.enable()
 
     def _on_change(self, changed_file, other_file, event_type):
-        if changed_file not in self._handler_by_file or event_type == 'changes-done-hint':
+        if changed_file not in self._handler_by_file or event_type == "changes-done-hint":
             return
         self._changed_files.add(changed_file)
         self._last_change_id += 1
@@ -652,7 +742,7 @@ class FileRepository(Repository):
         self._changed_files.clear()
         for changed_handler_file in changes:
             (target, old_handler, handler_file) = self._handler_by_file[changed_handler_file]
-            with codecs.open(handler_file, 'r', 'utf-8') as f:
+            with codecs.open(handler_file, "r", "utf-8") as f:
                 new_handler = f.read()
             changed = new_handler != old_handler
             if changed:
@@ -670,7 +760,7 @@ class InitScript(object):
 
 class OutputFile(object):
     def __init__(self, filename):
-        self._fd = codecs.open(filename, 'wb', 'utf-8')
+        self._fd = codecs.open(filename, "wb", "utf-8")
 
     def close(self):
         self._fd.close()
@@ -721,7 +811,7 @@ def to_handler_filename(name):
     return full_filename[0:32] + "_%08x.js" % crc
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:

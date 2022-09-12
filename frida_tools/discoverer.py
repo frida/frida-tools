@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
 
-from frida_tools.model import Module, Function, ModuleFunction
+from frida_tools.model import Function, Module, ModuleFunction
 
 
 def main():
     import threading
 
-    from frida_tools.application import await_enter, ConsoleApplication
+    from frida_tools.application import ConsoleApplication, await_enter
 
     class DiscovererApplication(ConsoleApplication, UI):
         def __init__(self):
@@ -80,32 +80,33 @@ class Discoverer(object):
     def start(self, session, runtime, ui):
         def on_message(message, data):
             print(message, data)
-        self._script = session.create_script(name="discoverer",
-                                             source=self._create_discover_script(),
-                                             runtime=runtime)
-        self._script.on('message', on_message)
+
+        self._script = session.create_script(name="discoverer", source=self._create_discover_script(), runtime=runtime)
+        self._script.on("message", on_message)
         self._on_script_created(script)
         self._script.load()
 
         params = self._script.exports.start()
-        ui.on_sample_start(params['total'])
+        ui.on_sample_start(params["total"])
 
         self._ui = ui
 
     def stop(self):
         result = self._script.exports.stop()
 
-        modules = dict((int(module_id), Module(m['name'], int(m['base'], 16), m['size'], m['path']))
-            for module_id, m in result['modules'].items())
+        modules = dict(
+            (int(module_id), Module(m["name"], int(m["base"], 16), m["size"], m["path"]))
+            for module_id, m in result["modules"].items()
+        )
 
         module_functions = {}
         dynamic_functions = []
-        for module_id, name, visibility, raw_address, count in result['targets']:
+        for module_id, name, visibility, raw_address, count in result["targets"]:
             address = int(raw_address, 16)
 
             if module_id != 0:
                 module = modules[module_id]
-                exported = visibility == 'e'
+                exported = visibility == "e"
                 function = ModuleFunction(module, name, address - module.base_address, exported)
 
                 functions = module_functions.get(module, [])
@@ -214,7 +215,7 @@ class UI(object):
         pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:

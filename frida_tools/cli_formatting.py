@@ -1,6 +1,6 @@
-from colorama import Fore, Style
 import os.path
 
+from colorama import Fore, Style
 
 STYLE_FILE = Fore.CYAN + Style.BRIGHT
 STYLE_LOCATION = Fore.LIGHTYELLOW_EX
@@ -56,5 +56,5 @@ def format_diagnostic(diag, cwd):
 
 def format_filename(path, cwd):
     if path.startswith(cwd):
-        return path[len(cwd) + 1:]
+        return path[len(cwd) + 1 :]
     return path

@@ -2,7 +2,8 @@
 from __future__ import print_function
 
 import frida
-from frida_tools.application import ConsoleApplication, infer_target, expand_target
+
+from frida_tools.application import ConsoleApplication, expand_target, infer_target
 
 
 class KillApplication(ConsoleApplication):
@@ -14,8 +15,8 @@ class KillApplication(ConsoleApplication):
 
     def _initialize(self, parser, options, args):
         process = expand_target(infer_target(options.process))
-        if process[0] == 'file':
-            parser.error('process name or pid must be specified')
+        if process[0] == "file":
+            parser.error("process name or pid must be specified")
 
         self._process = process[1]
 
@@ -23,7 +24,7 @@ class KillApplication(ConsoleApplication):
         try:
             self._device.kill(self._process)
         except frida.ProcessNotFoundError:
-            self._update_status('unable to find process: %s' % self._process)
+            self._update_status("unable to find process: %s" % self._process)
             self._exit(1)
         self._exit(0)
 
@@ -33,7 +34,7 @@ def main():
     app.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:

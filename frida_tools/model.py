@@ -6,7 +6,12 @@ class Module(object):
         self.path = path
 
     def __repr__(self):
-        return "Module(name=\"%s\", base_address=0x%x, size=%d, path=\"%s\")" % (self.name, self.base_address, self.size, self.path)
+        return 'Module(name="%s", base_address=0x%x, size=%d, path="%s")' % (
+            self.name,
+            self.base_address,
+            self.size,
+            self.path,
+        )
 
     def __hash__(self):
         return self.base_address.__hash__()
@@ -30,7 +35,7 @@ class Function(object):
         return self.name
 
     def __repr__(self):
-        return "Function(name=\"%s\", absolute_address=0x%x)" % (self.name, self.absolute_address)
+        return 'Function(name="%s", absolute_address=0x%x)' % (self.name, self.absolute_address)
 
     def __hash__(self):
         return self.absolute_address.__hash__()
@@ -53,7 +58,11 @@ class ModuleFunction(Function):
         self.exported = exported
 
     def __repr__(self):
-        return "ModuleFunction(module=\"%s\", name=\"%s\", relative_address=0x%x)" % (self.module.name, self.name, self.relative_address)
+        return 'ModuleFunction(module="%s", name="%s", relative_address=0x%x)' % (
+            self.module.name,
+            self.name,
+            self.relative_address,
+        )
 
 
 class ObjCMethod(Function):
@@ -65,7 +74,12 @@ class ObjCMethod(Function):
         super(ObjCMethod, self).__init__(self.display_name(), address)
 
     def display_name(self):
-        return '{mtype}[{cls} {method}]'.format(mtype=self.mtype, cls=self.cls, method=self.method)
+        return "{mtype}[{cls} {method}]".format(mtype=self.mtype, cls=self.cls, method=self.method)
 
     def __repr__(self):
-        return "ObjCMethod(mtype=\"%s\", cls=\"%s\", method=\"%s\", address=0x%x)" % (self.mtype, self.cls, self.method, self.address)
+        return 'ObjCMethod(mtype="%s", cls="%s", method="%s", address=0x%x)' % (
+            self.mtype,
+            self.cls,
+            self.method,
+            self.address,
+        )

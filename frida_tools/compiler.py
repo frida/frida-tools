@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-import frida
 import os
 import sys
 from timeit import default_timer as timer
 
+import frida
+
 from frida_tools.application import ConsoleApplication, await_ctrl_c
-from frida_tools.cli_formatting import format_error, format_compiling, format_compiled, format_diagnostic
+from frida_tools.cli_formatting import format_compiled, format_compiling, format_diagnostic, format_error
 
 
 def main():
