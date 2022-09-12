@@ -124,6 +124,37 @@ class ConsoleApplication(object):
             input_encoding = sys.stdin.encoding or 'UTF-8'
             options.args = [arg.decode(input_encoding) for arg in options.args]
 
+        self._initialize_device_arguments(parser, options)
+        self._initialize_target_arguments(parser, options)
+
+        self._device = None
+        self._schedule_on_output = lambda pid, fd, data: self._reactor.schedule(lambda: self._on_output(pid, fd, data))
+        self._schedule_on_device_lost = lambda: self._reactor.schedule(self._on_device_lost)
+        self._spawned_pid = None
+        self._spawned_argv = None
+        self._selected_spawn = None
+        self._target_pid = None
+        self._session = None
+        self._schedule_on_session_detached = lambda reason, crash: self._reactor.schedule(lambda: self._on_session_detached(reason, crash))
+        self._started = False
+        self._resumed = False
+        self._reactor = Reactor(run_until_return, on_stop)
+        self._exit_status = None
+        self._console_state = ConsoleState.EMPTY
+        self._have_terminal = sys.stdin.isatty() and sys.stdout.isatty() and not os.environ.get("TERM", '') == "dumb"
+        self._plain_terminal = plain_terminal
+        self._quiet = False
+        if sum(map(lambda v: int(v is not None), (self._device_id, self._device_type, self._host))) > 1:
+            parser.error("Only one of -D, -U, -R, and -H may be specified")
+
+        self._initialize_target(parser, options)
+
+        try:
+            self._initialize(parser, options, options.args)
+        except Exception as e:
+            parser.error(str(e))
+
+    def _initialize_device_arguments(self, parser, options):
         if self._needs_device():
             self._device_id = options.device_id
             self._device_type = options.device_type
@@ -150,14 +181,8 @@ class ConsoleApplication(object):
             self._session_transport = 'multiplexed'
             self._stun_server = None
             self._relays = None
-        self._device = None
-        self._schedule_on_output = lambda pid, fd, data: self._reactor.schedule(lambda: self._on_output(pid, fd, data))
-        self._schedule_on_device_lost = lambda: self._reactor.schedule(self._on_device_lost)
-        self._spawned_pid = None
-        self._spawned_argv = None
-        self._selected_spawn = None
-        self._target_pid = None
-        self._session = None
+
+    def _initialize_target_arguments(self, parser, options):
         if self._needs_target():
             self._stdio = options.stdio
             self._aux = options.aux
@@ -172,18 +197,8 @@ class ConsoleApplication(object):
             self._runtime = 'qjs'
             self._enable_debugger = False
             self._squelch_crash = False
-        self._schedule_on_session_detached = lambda reason, crash: self._reactor.schedule(lambda: self._on_session_detached(reason, crash))
-        self._started = False
-        self._resumed = False
-        self._reactor = Reactor(run_until_return, on_stop)
-        self._exit_status = None
-        self._console_state = ConsoleState.EMPTY
-        self._have_terminal = sys.stdin.isatty() and sys.stdout.isatty() and not os.environ.get("TERM", '') == "dumb"
-        self._plain_terminal = plain_terminal
-        self._quiet = False
-        if sum(map(lambda v: int(v is not None), (self._device_id, self._device_type, self._host))) > 1:
-            parser.error("Only one of -D, -U, -R, and -H may be specified")
 
+    def _initialize_target(self, parser, options):
         if self._needs_target():
             target = getattr(options, 'target', None)
             if target is None:
@@ -199,11 +214,6 @@ class ConsoleApplication(object):
             self._target = target
         else:
             self._target = None
-
-        try:
-            self._initialize(parser, options, options.args)
-        except Exception as e:
-            parser.error(str(e))
 
     def _initialize_arguments_parser(self):
         parser = self._initialize_base_arguments_parser()
