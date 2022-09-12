@@ -100,7 +100,7 @@ class ConsoleState:
     TEXT = 3
 
 
-class ConsoleApplication(object):
+class ConsoleApplication:
     """
     ConsoleApplication is the base class for all of Frida tools, which contains
     the common arguments of the tools. Each application can implement one or
@@ -925,7 +925,7 @@ def parse_aux_option(option):
     return (name, value)
 
 
-class Reactor(object):
+class Reactor:
     """
     Run the given function until return in the main thread (or the thread of
     the run method) and in a background thread receive and run additional tasks.

@@ -230,7 +230,7 @@ def main():
     app.run()
 
 
-class TracerProfileBuilder(object):
+class TracerProfileBuilder:
     def __init__(self):
         self._spec = []
 
@@ -293,12 +293,12 @@ class TracerProfileBuilder(object):
         return TracerProfile(self._spec)
 
 
-class TracerProfile(object):
+class TracerProfile:
     def __init__(self, spec):
         self.spec = spec
 
 
-class Tracer(object):
+class Tracer:
     def __init__(self, reactor, repository, profile, init_scripts=[], log_handler=None):
         self._reactor = reactor
         self._repository = repository
@@ -420,7 +420,7 @@ class Tracer(object):
         return False
 
 
-class TraceTarget(object):
+class TraceTarget:
     def __init__(self, identifier, flavor, scope, name):
         self.identifier = identifier
         self.flavor = flavor
@@ -436,7 +436,7 @@ class TraceTarget(object):
         return self.display_name
 
 
-class Repository(object):
+class Repository:
     def __init__(self):
         self._on_create_callback = None
         self._on_load_callback = None
@@ -749,13 +749,13 @@ class FileRepository(Repository):
                 self._notify_update(target, new_handler, handler_file)
 
 
-class InitScript(object):
+class InitScript:
     def __init__(self, filename, source):
         self.filename = filename
         self.source = source
 
 
-class OutputFile(object):
+class OutputFile:
     def __init__(self, filename):
         self._fd = codecs.open(filename, "wb", "utf-8")
 
@@ -767,7 +767,7 @@ class OutputFile(object):
         self._fd.flush()
 
 
-class UI(object):
+class UI:
     def on_script_created(self, script):
         pass
 

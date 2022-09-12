@@ -60,7 +60,7 @@ def main():
     app.run()
 
 
-class Discoverer(object):
+class Discoverer:
     def __init__(self, reactor):
         self._reactor = reactor
         self._ui = None
@@ -204,7 +204,7 @@ rpc.exports = {
 """
 
 
-class UI(object):
+class UI:
     def on_sample_start(self, total):
         pass
 

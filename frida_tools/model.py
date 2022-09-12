@@ -1,4 +1,4 @@
-class Module(object):
+class Module:
     def __init__(self, name, base_address, size, path):
         self.name = name
         self.base_address = base_address
@@ -26,7 +26,7 @@ class Module(object):
         return self.base_address != other.base_address
 
 
-class Function(object):
+class Function:
     def __init__(self, name, absolute_address):
         self.name = name
         self.absolute_address = absolute_address

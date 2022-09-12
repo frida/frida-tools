@@ -1200,7 +1200,7 @@ class JavaScriptError(Exception):
         self.error = error
 
 
-class DumbStdinReader(object):
+class DumbStdinReader:
     def __init__(self, valid_until):
         self._valid_until = valid_until
 
@@ -1300,7 +1300,7 @@ if os.environ.get("TERM", "") == "dumb":
         SYMBOL_CHARS = "._" + string.ascii_letters + string.digits
         FIRST_SYMBOL_CHARS = "_" + string.ascii_letters
 
-        class ReplEPCCompletion(object):
+        class ReplEPCCompletion:
             def __init__(self, repl, *args, **kargs):
                 _, _ = args, kargs
                 self._repl = repl
