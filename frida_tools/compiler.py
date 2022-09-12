@@ -15,7 +15,7 @@ def main():
 
 class CompilerApplication(ConsoleApplication):
     def __init__(self):
-        super(CompilerApplication, self).__init__(await_ctrl_c)
+        super().__init__(await_ctrl_c)
 
     def _usage(self):
         return "%(prog)s [options] <module>"

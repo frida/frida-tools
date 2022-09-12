@@ -53,7 +53,7 @@ def main():
             self._autoreload = True
             self._quiet_start = None
 
-            super(REPLApplication, self).__init__(self._process_input, self._on_stop)
+            super().__init__(self._process_input, self._on_stop)
 
             if self._have_terminal and not self._plain_terminal:
                 style = PromptToolkitStyle(
@@ -1195,7 +1195,7 @@ URL: {url}
 
 class JavaScriptError(Exception):
     def __init__(self, error):
-        super(JavaScriptError, self).__init__(error["message"])
+        super().__init__(error["message"])
 
         self.error = error
 

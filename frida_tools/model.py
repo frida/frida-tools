@@ -52,7 +52,7 @@ class Function:
 
 class ModuleFunction(Function):
     def __init__(self, module, name, relative_address, exported):
-        super(ModuleFunction, self).__init__(name, module.base_address + relative_address)
+        super().__init__(name, module.base_address + relative_address)
         self.module = module
         self.relative_address = relative_address
         self.exported = exported
@@ -71,7 +71,7 @@ class ObjCMethod(Function):
         self.cls = cls
         self.method = method
         self.address = address
-        super(ObjCMethod, self).__init__(self.display_name(), address)
+        super().__init__(self.display_name(), address)
 
     def display_name(self):
         return "{mtype}[{cls} {method}]".format(mtype=self.mtype, cls=self.cls, method=self.method)

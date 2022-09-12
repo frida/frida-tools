@@ -17,7 +17,7 @@ def main():
 
     class TracerApplication(ConsoleApplication, UI):
         def __init__(self):
-            super(TracerApplication, self).__init__(await_ctrl_c)
+            super().__init__(await_ctrl_c)
             self._palette = [Fore.CYAN, Fore.MAGENTA, Fore.YELLOW, Fore.GREEN, Fore.RED, Fore.BLUE]
             self._next_color = 0
             self._attributes_by_thread_id = {}
@@ -648,7 +648,7 @@ class Repository:
 
 class MemoryRepository(Repository):
     def __init__(self):
-        super(MemoryRepository, self).__init__()
+        super().__init__()
         self._handlers = {}
 
     def ensure_handler(self, target):
@@ -664,7 +664,7 @@ class MemoryRepository(Repository):
 
 class FileRepository(Repository):
     def __init__(self, reactor, decorate):
-        super(FileRepository, self).__init__()
+        super().__init__()
         self._reactor = reactor
         self._handler_by_id = {}
         self._handler_by_file = {}
