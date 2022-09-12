@@ -19,7 +19,6 @@ if platform.system() == 'Windows':
     import msvcrt
 
 import colorama
-from colorama import Cursor, Fore, Style
 import frida
 
 
@@ -468,7 +467,7 @@ class ConsoleApplication(object):
 
         pattern = self._target[1]
         if pattern.match(spawn.identifier) is None or self._selected_spawn is not None:
-            self._print(Fore.YELLOW + Style.BRIGHT + "Ignoring: " + str(spawn) + Style.RESET_ALL)
+            self._print(colorama.Fore.YELLOW + colorama.Style.BRIGHT + "Ignoring: " + str(spawn) + colorama.Style.RESET_ALL)
             try:
                 self._device.resume(pid)
             except:
@@ -477,7 +476,7 @@ class ConsoleApplication(object):
 
         self._selected_spawn = spawn
 
-        self._print(Fore.GREEN + Style.BRIGHT + "Handling: " + str(spawn) + Style.RESET_ALL)
+        self._print(colorama.Fore.GREEN + colorama.Style.BRIGHT + "Handling: " + str(spawn) + colorama.Style.RESET_ALL)
         try:
             self._attach(pid)
             self._reactor.schedule(lambda: self._on_spawn_handled(spawn))
@@ -524,7 +523,7 @@ class ConsoleApplication(object):
             message = reason[0].upper() + reason[1:].replace("-", " ")
         else:
             message = "Process crashed: " + crash.summary
-        self._print(Fore.RED + Style.BRIGHT + message + Style.RESET_ALL)
+        self._print(colorama.Fore.RED + colorama.Style.BRIGHT + message + colorama.Style.RESET_ALL)
         if crash is not None:
             if self._squelch_crash is True:
                 self._print("\n*** Crash report was squelched due to user setting. ***")
@@ -534,18 +533,18 @@ class ConsoleApplication(object):
 
     def _clear_status(self):
         if self._console_state == ConsoleState.STATUS:
-            print(Cursor.UP() + (80 * " "))
+            print(colorama.Cursor.UP() + (80 * " "))
 
     def _update_status(self, message):
         if self._have_terminal:
             if self._console_state == ConsoleState.STATUS:
-                cursor_position = Cursor.UP()
+                cursor_position = colorama.Cursor.UP()
             else:
                 cursor_position = ""
-            print("%-80s" % (cursor_position + Style.BRIGHT + message + Style.RESET_ALL,))
+            print("%-80s" % (cursor_position + colorama.Style.BRIGHT + message + colorama.Style.RESET_ALL,))
             self._console_state = ConsoleState.STATUS
         else:
-            print(Style.BRIGHT + message + Style.RESET_ALL)
+            print(colorama.Style.BRIGHT + message + colorama.Style.RESET_ALL)
 
     def _print(self, *args, **kwargs):
         encoded_args = []
@@ -569,8 +568,8 @@ class ConsoleApplication(object):
         if level == 'info':
             self._print(text)
         else:
-            color = Fore.RED if level == 'error' else Fore.YELLOW
-            text = color + Style.BRIGHT + text + Style.RESET_ALL
+            color = colorama.Fore.RED if level == 'error' else colorama.Fore.YELLOW
+            text = color + colorama.Style.BRIGHT + text + colorama.Style.RESET_ALL
             if level == 'error':
                 self._print(text, file=sys.stderr)
             else:
