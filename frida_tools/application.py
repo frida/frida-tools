@@ -103,6 +103,17 @@ class ConsoleState:
 
 
 class ConsoleApplication(object):
+    """
+    ConsoleApplication is the base class for all of Frida tools, which contains
+    the common arguments of the tools. Each application can implement one or
+    more of several methods that can be inserted inside the flow of the
+    application.
+
+    The subclass should not expose any additional methods aside from __init__
+    and run methods that are defined by this class. These methods should not be
+    overridden without calling the super method.
+    """
+
     def __init__(self, run_until_return=await_enter, on_stop=None, args=None):
         plain_terminal = os.environ.get("TERM", "").lower() == "none"
 
@@ -299,22 +310,50 @@ class ConsoleApplication(object):
         sys.exit(self._exit_status)
 
     def _add_options(self, parser):
+        """
+        override this method if you want to add custom arguments to your
+        command. The parser command is an argparse object, you should add the
+        options to him.
+        """
+
         pass
 
     def _initialize(self, parser, options, args):
+        """
+        override this method if you need to have additional initialization code
+        before running, maybe to use your custom options from the `_add_options`
+        method.
+        """
+
         pass
 
     def _needs_device(self):
+        """
+        override this method if your command need to get a device from the user.
+        """
+
         return True
 
     def _needs_target(self):
+        """
+        override this method if your command does not need to get a target
+        process from the user.
+        """
+
         return False
 
     def _start(self):
-        pass
+        """
+        override this method with the logic of your command, it will run after
+        the class is fully initialized with a connected device/target if you
+        required one.
+        """
 
     def _stop(self):
-        pass
+        """
+        override this method if you have something you need to do at the end of
+        your command, maybe cleaning up some objects.
+        """
 
     def _resume(self):
         if self._resumed:
@@ -790,6 +829,11 @@ def parse_aux_option(option):
 
 
 class Reactor(object):
+    """
+    Run the given function until return in the main thread (or the thread of
+    the run method) and in a background thread receive and run additional tasks.
+    """
+
     def __init__(self, run_until_return, on_stop=None):
         self._running = False
         self._run_until_return = run_until_return
@@ -865,6 +909,11 @@ class Reactor(object):
             self._running = False
 
     def schedule(self, f, delay=None):
+        """
+        append a function to the tasks queue of the reactor, optionally with a
+        delay in seconds
+        """
+
         now = time.time()
         if delay is not None:
             when = now + delay
