@@ -35,7 +35,7 @@ def main() -> None:
             try:
                 debug(self._path, self._output_path)
             except Exception as e:
-                self._update_status("Error: {error}".format(error=e))
+                self._update_status(f"Error: {e}")
                 self._exit(1)
             self._exit(0)
 

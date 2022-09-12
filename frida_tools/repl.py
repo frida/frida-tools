@@ -169,7 +169,7 @@ def main():
                 try:
                     params = json.loads(options.user_parameters)
                 except Exception as e:
-                    raise ValueError("failed to parse parameters argument as JSON: {}".format(e))
+                    raise ValueError(f"failed to parse parameters argument as JSON: {e}")
                 if not isinstance(params, dict):
                     raise ValueError("failed to parse parameters argument as JSON: not an object")
                 self._user_parameters = params
@@ -227,7 +227,7 @@ def main():
             try:
                 self._load_script()
             except Exception as e:
-                self._update_status("Failed to load script: {error}".format(error=e))
+                self._update_status(f"Failed to load script: {e}")
                 self._exit(1)
                 return
 
@@ -236,7 +236,7 @@ def main():
                     " ".join(self._spawned_argv) if self._spawned_argv is not None else self._selected_spawn.identifier
                 )
                 if self._on_spawn_complete == "resume":
-                    self._update_status("Spawned `{command}`. Resuming main thread!".format(command=command))
+                    self._update_status(f"Spawned `{command}`. Resuming main thread!")
                     self._do_magic("resume")
                 else:
                     self._update_status(
@@ -369,7 +369,7 @@ def main():
                     if not reactor.is_running():
                         return
 
-                    prompt = "[%s]" % self._prompt_string + "-> " if len(expression) == 0 else "... "
+                    prompt = f"[{self._prompt_string}]" + "-> " if len(expression) == 0 else "... "
 
                     pending_eval = self._pending_eval
                     if pending_eval is not None:
@@ -441,7 +441,7 @@ def main():
                             self._do_quick_command(expression[1:].rstrip())
                         else:
                             if self._autoperform:
-                                expression = "Java.performNow(() => { return %s\n/**/ });" % expression
+                                expression = f"Java.performNow(() => {{ return {expression}\n/**/ }});"
                             if not self._exec_and_print(self._evaluate_expression, expression):
                                 self._errors += 1
                     except frida.OperationCancelledError:
@@ -567,7 +567,7 @@ def main():
 
             magic_command = self._magic_command_args.get(command)
             if magic_command == None:
-                self._print("Unknown command: {}".format(command))
+                self._print(f"Unknown command: {command}")
                 self._print("Valid commands: {}".format(", ".join(self._magic_command_args.keys())))
                 return
 
@@ -693,7 +693,7 @@ def main():
             try:
                 self._load_script()
             except Exception as e:
-                self._print("Failed to load script: {error}".format(error=e))
+                self._print(f"Failed to load script: {e}")
 
         def _create_repl_script(self):
             raw_fragments = []
@@ -735,7 +735,7 @@ def main():
                     script_id = next_script_id
                     next_script_id += 1
                     size = len(raw_fragment.encode("utf-8"))
-                    fragments.append("{} /frida/repl-{}.js\n✄\n{}".format(size, script_id, raw_fragment))
+                    fragments.append(f"{size} /frida/repl-{script_id}.js\n✄\n{raw_fragment}")
 
             return "📦\n" + "\n✄\n".join(fragments)
 
@@ -883,16 +883,16 @@ frida_log (const char * format,
         def _load_codeshare_script(self, uri):
             trust_store = self._get_or_create_truststore()
 
-            project_url = "https://codeshare.frida.re/api/project/{}/".format(uri)
+            project_url = f"https://codeshare.frida.re/api/project/{uri}/"
             response_json = None
             try:
                 request = build_opener()
-                request.addheaders = [("User-Agent", "Frida v{} | {}".format(frida.__version__, platform.platform()))]
+                request.addheaders = [("User-Agent", f"Frida v{frida.__version__} | {platform.platform()}")]
                 response = request.open(project_url)
                 response_content = response.read().decode("utf-8")
                 response_json = json.loads(response_content)
             except Exception as e:
-                self._print("Got an unhandled exception while trying to retrieve {} - {}".format(uri, e))
+                self._print(f"Got an unhandled exception while trying to retrieve {uri} - {e}")
                 return None
 
             trusted_signature = trust_store.get(uri, "")
@@ -913,7 +913,7 @@ URL: {url}
                     author="@" + uri.split("/")[0],
                     slug=uri,
                     fingerprint=fingerprint,
-                    url="https://codeshare.frida.re/@{}".format(uri),
+                    url=f"https://codeshare.frida.re/@{uri}",
                 )
             )
 

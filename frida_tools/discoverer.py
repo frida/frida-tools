@@ -37,7 +37,7 @@ def main():
             self._discoverer = None
 
         def on_sample_start(self, total):
-            self._update_status("Tracing %d threads. Press ENTER to stop." % total)
+            self._update_status(f"Tracing {total} threads. Press ENTER to stop.")
             self._resume()
 
         def on_sample_result(self, module_functions, dynamic_functions):

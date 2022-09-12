@@ -76,7 +76,7 @@ class PullApplication(ConsoleApplication):
             worker = Thread(target=self._perform_pull)
             worker.start()
         except Exception as e:
-            self._update_status("Failed to pull: {}".format(e))
+            self._update_status(f"Failed to pull: {e}")
             self._exit(1)
             return
 
@@ -114,15 +114,15 @@ class PullApplication(ConsoleApplication):
         megabytes_received = bytes_to_megabytes(self._stream_controller.bytes_received)
         total_megabytes = bytes_to_megabytes(self._total_bytes)
         if total_megabytes != 0 and megabytes_received <= total_megabytes:
-            self._update_status("Pulled {:.1f} out of {:.1f} MB".format(megabytes_received, total_megabytes))
+            self._update_status(f"Pulled {megabytes_received:.1f} out of {total_megabytes:.1f} MB")
         else:
-            self._update_status("Pulled {:.1f} MB".format(megabytes_received))
+            self._update_status(f"Pulled {megabytes_received:.1f} MB")
 
     def _render_summary_ui(self):
         duration = time.time() - self._time_started
 
         if len(self._remote_paths) == 1:
-            prefix = "{}: ".format(self._remote_paths[0])
+            prefix = f"{self._remote_paths[0]}: "
         else:
             prefix = ""
 
@@ -165,7 +165,7 @@ class PullApplication(ConsoleApplication):
             self._print(message)
 
     def _on_io_error(self, remote_path, local_path, error):
-        self._print_error("{}: {}".format(remote_path, error))
+        self._print_error(f"{remote_path}: {error}")
         self._failed_paths.append((local_path, "partial"))
 
     def _post_stream_stanza(self, stanza, data=None):

@@ -50,7 +50,7 @@ class LsApplication(ConsoleApplication):
 
             groups = script.exports.ls(self._files)
         except Exception as e:
-            self._update_status("Failed to retrieve listing: {}".format(e))
+            self._update_status(f"Failed to retrieve listing: {e}")
             self._exit(1)
             return
 

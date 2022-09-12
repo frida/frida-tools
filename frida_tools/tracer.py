@@ -131,7 +131,7 @@ def main():
                 try:
                     params = json.loads(options.parameters)
                 except Exception as e:
-                    raise ValueError("failed to parse parameters argument as JSON: {}".format(e))
+                    raise ValueError(f"failed to parse parameters argument as JSON: {e}")
                 if not isinstance(params, dict):
                     raise ValueError("failed to parse parameters argument as JSON: not an object")
                 self._parameters = params
@@ -157,7 +157,7 @@ def main():
             try:
                 self._tracer.start_trace(self._session, stage, self._parameters, self._runtime, self)
             except Exception as e:
-                self._update_status("Failed to start tracing: {error}".format(error=e))
+                self._update_status(f"Failed to start tracing: {e}")
                 self._exit(1)
 
         def _stop(self):
@@ -384,7 +384,7 @@ class Tracer:
             base_id = params["baseId"]
 
             scripts = []
-            response = {"type": "reply:{}".format(base_id), "scripts": scripts}
+            response = {"type": f"reply:{base_id}", "scripts": scripts}
 
             repo = self._repository
             next_id = base_id

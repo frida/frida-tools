@@ -51,7 +51,7 @@ class Load(Magic):
             repl._user_scripts.append(args[0])
             repl._perform_on_reactor_thread(lambda: repl._load_script())
         except Exception as e:
-            repl._print("Failed to load script: {}".format(e))
+            repl._print(f"Failed to load script: {e}")
 
 
 class Reload(Magic):
@@ -68,7 +68,7 @@ class Reload(Magic):
             repl._perform_on_reactor_thread(lambda: repl._load_script())
             return True
         except Exception as e:
-            repl._print("Failed to load script: {}".format(e))
+            repl._print(f"Failed to load script: {e}")
             return False
 
 
@@ -183,11 +183,11 @@ class Help(Magic):
         repl._print("Available commands: ")
         for name, command in repl._magic_command_args.items():
             if command.required_args_count >= 0:
-                required_args = "({})".format(command.required_args_count)
+                required_args = f"({command.required_args_count})"
             else:
-                required_args = "({}+)".format(abs(command.required_args_count) - 1)
+                required_args = f"({abs(command.required_args_count) - 1}+)"
 
-            repl._print("  %{}{} - {}".format(name, required_args, command.description))
+            repl._print(f"  %{name}{required_args} - {command.description}")
 
         repl._print("")
         repl._print("For help with Frida scripting API, check out https://frida.re/docs/")

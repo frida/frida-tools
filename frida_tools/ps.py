@@ -67,19 +67,19 @@ def main():
             try:
                 processes = self._device.enumerate_processes(scope=scope)
             except Exception as e:
-                self._update_status("Failed to enumerate processes: %s" % e)
+                self._update_status(f"Failed to enumerate processes: {e}")
                 self._exit(1)
                 return
 
             if self._output_format == "text":
                 if len(processes) > 0:
-                    pid_column_width = max(map(lambda p: len("%d" % p.pid), processes))
+                    pid_column_width = max(map(lambda p: len(str(p.pid)), processes))
                     icon_width = max(map(compute_icon_width, processes))
                     name_column_width = icon_width + max(map(lambda p: len(p.name), processes))
 
                     header_format = "%" + str(pid_column_width) + "s  %s"
                     self._print(header_format % ("PID", "Name"))
-                    self._print("%s  %s" % (pid_column_width * "-", name_column_width * "-"))
+                    self._print(f"{pid_column_width * '-'}  {name_column_width * '-'}")
 
                     line_format = "%" + str(pid_column_width) + "d  %s"
                     name_format = "%-" + str(name_column_width - icon_width) + "s"
@@ -115,7 +115,7 @@ def main():
             try:
                 applications = self._device.enumerate_applications(scope=scope)
             except Exception as e:
-                self._update_status("Failed to enumerate applications: %s" % e)
+                self._update_status(f"Failed to enumerate applications: {e}")
                 self._exit(1)
                 return
 
@@ -124,7 +124,7 @@ def main():
 
             if self._output_format == "text":
                 if len(applications) > 0:
-                    pid_column_width = max(map(lambda app: len("%d" % app.pid), applications))
+                    pid_column_width = max(map(lambda app: len(str(app.pid)), applications))
                     icon_width = max(map(compute_icon_width, applications))
                     name_column_width = icon_width + max(map(lambda app: len(app.name), applications))
                     identifier_column_width = max(map(lambda app: len(app.identifier), applications))
@@ -141,9 +141,7 @@ def main():
                         + "s"
                     )
                     self._print(header_format % ("PID", "Name", "Identifier"))
-                    self._print(
-                        "%s  %s  %s" % (pid_column_width * "-", name_column_width * "-", identifier_column_width * "-")
-                    )
+                    self._print(f"{pid_column_width}  {name_column_width * '-'}  {identifier_column_width * '-'}")
 
                     line_format = "%" + str(pid_column_width) + "s  %s  %-" + str(identifier_column_width) + "s"
                     name_format = "%-" + str(name_column_width - icon_width) + "s"

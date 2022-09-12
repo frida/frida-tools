@@ -64,7 +64,7 @@ class PushApplication(ConsoleApplication):
             worker = Thread(target=self._perform_push)
             worker.start()
         except Exception as e:
-            self._update_status("Failed to push: {}".format(e))
+            self._update_status(f"Failed to push: {e}")
             self._exit(1)
             return
 
@@ -121,15 +121,15 @@ class PushApplication(ConsoleApplication):
         megabytes_sent = bytes_to_megabytes(self._stream_controller.bytes_sent)
         total_megabytes = bytes_to_megabytes(self._total_bytes)
         if total_megabytes != 0 and megabytes_sent <= total_megabytes:
-            self._update_status("Pushed {:.1f} out of {:.1f} MB".format(megabytes_sent, total_megabytes))
+            self._update_status(f"Pushed {megabytes_sent:.1f} out of {total_megabytes:.1f} MB")
         else:
-            self._update_status("Pushed {:.1f} MB".format(megabytes_sent))
+            self._update_status(f"Pushed {megabytes_sent:.1f} MB")
 
     def _render_summary_ui(self):
         duration = time.time() - self._time_started
 
         if len(self._local_paths) == 1:
-            prefix = "{}: ".format(self._local_paths[0])
+            prefix = f"{self._local_paths[0]}: "
         else:
             prefix = ""
 
@@ -176,7 +176,7 @@ class PushApplication(ConsoleApplication):
         self._complete_transfer(local_path, success=True)
 
     def _on_io_error(self, local_path, error):
-        self._print_error("{}: {}".format(local_path, error))
+        self._print_error(f"{local_path}: {error}")
         self._complete_transfer(local_path, success=False)
 
     def _complete_transfer(self, local_path, success):

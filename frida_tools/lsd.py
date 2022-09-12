@@ -14,7 +14,7 @@ def main():
             try:
                 devices = frida.enumerate_devices()
             except Exception as e:
-                self._update_status("Failed to enumerate devices: %s" % e)
+                self._update_status(f"Failed to enumerate devices: {e}")
                 self._exit(1)
                 return
             id_column_width = max(map(lambda device: len(device.id), devices))
@@ -32,7 +32,7 @@ def main():
                 + "s"
             )
             self._print(header_format % ("Id", "Type", "Name"))
-            self._print("%s  %s  %s" % (id_column_width * "-", type_column_width * "-", name_column_width * "-"))
+            self._print(f"{id_column_width * '-'}  { type_column_width * '-'}  {name_column_width * '-'}")
             line_format = (
                 "%-"
                 + str(id_column_width)

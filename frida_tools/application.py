@@ -461,7 +461,7 @@ class ConsoleApplication:
             try:
                 self._device = frida.get_device(self._device_id)
             except:
-                self._update_status("Device '%s' not found" % self._device_id)
+                self._update_status(f"Device '{self._device_id}' not found")
                 self._exit(1)
                 return
         elif (self._host is not None) or (self._device_type == "remote"):
@@ -500,7 +500,7 @@ class ConsoleApplication:
                 try:
                     self._device.enable_spawn_gating()
                 except Exception as e:
-                    self._update_status("Failed to enable spawn gating: %s" % e)
+                    self._update_status(f"Failed to enable spawn gating: {e}")
                     self._exit(1)
                     return
                 self._update_status("Waiting for spawn to appear...")
@@ -512,13 +512,11 @@ class ConsoleApplication:
                     try:
                         app = self._device.get_frontmost_application()
                     except Exception as e:
-                        self._update_status(
-                            "Unable to get frontmost application on {}: {}".format(self._device.name, e)
-                        )
+                        self._update_status(f"Unable to get frontmost application on {self._device.name}: {e}")
                         self._exit(1)
                         return
                     if app is None:
-                        self._update_status("No frontmost application on {}".format(self._device.name))
+                        self._update_status(f"No frontmost application on {self._device.name}")
                         self._exit(1)
                         return
                     self._target = ("name", app.name)
@@ -533,14 +531,14 @@ class ConsoleApplication:
                     elif len(matching) > 1:
                         raise frida.ProcessNotFoundError(
                             "ambiguous identifier; it matches: %s"
-                            % ", ".join(["%s (pid: %d)" % (process.identifier, process.pid) for process in matching])
+                            % ", ".join([f"{process.identifier} (pid: {process.pid})" for process in matching])
                         )
                     else:
                         raise frida.ProcessNotFoundError("unable to find process with identifier '%s'" % target_value)
                 elif target_type == "file":
                     argv = target_value
                     if not self._quiet:
-                        self._update_status("Spawning `%s`..." % " ".join(argv))
+                        self._update_status(f"Spawning `{' '.join(argv)}`...")
 
                     aux_kwargs = {}
                     if self._aux is not None:
@@ -562,9 +560,9 @@ class ConsoleApplication:
                 return
             except Exception as e:
                 if spawning:
-                    self._update_status("Failed to spawn: %s" % e)
+                    self._update_status(f"Failed to spawn: {e}")
                 else:
-                    self._update_status("Failed to attach: %s" % e)
+                    self._update_status(f"Failed to attach: {e}")
                 self._exit(1)
                 return
         self._start()
@@ -631,7 +629,7 @@ class ConsoleApplication:
         self._started = True
 
     def _on_spawn_unhandled(self, spawn, error):
-        self._update_status("Failed to handle spawn: %s" % error)
+        self._update_status(f"Failed to handle spawn: {error}")
         self._exit(1)
 
     def _on_output(self, pid, fd, data):
@@ -829,13 +827,13 @@ def compute_real_args(parser, args=None):
 
         file_path = os.path.abspath(real_args[offset + 1])
         if file_path in files_processed:
-            parser.error("File '{}' given twice as -O argument".format(file_path))
+            parser.error(f"File '{file_path}' given twice as -O argument")
 
         if os.path.isfile(file_path):
             with codecs.open(file_path, "r", "utf-8") as f:
                 new_arg_text = f.read()
         else:
-            parser.error("File '{}' following -O option is not a valid file".format(file_path))
+            parser.error(f"File '{file_path}' following -O option is not a valid file")
 
         real_args = insert_options_file_args_in_list(real_args, offset, new_arg_text)
         files_processed.add(file_path)

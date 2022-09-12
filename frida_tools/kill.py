@@ -21,7 +21,7 @@ class KillApplication(ConsoleApplication):
         try:
             self._device.kill(self._process)
         except frida.ProcessNotFoundError:
-            self._update_status("unable to find process: %s" % self._process)
+            self._update_status(f"unable to find process: {self._process}")
             self._exit(1)
         self._exit(0)
 
