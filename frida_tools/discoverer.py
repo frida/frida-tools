@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-
 from frida_tools.model import Function, Module, ModuleFunction
 
 

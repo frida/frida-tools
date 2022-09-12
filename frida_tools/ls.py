@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-
 import codecs
 import os
 from datetime import datetime, timezone
