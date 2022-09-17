@@ -295,7 +295,7 @@ def main():
             cmodule_code = self._load_cmodule_code()
             if cmodule_code is not None:
                 # TODO: Remove this hack once RPC implementation supports passing binary data in both directions.
-                if is_byte_array(cmodule_code):
+                if isinstance(cmodule_code, bytes):
                     script.post({"type": "frida:cmodule-payload"}, data=cmodule_code)
                     cmodule_code = None
                 script.exports.frida_load_cmodule(cmodule_code, self._toolchain)
@@ -655,7 +655,7 @@ def main():
             return self._parse_evaluate_result(result)
 
         def _parse_evaluate_result(self, result):
-            if is_byte_array(result):
+            if isinstance(result, bytes):
                 return ("binary", result)
             elif isinstance(result, dict):
                 return ("binary", bytes())
@@ -1148,31 +1148,14 @@ URL: {url}
         return path.endswith(".ts")
 
     def hexdump(src, length=16):
-        try:
-            xrange
-        except NameError:
-            xrange = range
         FILTER = "".join([(len(repr(chr(x))) == 3) and chr(x) or "." for x in range(256)])
         lines = []
-        for c in xrange(0, len(src), length):
+        for c in range(0, len(src), length):
             chars = src[c : c + length]
-            hex = " ".join(["%02x" % x for x in iterbytes(chars)])
-            printable = "".join(["%s" % ((x <= 127 and FILTER[x]) or ".") for x in iterbytes(chars)])
+            hex = " ".join(["%02x" % x for x in iter(chars)])
+            printable = "".join(["%s" % ((x <= 127 and FILTER[x]) or ".") for x in iter(chars)])
             lines.append("%04x  %-*s  %s\n" % (c, length * 3, hex, printable))
         return "".join(lines)
-
-    def is_byte_array(value):
-        if sys.version_info[0] >= 3:
-            return isinstance(value, bytes)
-        else:
-            return isinstance(value, str)
-
-    if sys.version_info[0] >= 3:
-        iterbytes = lambda x: iter(x)
-    else:
-
-        def iterbytes(data):
-            return (ord(char) for char in data)
 
     OS_BINARY_SIGNATURES = {
             b"\x4d\x5a",  # PE

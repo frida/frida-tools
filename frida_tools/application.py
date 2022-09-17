@@ -129,10 +129,6 @@ class ConsoleApplication:
         if not hasattr(options, "args"):
             options.args = []
 
-        if sys.version_info[0] < 3:
-            input_encoding = sys.stdin.encoding or "UTF-8"
-            options.args = [arg.decode(input_encoding) for arg in options.args]
-
         self._initialize_device_arguments(parser, options)
         self._initialize_target_arguments(parser, options)
 
@@ -691,12 +687,8 @@ class ConsoleApplication:
         if encoding == "UTF-8":
             encoded_args = args
         else:
-            if sys.version_info[0] >= 3:
-                string_type = str
-            else:
-                string_type = unicode
             for arg in args:
-                if isinstance(arg, string_type):
+                if isinstance(arg, str):
                     encoded_args.append(arg.encode(encoding, errors="backslashreplace").decode(encoding))
                 else:
                     encoded_args.append(arg)
