@@ -1,6 +1,4 @@
 def main():
-    import frida
-
     from frida_tools.application import ConsoleApplication, await_ctrl_c
 
     class JoinApplication(ConsoleApplication):

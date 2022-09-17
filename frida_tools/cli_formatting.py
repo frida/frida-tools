@@ -1,5 +1,3 @@
-import os.path
-
 from colorama import Fore, Style
 
 STYLE_FILE = Fore.CYAN + Style.BRIGHT

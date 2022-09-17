@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from operator import itemgetter
 
 from colorama import Fore, Style
-from frida.core import RPCException
 
 from frida_tools.application import ConsoleApplication
 
