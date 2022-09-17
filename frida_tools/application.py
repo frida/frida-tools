@@ -48,7 +48,7 @@ def input_with_cancellable(cancellable):
         with cancellable.get_pollfd() as cancellable_fd:
             try:
                 rlist, _, _ = select.select([sys.stdin, cancellable_fd], [], [])
-            except (OSError, select.error) as e:
+            except OSError as e:
                 if e.args[0] != errno.EINTR:
                     raise e
 
