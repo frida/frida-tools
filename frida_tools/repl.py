@@ -1177,14 +1177,12 @@ URL: {url}
         def iterbytes(data):
             return (ord(char) for char in data)
 
-    OS_BINARY_SIGNATURES = set(
-        [
+    OS_BINARY_SIGNATURES = {
             b"\x4d\x5a",  # PE
             b"\xca\xfe\xba\xbe",  # Fat Mach-O
             b"\xcf\xfa\xed\xfe",  # Mach-O
             b"\x7fELF",  # ELF
-        ]
-    )
+    }
 
     def code_is_native(code):
         return (code[:4] in OS_BINARY_SIGNATURES) or (code[:2] in OS_BINARY_SIGNATURES)
