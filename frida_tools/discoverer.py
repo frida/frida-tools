@@ -91,10 +91,10 @@ class Discoverer:
     def stop(self):
         result = self._script.exports.stop()
 
-        modules = dict(
-            (int(module_id), Module(m["name"], int(m["base"], 16), m["size"], m["path"]))
+        modules = {
+            int(module_id): Module(m["name"], int(m["base"], 16), m["size"], m["path"])
             for module_id, m in result["modules"].items()
-        )
+        }
 
         module_functions = {}
         dynamic_functions = []
