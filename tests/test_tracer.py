@@ -5,7 +5,7 @@ import unittest
 
 import frida
 
-from frida_tools.application import Reactor
+from frida_tools.reactor import Reactor
 from frida_tools.tracer import UI, MemoryRepository, Tracer, TracerProfileBuilder
 
 from .data import target_program

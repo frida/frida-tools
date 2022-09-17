@@ -5,8 +5,8 @@ import unittest
 
 import frida
 
-from frida_tools.application import Reactor
 from frida_tools.discoverer import UI, Discoverer
+from frida_tools.reactor import Reactor
 
 from .data import target_program
 
