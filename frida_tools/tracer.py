@@ -1,14 +1,18 @@
+import argparse
 import binascii
 import codecs
 import os
 import platform
 import re
 import subprocess
+from typing import Callable, List, Optional, Union
 
 import frida
 
+from frida_tools.reactor import Reactor
 
-def main():
+
+def main() -> None:
     import json
 
     from colorama import Fore, Style
@@ -16,14 +20,14 @@ def main():
     from frida_tools.application import ConsoleApplication, await_ctrl_c
 
     class TracerApplication(ConsoleApplication, UI):
-        def __init__(self):
+        def __init__(self) -> None:
             super().__init__(await_ctrl_c)
             self._palette = [Fore.CYAN, Fore.MAGENTA, Fore.YELLOW, Fore.GREEN, Fore.RED, Fore.BLUE]
             self._next_color = 0
             self._attributes_by_thread_id = {}
             self._last_event_tid = -1
 
-        def _add_options(self, parser):
+        def _add_options(self, parser: argparse.ArgumentParser) -> None:
             pb = TracerProfileBuilder()
             parser.add_argument(
                 "-I", "--include-module", help="include MODULE", metavar="MODULE", type=pb.include_modules
@@ -110,16 +114,16 @@ def main():
             parser.add_argument("-o", "--output", help="dump messages to file", metavar="OUTPUT")
             self._profile_builder = pb
 
-        def _usage(self):
+        def _usage(self) -> str:
             return "%(prog)s [options] target"
 
-        def _initialize(self, parser, options, args):
-            self._tracer = None
+        def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
+            self._tracer: Optional[Tracer] = None
             self._profile = self._profile_builder.build()
-            self._quiet = options.quiet
-            self._decorate = options.decorate
-            self._output = None
-            self._output_path = options.output
+            self._quiet: bool = options.quiet
+            self._decorate: bool = options.decorate
+            self._output: Optional[OutputFile] = None
+            self._output_path: str = options.output
 
             self._init_scripts = []
             for path in options.init_session:
@@ -138,10 +142,10 @@ def main():
             else:
                 self._parameters = {}
 
-        def _needs_target(self):
+        def _needs_target(self) -> bool:
             return True
 
-        def _start(self):
+        def _start(self) -> None:
             if self._output_path is not None:
                 self._output = OutputFile(self._output_path)
 
@@ -160,17 +164,17 @@ def main():
                 self._update_status(f"Failed to start tracing: {e}")
                 self._exit(1)
 
-        def _stop(self):
+        def _stop(self) -> None:
             self._tracer.stop()
             self._tracer = None
             if self._output is not None:
                 self._output.close()
             self._output = None
 
-        def on_script_created(self, script):
+        def on_script_created(self, script: frida.core.Script) -> None:
             self._on_script_created(script)
 
-        def on_trace_progress(self, status, *params):
+        def on_trace_progress(self, status: str, *params) -> None:
             if status == "initializing":
                 self._update_status("Instrumenting...")
             elif status == "initialized":
@@ -183,14 +187,14 @@ def main():
                     plural = "s"
                 self._update_status("Started tracing %d function%s. Press Ctrl+C to stop." % (count, plural))
 
-        def on_trace_warning(self, message):
+        def on_trace_warning(self, message: str) -> None:
             self._print(Fore.RED + Style.BRIGHT + "Warning" + Style.RESET_ALL + ": " + message)
 
-        def on_trace_error(self, message):
+        def on_trace_error(self, message: str) -> None:
             self._print(Fore.RED + Style.BRIGHT + "Error" + Style.RESET_ALL + ": " + message)
             self._exit(1)
 
-        def on_trace_events(self, events):
+        def on_trace_events(self, events) -> None:
             no_attributes = Style.RESET_ALL
             for timestamp, thread_id, depth, message in events:
                 if self._output is not None:
@@ -205,12 +209,12 @@ def main():
                         self._last_event_tid = thread_id
                     self._print("%6d ms  %s%s%s%s" % (timestamp, attributes, indent, message, no_attributes))
 
-        def on_trace_handler_create(self, target, handler, source):
+        def on_trace_handler_create(self, target, handler, source) -> None:
             if self._quiet:
                 return
             self._print('%s: Auto-generated handler at "%s"' % (target, source.replace("\\", "\\\\")))
 
-        def on_trace_handler_load(self, target, handler, source):
+        def on_trace_handler_load(self, target, handler, source) -> None:
             if self._quiet:
                 return
             self._print('%s: Loaded handler at "%s"' % (target, source.replace("\\", "\\\\")))
@@ -231,100 +235,107 @@ def main():
 
 
 class TracerProfileBuilder:
-    def __init__(self):
+    def __init__(self) -> None:
         self._spec = []
 
-    def include_modules(self, *module_name_globs):
+    def include_modules(self, *module_name_globs: str) -> "TracerProfileBuilder":
         for m in module_name_globs:
             self._spec.append(("include", "module", m))
         return self
 
-    def exclude_modules(self, *module_name_globs):
+    def exclude_modules(self, *module_name_globs: str) -> "TracerProfileBuilder":
         for m in module_name_globs:
             self._spec.append(("exclude", "module", m))
         return self
 
-    def include(self, *function_name_globs):
+    def include(self, *function_name_globs: str) -> "TracerProfileBuilder":
         for f in function_name_globs:
             self._spec.append(("include", "function", f))
         return self
 
-    def exclude(self, *function_name_globs):
+    def exclude(self, *function_name_globs: str) -> "TracerProfileBuilder":
         for f in function_name_globs:
             self._spec.append(("exclude", "function", f))
         return self
 
-    def include_relative_address(self, *address_rel_offsets):
+    def include_relative_address(self, *address_rel_offsets: str) -> "TracerProfileBuilder":
         for f in address_rel_offsets:
             self._spec.append(("include", "relative-function", f))
         return self
 
-    def include_imports(self, *module_name_globs):
+    def include_imports(self, *module_name_globs: str) -> "TracerProfileBuilder":
         for m in module_name_globs:
             self._spec.append(("include", "imports", m))
         return self
 
-    def include_objc_method(self, *function_name_globs):
+    def include_objc_method(self, *function_name_globs: str) -> "TracerProfileBuilder":
         for f in function_name_globs:
             self._spec.append(("include", "objc-method", f))
         return self
 
-    def exclude_objc_method(self, *function_name_globs):
+    def exclude_objc_method(self, *function_name_globs: str) -> "TracerProfileBuilder":
         for f in function_name_globs:
             self._spec.append(("exclude", "objc-method", f))
         return self
 
-    def include_java_method(self, *function_name_globs):
+    def include_java_method(self, *function_name_globs: str) -> "TracerProfileBuilder":
         for f in function_name_globs:
             self._spec.append(("include", "java-method", f))
         return self
 
-    def exclude_java_method(self, *function_name_globs):
+    def exclude_java_method(self, *function_name_globs: str) -> "TracerProfileBuilder":
         for f in function_name_globs:
             self._spec.append(("exclude", "java-method", f))
         return self
 
-    def include_debug_symbol(self, *function_name_globs):
+    def include_debug_symbol(self, *function_name_globs: str) -> "TracerProfileBuilder":
         for f in function_name_globs:
             self._spec.append(("include", "debug-symbol", f))
         return self
 
-    def build(self):
+    def build(self) -> "TracerProfile":
         return TracerProfile(self._spec)
 
 
 class TracerProfile:
-    def __init__(self, spec):
+    def __init__(self, spec) -> None:
         self.spec = spec
 
 
 class Tracer:
-    def __init__(self, reactor, repository, profile, init_scripts=[], log_handler=None):
+    def __init__(
+        self,
+        reactor: Reactor,
+        repository: "Repository",
+        profile: TracerProfile,
+        init_scripts=[],
+        log_handler: Callable[[str, str], None] = None,
+    ) -> None:
         self._reactor = reactor
         self._repository = repository
         self._profile = profile
-        self._script = None
+        self._script: Optional[frida.core.Script] = None
         self._agent = None
         self._init_scripts = init_scripts
         self._log_handler = log_handler
 
-    def start_trace(self, session, stage, parameters, runtime, ui):
-        def on_create(*args):
+    def start_trace(self, session: frida.core.Session, stage, parameters, runtime, ui) -> None:
+        def on_create(*args) -> None:
             ui.on_trace_handler_create(*args)
 
         self._repository.on_create(on_create)
 
-        def on_load(*args):
+        def on_load(*args) -> None:
             ui.on_trace_handler_load(*args)
 
         self._repository.on_load(on_load)
 
-        def on_update(target, handler, source):
+        def on_update(target, handler, source) -> None:
             self._agent.update(target.identifier, target.display_name, handler)
 
         self._repository.on_update(on_update)
 
-        def on_message(message, data):
+        def on_message(message, data) -> None:
             self._reactor.schedule(lambda: self._on_message(message, data, ui))
 
         ui.on_trace_progress("initializing")
@@ -345,7 +356,7 @@ class Tracer:
         raw_init_scripts = [{"filename": script.filename, "source": script.source} for script in self._init_scripts]
         self._agent.init(stage, parameters, raw_init_scripts, self._profile.spec)
 
-    def stop(self):
+    def stop(self) -> None:
         if self._script is not None:
             try:
                 self._script.unload()
@@ -353,7 +364,7 @@ class Tracer:
                 pass
             self._script = None
 
-    def _on_message(self, message, data, ui):
+    def _on_message(self, message, data, ui) -> None:
         handled = False
 
         if message["type"] == "send":
@@ -370,7 +381,7 @@ class Tracer:
         if not handled:
             print(message)
 
-    def _try_handle_message(self, mtype, params, data, ui):
+    def _try_handle_message(self, mtype, params, data, ui) -> False:
         if mtype == "events:add":
             events = [
                 (timestamp, thread_id, depth, message)
@@ -421,7 +432,7 @@ class Tracer:
 
 
 class TraceTarget:
-    def __init__(self, identifier, flavor, scope, name):
+    def __init__(self, identifier, flavor, scope, name: Union[str, List[str]]) -> None:
         self.identifier = identifier
         self.flavor = flavor
         self.scope = scope
@@ -432,51 +443,51 @@ class TraceTarget:
             self.name = name
             self.display_name = name
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.display_name
 
 
 class Repository:
-    def __init__(self):
-        self._on_create_callback = None
-        self._on_load_callback = None
-        self._on_update_callback = None
+    def __init__(self) -> None:
+        self._on_create_callback: Optional[Callable[[TraceTarget, str, str], None]] = None
+        self._on_load_callback: Optional[Callable[[TraceTarget, str, str], None]] = None
+        self._on_update_callback: Optional[Callable[[TraceTarget, str, str], None]] = None
         self._decorate = False
 
-    def ensure_handler(self, target):
+    def ensure_handler(self, target: TraceTarget):
         raise NotImplementedError("not implemented")
 
-    def commit_handlers(self):
+    def commit_handlers(self) -> None:
         pass
 
-    def on_create(self, callback):
+    def on_create(self, callback: Callable[[TraceTarget, str, str], None]) -> None:
         self._on_create_callback = callback
 
-    def on_load(self, callback):
+    def on_load(self, callback: Callable[[TraceTarget, str, str], None]) -> None:
         self._on_load_callback = callback
 
-    def on_update(self, callback):
+    def on_update(self, callback: Callable[[TraceTarget, str, str], None]) -> None:
         self._on_update_callback = callback
 
-    def _notify_create(self, target, handler, source):
+    def _notify_create(self, target: TraceTarget, handler: str, source: str) -> None:
         if self._on_create_callback is not None:
             self._on_create_callback(target, handler, source)
 
-    def _notify_load(self, target, handler, source):
+    def _notify_load(self, target: TraceTarget, handler: str, source: str) -> None:
         if self._on_load_callback is not None:
             self._on_load_callback(target, handler, source)
 
-    def _notify_update(self, target, handler, source):
+    def _notify_update(self, target: TraceTarget, handler: str, source: str) -> None:
         if self._on_update_callback is not None:
             self._on_update_callback(target, handler, source)
 
-    def _create_stub_handler(self, target, decorate):
+    def _create_stub_handler(self, target: TraceTarget, decorate: bool) -> str:
         if target.flavor == "java":
             return self._create_stub_java_handler(target, decorate)
         else:
             return self._create_stub_native_handler(target, decorate)
 
-    def _create_stub_native_handler(self, target, decorate):
+    def _create_stub_native_handler(self, target: TraceTarget, decorate: bool) -> str:
         if target.flavor == "objc":
             state = {"index": 2}
 
@@ -604,7 +615,7 @@ class Repository:
             "log_str": log_str,
         }
 
-    def _create_stub_java_handler(self, target, decorate):
+    def _create_stub_java_handler(self, target: TraceTarget, decorate) -> str:
         return """\
 /*
  * Auto-generated by Frida. Please modify to match the signature of %(display_name)s.
@@ -647,11 +658,11 @@ class Repository:
 
 
 class MemoryRepository(Repository):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._handlers = {}
 
-    def ensure_handler(self, target):
+    def ensure_handler(self, target: TraceTarget) -> str:
         handler = self._handlers.get(target)
         if handler is None:
             handler = self._create_stub_handler(target, False)
@@ -663,7 +674,7 @@ class MemoryRepository(Repository):
 
 
 class FileRepository(Repository):
-    def __init__(self, reactor, decorate):
+    def __init__(self, reactor: Reactor, decorate: bool) -> None:
         super().__init__()
         self._reactor = reactor
         self._handler_by_id = {}
@@ -674,7 +685,7 @@ class FileRepository(Repository):
         self._repo_monitors = {}
         self._decorate = decorate
 
-    def ensure_handler(self, target):
+    def ensure_handler(self, target: TraceTarget) -> str:
         entry = self._handler_by_id.get(target.identifier)
         if entry is not None:
             (target, handler, handler_file) = entry
@@ -712,7 +723,7 @@ class FileRepository(Repository):
 
         return handler
 
-    def _ensure_monitor(self, handler_file):
+    def _ensure_monitor(self, handler_file) -> None:
         handler_dir = os.path.dirname(handler_file)
         monitor = self._repo_monitors.get(handler_dir)
         if monitor is None:
@@ -720,11 +731,11 @@ class FileRepository(Repository):
             monitor.on("change", self._on_change)
             self._repo_monitors[handler_dir] = monitor
 
-    def commit_handlers(self):
+    def commit_handlers(self) -> None:
         for monitor in self._repo_monitors.values():
             monitor.enable()
 
-    def _on_change(self, changed_file, other_file, event_type):
+    def _on_change(self, changed_file, other_file, event_type) -> None:
         if changed_file not in self._handler_by_file or event_type == "changes-done-hint":
             return
         self._changed_files.add(changed_file)
@@ -732,7 +743,7 @@ class FileRepository(Repository):
         change_id = self._last_change_id
         self._reactor.schedule(lambda: self._sync_handlers(change_id), delay=0.05)
 
-    def _sync_handlers(self, change_id):
+    def _sync_handlers(self, change_id) -> None:
         if change_id != self._last_change_id:
             return
         changes = self._changed_files.copy()
@@ -750,47 +761,47 @@ class FileRepository(Repository):
 
 
 class InitScript:
-    def __init__(self, filename, source):
+    def __init__(self, filename, source) -> None:
         self.filename = filename
         self.source = source
 
 
 class OutputFile:
-    def __init__(self, filename):
+    def __init__(self, filename: str) -> None:
         self._fd = codecs.open(filename, "wb", "utf-8")
 
-    def close(self):
+    def close(self) -> None:
         self._fd.close()
 
-    def append(self, message):
+    def append(self, message: str) -> None:
         self._fd.write(message)
         self._fd.flush()
 
 
 class UI:
-    def on_script_created(self, script):
+    def on_script_created(self, script: frida.core.Script) -> None:
         pass
 
-    def on_trace_progress(self, status):
+    def on_trace_progress(self, status) -> None:
         pass
 
     def on_trace_warning(self, message):
         pass
 
-    def on_trace_error(self, message):
+    def on_trace_error(self, message) -> None:
         pass
 
-    def on_trace_events(self, events):
+    def on_trace_events(self, events) -> None:
         pass
 
-    def on_trace_handler_create(self, target, handler, source):
+    def on_trace_handler_create(self, target, handler, source) -> None:
         pass
 
-    def on_trace_handler_load(self, target, handler, source):
+    def on_trace_handler_load(self, target, handler, source) -> None:
         pass
 
 
-def to_filename(name):
+def to_filename(name: str) -> str:
     result = ""
     for c in name:
         if c.isalnum() or c == ".":
@@ -800,7 +811,7 @@ def to_filename(name):
     return result
 
 
-def to_handler_filename(name):
+def to_handler_filename(name: str) -> str:
     full_filename = to_filename(name)
     if len(full_filename) <= 41:
         return full_filename + ".js"

@@ -1,3 +1,5 @@
+from typing import Any, Dict, Union
+
 from colorama import Fore, Style
 
 STYLE_FILE = Fore.CYAN + Style.BRIGHT
@@ -13,22 +15,24 @@ CATEGORY_STYLE = {
 }
 
 
-def format_error(error):
+def format_error(error: BaseException) -> str:
     return STYLE_ERROR + str(error) + Style.RESET_ALL
 
 
-def format_compiling(script_path, cwd):
+def format_compiling(script_path: str, cwd: str) -> str:
     name = format_filename(script_path, cwd)
     return f"{STYLE_RESET_ALL}Compiling {STYLE_FILE}{name}{STYLE_RESET_ALL}..."
 
 
-def format_compiled(script_path, cwd, time_started, time_finished):
+def format_compiled(
+    script_path: str, cwd: str, time_started: Union[int, float], time_finished: Union[int, float]
+) -> str:
     name = format_filename(script_path, cwd)
     elapsed = int((time_finished - time_started) * 1000.0)
     return f"{STYLE_RESET_ALL}Compiled {STYLE_FILE}{name}{STYLE_RESET_ALL}{STYLE_CODE} ({elapsed} ms){STYLE_RESET_ALL}"
 
 
-def format_diagnostic(diag, cwd):
+def format_diagnostic(diag: Dict[str, Any], cwd: str) -> str:
     category = diag["category"]
     code = diag["code"]
     text = diag["text"]
@@ -52,7 +56,7 @@ def format_diagnostic(diag, cwd):
     return f"{prefix}{category_style}{category}{STYLE_RESET_ALL} {STYLE_CODE}TS{code}{STYLE_RESET_ALL}: {text}"
 
 
-def format_filename(path, cwd):
+def format_filename(path: str, cwd: str) -> str:
     if path.startswith(cwd):
         return path[len(cwd) + 1 :]
     return path

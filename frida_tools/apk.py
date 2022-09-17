@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import argparse
 import os
 import struct
 from enum import IntEnum
 from io import BufferedReader
+from typing import List
 from zipfile import ZipFile
 
 
@@ -11,17 +13,17 @@ def main() -> None:
     from frida_tools.application import ConsoleApplication
 
     class ApkApplication(ConsoleApplication):
-        def _usage(self):
+        def _usage(self) -> str:
             return "%(prog)s [options] path.apk"
 
-        def _add_options(self, parser):
+        def _add_options(self, parser: argparse.ArgumentParser) -> None:
             parser.add_argument("-o", "--output", help="output path", metavar="OUTPUT")
             parser.add_argument("apk", help="apk file")
 
-        def _needs_device(self):
+        def _needs_device(self) -> bool:
             return False
 
-        def _initialize(self, parser, options, args):
+        def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
             self._output_path = options.output
             self._path = options.apk
 
@@ -31,7 +33,7 @@ def main() -> None:
             if self._output_path is None:
                 self._output_path = self._path.replace(".apk", ".d.apk")
 
-        def _start(self):
+        def _start(self) -> None:
             try:
                 debug(self._path, self._output_path)
             except Exception as e:
@@ -95,7 +97,7 @@ def debug(path: str, output_path: str) -> None:
 
 
 class BinaryXML:
-    def __init__(self, stream: BufferedReader):
+    def __init__(self, stream: BufferedReader) -> None:
         self.stream = stream
         self.chunk_headers = []
         self.parse()
@@ -135,7 +137,7 @@ class BadHeader(Exception):
 class ChunkHeader:
     FORMAT = "<HHI"
 
-    def __init__(self, stream: BufferedReader, consume_data=True):
+    def __init__(self, stream: BufferedReader, consume_data: bool = True) -> None:
         self.stream = stream
         data = self.stream.peek(struct.calcsize(self.FORMAT))
         (self.type, self.header_size, self.size) = struct.unpack_from(self.FORMAT, data)
@@ -208,7 +210,7 @@ class StartElement:
 class ResourceMap:
     DEBUGGING_RESOURCE = 0x101000F
 
-    def __init__(self, header: ChunkHeader):
+    def __init__(self, header: ChunkHeader) -> None:
         self.header = header
 
     def add_debuggable(self, idx: int) -> None:
@@ -247,7 +249,7 @@ class StringPool:
         self.dirty = False
 
         offsets_data = self.header.chunk_data[self.header_size : self.header_size + self.string_count * 4]
-        self.offsets = list(map(lambda f: f[0], struct.iter_unpack("<I", offsets_data)))
+        self.offsets: List[int] = list(map(lambda f: f[0], struct.iter_unpack("<I", offsets_data)))
 
     def get_string(self, index: int) -> str:
         offset = self.offsets[index]

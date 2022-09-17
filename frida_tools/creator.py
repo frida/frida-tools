@@ -1,4 +1,8 @@
-def main():
+import argparse
+from typing import Dict, List, Tuple
+
+
+def main() -> None:
     import codecs
     import os
     import platform
@@ -8,10 +12,10 @@ def main():
     from frida_tools.application import ConsoleApplication
 
     class CreatorApplication(ConsoleApplication):
-        def _usage(self):
+        def _usage(self) -> str:
             return "%(prog)s [options] -t agent|cmodule"
 
-        def _add_options(self, parser):
+        def _add_options(self, parser: argparse.ArgumentParser) -> None:
             default_project_name = os.path.basename(os.getcwd())
             parser.add_argument(
                 "-n", "--project-name", help="project name", dest="project_name", default=default_project_name
@@ -19,11 +23,11 @@ def main():
             parser.add_argument("-o", "--output-directory", help="output directory", dest="outdir", default=".")
             parser.add_argument("-t", "--template", help="template file: cmodule|agent", dest="template", default=None)
 
-        def _initialize(self, parser, options, args):
-            args = parser.parse_args()
-            if not args.template:
+        def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
+            parsed_args = parser.parse_args()
+            if not parsed_args.template:
                 parser.error("template must be specified")
-            impl = getattr(self, "_generate_" + args.template, None)
+            impl = getattr(self, "_generate_" + parsed_args.template, None)
             if impl is None:
                 parser.error("unknown template type")
             self._generate = impl
@@ -31,10 +35,10 @@ def main():
             self._project_name = options.project_name
             self._outdir = options.outdir
 
-        def _needs_device(self):
+        def _needs_device(self) -> bool:
             return False
 
-        def _start(self):
+        def _start(self) -> None:
             (assets, message) = self._generate()
 
             outdir = self._outdir
@@ -56,7 +60,7 @@ def main():
 
             self._exit(0)
 
-        def _generate_agent(self):
+        def _generate_agent(self) -> Tuple[Dict[str, str], str]:
             assets = {}
 
             assets[
@@ -142,7 +146,7 @@ Tip: Use an editor like Visual Studio Code for code completion, inline docs,
 
             return (assets, message)
 
-        def _generate_cmodule(self):
+        def _generate_cmodule(self) -> tuple[dict[str, str], str]:
             assets = {}
 
             assets[

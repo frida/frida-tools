@@ -1,14 +1,19 @@
-def main():
+import argparse
+from typing import Any, List, MutableMapping
+
+
+def main() -> None:
     from frida_tools.application import ConsoleApplication, await_ctrl_c
 
     class JoinApplication(ConsoleApplication):
-        def __init__(self):
+        def __init__(self) -> None:
             ConsoleApplication.__init__(self, await_ctrl_c)
+            self._parsed_options: MutableMapping[str, Any] = {}
 
-        def _usage(self):
+        def _usage(self) -> str:
             return "%(prog)s [options] target portal-location [portal-certificate] [portal-token]"
 
-        def _add_options(self, parser):
+        def _add_options(self, parser: argparse.ArgumentParser) -> None:
             parser.add_argument(
                 "--portal-location", help="join portal at LOCATION", metavar="LOCATION", dest="portal_location"
             )
@@ -29,7 +34,7 @@ def main():
                 dest="portal_acl",
             )
 
-        def _initialize(self, parser, options, args):
+        def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
             location = args[0] if len(args) >= 1 else options.portal_location
             certificate = args[1] if len(args) >= 2 else options.portal_certificate
             token = args[2] if len(args) >= 3 else options.portal_token
@@ -38,24 +43,23 @@ def main():
             if location is None:
                 parser.error("portal location must be specified")
 
-            options = {}
             if certificate is not None:
-                options["certificate"] = certificate
+                self._parsed_options["certificate"] = certificate
             if token is not None:
-                options["token"] = token
+                self._parsed_options["token"] = token
             if acl is not None:
-                options["acl"] = acl
+                self._parsed_options["acl"] = acl
 
             self._location = location
-            self._options = options
 
-        def _needs_target(self):
+        def _needs_target(self) -> bool:
             return True
 
-        def _start(self):
+        def _start(self) -> None:
             self._update_status("Joining portal...")
             try:
-                self._session.join_portal(self._location, **self._options)
+                assert self._session is not None
+                self._session.join_portal(self._location, **self._parsed_options)
             except Exception as e:
                 self._update_status("Unable to join: " + str(e))
                 self._exit(1)
@@ -63,7 +67,7 @@ def main():
             self._update_status("Joined!")
             self._exit(0)
 
-        def _stop(self):
+        def _stop(self) -> None:
             pass
 
     app = JoinApplication()

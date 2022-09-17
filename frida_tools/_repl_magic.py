@@ -2,44 +2,48 @@ import abc
 import codecs
 import json
 import os
+from typing import TYPE_CHECKING, Optional, Sequence
+
+if TYPE_CHECKING:
+    import frida_tools.repl
 
 
 class Magic(abc.ABC):
     @property
-    def description(self):
+    def description(self) -> str:
         return "no description"
 
     @abc.abstractproperty
-    def required_args_count(self):
+    def required_args_count(self) -> int:
         pass
 
-    def execute(self, repl, args):
+    def execute(self, repl: "frida_tools.repl.REPLApplication", args: Sequence[str]) -> Optional[bool]:
         pass
 
 
 class Resume(Magic):
     @property
-    def description(self):
+    def description(self) -> str:
         return "resume execution of the spawned process"
 
     @property
-    def required_args_count(self):
+    def required_args_count(self) -> int:
         return 0
 
-    def execute(self, repl, args):
+    def execute(self, repl: "frida_tools.repl.REPLApplication", args: Sequence[str]) -> None:
         repl._reactor.schedule(lambda: repl._resume())
 
 
 class Load(Magic):
     @property
-    def description(self):
+    def description(self) -> str:
         return "Load an additional script and reload the current REPL state"
 
     @property
-    def required_args_count(self):
+    def required_args_count(self) -> int:
         return 1
 
-    def execute(self, repl, args):
+    def execute(self, repl: "frida_tools.repl.REPLApplication", args: Sequence[str]) -> None:
         try:
             proceed = repl._get_confirmation(
                 "Are you sure you want to load a new script and discard all current state?"
@@ -56,14 +60,14 @@ class Load(Magic):
 
 class Reload(Magic):
     @property
-    def description(self):
+    def description(self) -> str:
         return "reload (i.e. rerun) the script that was given as an argument to the REPL"
 
     @property
-    def required_args_count(self):
+    def required_args_count(self) -> int:
         return 0
 
-    def execute(self, repl, args):
+    def execute(self, repl: "frida_tools.repl.REPLApplication", args: Sequence[str]) -> bool:
         try:
             repl._perform_on_reactor_thread(lambda: repl._load_script())
             return True
@@ -74,25 +78,25 @@ class Reload(Magic):
 
 class Unload(Magic):
     @property
-    def required_args_count(self):
+    def required_args_count(self) -> int:
         return 0
 
-    def execute(self, repl, args):
+    def execute(self, repl: "frida_tools.repl.REPLApplication", args: Sequence[str]) -> None:
         repl._unload_script()
 
 
 class Autoperform(Magic):
     @property
-    def description(self):
+    def description(self) -> str:
         return (
             "receive on/off as first and only argument, when switched on will wrap any REPL code with Java.performNow()"
         )
 
     @property
-    def required_args_count(self):
+    def required_args_count(self) -> int:
         return 1
 
-    def execute(self, repl, args):
+    def execute(self, repl: "frida_tools.repl.REPLApplication", args: Sequence[str]) -> None:
         repl._autoperform_command(args[0])
 
 
@@ -100,14 +104,14 @@ class Autoreload(Magic):
     _VALID_ARGUMENTS = ("on", "off")
 
     @property
-    def description(self):
+    def description(self) -> str:
         return "disable or enable auto reloading of script files"
 
     @property
-    def required_args_count(self):
+    def required_args_count(self) -> int:
         return 1
 
-    def execute(self, repl, args):
+    def execute(self, repl: "frida_tools.repl.REPLApplication", args: Sequence[str]) -> None:
         if args[0] not in self._VALID_ARGUMENTS:
             raise ValueError("Autoreload command only receive on or off as an argument")
 
@@ -125,14 +129,14 @@ class Autoreload(Magic):
 
 class Exec(Magic):
     @property
-    def description(self):
+    def description(self) -> str:
         return "execute the given file path in the context of the currently loaded scripts"
 
     @property
-    def required_args_count(self):
+    def required_args_count(self) -> int:
         return 1
 
-    def execute(self, repl, args):
+    def execute(self, repl: "frida_tools.repl.REPLApplication", args: Sequence[str]) -> None:
         if not os.path.exists(args[0]):
             repl._print("Can't read the given file because it does not exist")
             return
@@ -147,14 +151,14 @@ class Exec(Magic):
 
 class Time(Magic):
     @property
-    def description(self):
+    def description(self) -> str:
         return "measure the execution time of the given expression and print it to the screen"
 
     @property
-    def required_args_count(self):
+    def required_args_count(self) -> int:
         return -2
 
-    def execute(self, repl, args):
+    def execute(self, repl: "frida_tools.repl.REPLApplication", args: Sequence[str]) -> None:
         repl._exec_and_print(
             repl._evaluate_expression,
             """
@@ -172,14 +176,14 @@ class Time(Magic):
 
 class Help(Magic):
     @property
-    def description(self):
+    def description(self) -> str:
         return "print a list of available REPL commands"
 
     @property
-    def required_args_count(self):
+    def required_args_count(self) -> int:
         return 0
 
-    def execute(self, repl, args):
+    def execute(self, repl: "frida_tools.repl.REPLApplication", args: Sequence[str]) -> None:
         repl._print("Available commands: ")
         for name, command in repl._magic_command_args.items():
             if command.required_args_count >= 0:

@@ -1,72 +1,33 @@
+import argparse
+import threading
+from typing import List, Mapping, Optional, Tuple
+
+import frida
+
+from frida_tools.application import ConsoleApplication, await_enter
 from frida_tools.model import Function, Module, ModuleFunction
+from frida_tools.reactor import Reactor
 
 
-def main():
-    import threading
+class UI:
+    def on_sample_start(self, total: int) -> None:
+        pass
 
-    from frida_tools.application import ConsoleApplication, await_enter
-
-    class DiscovererApplication(ConsoleApplication, UI):
-        def __init__(self):
-            self._results_received = threading.Event()
-            ConsoleApplication.__init__(self, self._await_keys)
-
-        def _await_keys(self, reactor):
-            await_enter(reactor)
-            reactor.schedule(lambda: self._discoverer.stop())
-            while reactor.is_running() and not self._results_received.is_set():
-                self._results_received.wait(0.5)
-
-        def _usage(self):
-            return "%(prog)s [options] target"
-
-        def _initialize(self, parser, options, args):
-            self._discoverer = None
-
-        def _needs_target(self):
-            return True
-
-        def _start(self):
-            self._update_status("Injecting script...")
-            self._discoverer = Discoverer(self._reactor)
-            self._discoverer.start(self._session, self._runtime, self)
-
-        def _stop(self):
-            self._print("Stopping...")
-            self._discoverer.dispose()
-            self._discoverer = None
-
-        def on_sample_start(self, total):
-            self._update_status(f"Tracing {total} threads. Press ENTER to stop.")
-            self._resume()
-
-        def on_sample_result(self, module_functions, dynamic_functions):
-            for module, functions in module_functions.items():
-                self._print(module.name)
-                self._print("\t%-10s\t%s" % ("Calls", "Function"))
-                for function, count in sorted(functions, key=lambda item: item[1], reverse=True):
-                    self._print("\t%-10d\t%s" % (count, function))
-                self._print("")
-
-            if len(dynamic_functions) > 0:
-                self._print("Dynamic functions:")
-                self._print("\t%-10s\t%s" % ("Calls", "Function"))
-                for function, count in sorted(dynamic_functions, key=lambda item: item[1], reverse=True):
-                    self._print("\t%-10d\t%s" % (count, function))
-
-            self._results_received.set()
-
-    app = DiscovererApplication()
-    app.run()
+    def on_sample_result(
+        self,
+        module_functions: Mapping[Module, List[Tuple[ModuleFunction, int]]],
+        dynamic_functions: List[Tuple[ModuleFunction, int]],
+    ) -> None:
+        pass
 
 
 class Discoverer:
-    def __init__(self, reactor):
+    def __init__(self, reactor: Reactor) -> None:
         self._reactor = reactor
         self._ui = None
-        self._script = None
+        self._script: Optional[frida.core.Script] = None
 
-    def dispose(self):
+    def dispose(self) -> None:
         if self._script is not None:
             try:
                 self._script.unload()
@@ -74,8 +35,8 @@ class Discoverer:
                 pass
             self._script = None
 
-    def start(self, session, runtime, ui):
-        def on_message(message, data):
+    def start(self, session: frida.core.Session, runtime: str, ui: UI) -> None:
+        def on_message(message, data) -> None:
             print(message, data)
 
         self._script = session.create_script(name="discoverer", source=self._create_discover_script(), runtime=runtime)
@@ -88,7 +49,7 @@ class Discoverer:
 
         self._ui = ui
 
-    def stop(self):
+    def stop(self) -> None:
         result = self._script.exports.stop()
 
         modules = {
@@ -117,7 +78,7 @@ class Discoverer:
 
         self._ui.on_sample_result(module_functions, dynamic_functions)
 
-    def _create_discover_script(self):
+    def _create_discover_script(self) -> str:
         return """\
 const threadIds = new Set();
 const result = new Map();
@@ -204,12 +165,67 @@ rpc.exports = {
 """
 
 
-class UI:
-    def on_sample_start(self, total):
-        pass
+class DiscovererApplication(ConsoleApplication, UI):
+    _discoverer: Optional[Discoverer]
 
-    def on_sample_result(self, module_functions, dynamic_functions):
-        pass
+    def __init__(self) -> None:
+        self._results_received = threading.Event()
+        ConsoleApplication.__init__(self, self._await_keys)
+
+    def _await_keys(self, reactor: Reactor) -> None:
+        await_enter(reactor)
+        reactor.schedule(lambda: self._discoverer.stop())
+        while reactor.is_running() and not self._results_received.is_set():
+            self._results_received.wait(0.5)
+
+    def _usage(self) -> str:
+        return "%(prog)s [options] target"
+
+    def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
+        self._discoverer = None
+
+    def _needs_target(self) -> bool:
+        return True
+
+    def _start(self) -> None:
+        self._update_status("Injecting script...")
+        self._discoverer = Discoverer(self._reactor)
+        self._discoverer.start(self._session, self._runtime, self)
+
+    def _stop(self) -> None:
+        self._print("Stopping...")
+        assert self._discoverer is not None
+        self._discoverer.dispose()
+        self._discoverer = None
+
+    def on_sample_start(self, total: int) -> None:
+        self._update_status(f"Tracing {total} threads. Press ENTER to stop.")
+        self._resume()
+
+    def on_sample_result(
+        self,
+        module_functions: Mapping[Module, List[Tuple[ModuleFunction, int]]],
+        dynamic_functions: List[Tuple[ModuleFunction, int]],
+    ) -> None:
+        for module, functions in module_functions.items():
+            self._print(module.name)
+            self._print("\t%-10s\t%s" % ("Calls", "Function"))
+            for function, count in sorted(functions, key=lambda item: item[1], reverse=True):
+                self._print("\t%-10d\t%s" % (count, function))
+            self._print("")
+
+        if len(dynamic_functions) > 0:
+            self._print("Dynamic functions:")
+            self._print("\t%-10s\t%s" % ("Calls", "Function"))
+            for function, count in sorted(dynamic_functions, key=lambda item: item[1], reverse=True):
+                self._print("\t%-10d\t%s" % (count, function))
+
+        self._results_received.set()
+
+
+def main() -> None:
+    app = DiscovererApplication()
+    app.run()
 
 
 if __name__ == "__main__":

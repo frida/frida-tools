@@ -11,6 +11,10 @@ import signal
 import sys
 import threading
 import time
+from types import FrameType
+from typing import Any, Callable, List, Optional, Tuple, TypeVar, Union
+
+import _frida
 
 if platform.system() == "Windows":
     import msvcrt
@@ -22,8 +26,12 @@ from frida_tools.reactor import Reactor
 
 AUX_OPTION_PATTERN = re.compile(r"(.+)=\((string|bool|int)\)(.+)")
 
+T = TypeVar("T")
+TargetType = Union[List[str], re.Pattern, int, str]
+TargetTypeTuple = Tuple[str, TargetType]
 
-def input_with_cancellable(cancellable):
+
+def input_with_cancellable(cancellable: frida.Cancellable) -> str:
     if platform.system() == "Windows":
         result = ""
         done = False
@@ -58,7 +66,7 @@ def input_with_cancellable(cancellable):
         return sys.stdin.readline()
 
 
-def await_enter(reactor):
+def await_enter(reactor: Reactor) -> None:
     try:
         input_with_cancellable(reactor.ui_cancellable)
     except frida.OperationCancelledError:
@@ -67,7 +75,7 @@ def await_enter(reactor):
         print("")
 
 
-def await_ctrl_c(reactor):
+def await_ctrl_c(reactor: Reactor) -> None:
     while True:
         try:
             input_with_cancellable(reactor.ui_cancellable)
@@ -77,20 +85,20 @@ def await_ctrl_c(reactor):
             break
 
 
-def deserialize_relay(value):
+def deserialize_relay(value: str) -> frida.Relay:
     address, username, password, kind = value.split(",")
     return frida.Relay(address, username, password, kind)
 
 
-def create_target_parser(type):
-    def parse_target(value):
-        if type == "file":
-            value = [value]
-        elif type == "gated":
-            value = re.compile(value)
-        elif type == "pid":
-            value = int(value)
-        return (type, value)
+def create_target_parser(target_type: str) -> Callable[[str], TargetTypeTuple]:
+    def parse_target(value: str) -> TargetTypeTuple:
+        if target_type == "file":
+            return (target_type, [value])
+        elif target_type == "gated":
+            return (target_type, re.compile(value))
+        elif target_type == "pid":
+            return (target_type, int(value))
+        return (target_type, value)
 
     return parse_target
 
@@ -113,7 +121,14 @@ class ConsoleApplication:
     overridden without calling the super method.
     """
 
-    def __init__(self, run_until_return=await_enter, on_stop=None, args=None):
+    _target: Optional[TargetTypeTuple] = None
+
+    def __init__(
+        self,
+        run_until_return: Callable[["Reactor"], None] = await_enter,
+        on_stop: Optional[Callable[[], None]] = None,
+        args: Optional[List[str]] = None,
+    ):
         plain_terminal = os.environ.get("TERM", "").lower() == "none"
 
         # Windows doesn't have SIGPIPE
@@ -133,21 +148,21 @@ class ConsoleApplication:
         self._initialize_device_arguments(parser, options)
         self._initialize_target_arguments(parser, options)
 
-        self._device = None
+        self._reactor = Reactor(run_until_return, on_stop)
+        self._device: Optional[frida.core.Device] = None
         self._schedule_on_output = lambda pid, fd, data: self._reactor.schedule(lambda: self._on_output(pid, fd, data))
         self._schedule_on_device_lost = lambda: self._reactor.schedule(self._on_device_lost)
-        self._spawned_pid = None
+        self._spawned_pid: Optional[int] = None
         self._spawned_argv = None
-        self._selected_spawn = None
-        self._target_pid = None
-        self._session = None
+        self._selected_spawn: Optional[_frida.Spawn] = None
+        self._target_pid: Optional[int] = None
+        self._session: Optional[frida.core.Session] = None
         self._schedule_on_session_detached = lambda reason, crash: self._reactor.schedule(
             lambda: self._on_session_detached(reason, crash)
         )
         self._started = False
         self._resumed = False
-        self._reactor = Reactor(run_until_return, on_stop)
-        self._exit_status = None
+        self._exit_status: Optional[int] = None
         self._console_state = ConsoleState.EMPTY
         self._have_terminal = sys.stdin.isatty() and sys.stdout.isatty() and not os.environ.get("TERM", "") == "dumb"
         self._plain_terminal = plain_terminal
@@ -162,7 +177,7 @@ class ConsoleApplication:
         except Exception as e:
             parser.error(str(e))
 
-    def _initialize_device_arguments(self, parser, options):
+    def _initialize_device_arguments(self, parser: argparse.ArgumentParser, options: argparse.Namespace) -> None:
         if self._needs_device():
             self._device_id = options.device_id
             self._device_type = options.device_type
@@ -190,7 +205,7 @@ class ConsoleApplication:
             self._stun_server = None
             self._relays = None
 
-    def _initialize_target_arguments(self, parser, options):
+    def _initialize_target_arguments(self, parser: argparse.ArgumentParser, options: argparse.Namespace) -> None:
         if self._needs_target():
             self._stdio = options.stdio
             self._aux = options.aux
@@ -206,7 +221,7 @@ class ConsoleApplication:
             self._enable_debugger = False
             self._squelch_crash = False
 
-    def _initialize_target(self, parser, options):
+    def _initialize_target(self, parser: argparse.ArgumentParser, options: argparse.Namespace) -> None:
         if self._needs_target():
             target = getattr(options, "target", None)
             if target is None:
@@ -216,6 +231,8 @@ class ConsoleApplication:
                 options.args.pop(0)
             target = expand_target(target)
             if target[0] == "file":
+                if not isinstance(target[1], list):
+                    raise ValueError("file target must be a list of strings")
                 argv = target[1]
                 argv.extend(options.args)
                 options.args = []
@@ -223,12 +240,12 @@ class ConsoleApplication:
         else:
             self._target = None
 
-    def _initialize_arguments_parser(self):
+    def _initialize_arguments_parser(self) -> argparse.ArgumentParser:
         parser = self._initialize_base_arguments_parser()
         self._add_options(parser)
         return parser
 
-    def _initialize_base_arguments_parser(self):
+    def _initialize_base_arguments_parser(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(usage=self._usage())
 
         if self._needs_device():
@@ -244,7 +261,7 @@ class ConsoleApplication:
 
         return parser
 
-    def _add_device_arguments(self, parser):
+    def _add_device_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
             "-D", "--device", help="connect to device with the given ID", metavar="ID", dest="device_id"
         )
@@ -287,7 +304,7 @@ class ConsoleApplication:
             type=deserialize_relay,
         )
 
-    def _add_target_arguments(self, parser):
+    def _add_target_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("-f", "--file", help="spawn FILE", dest="target", type=create_target_parser("file"))
         parser.add_argument(
             "-F",
@@ -355,7 +372,7 @@ class ConsoleApplication:
         )
         parser.add_argument("args", help="extra arguments and/or target", nargs="*")
 
-    def run(self):
+    def run(self) -> None:
         mgr = frida.get_device_manager()
 
         on_devices_changed = lambda: self._reactor.schedule(self._try_start)
@@ -391,23 +408,19 @@ class ConsoleApplication:
         frida.shutdown()
         sys.exit(self._exit_status)
 
-    def _add_options(self, parser):
+    def _add_options(self, parser: argparse.ArgumentParser) -> None:
         """
         override this method if you want to add custom arguments to your
         command. The parser command is an argparse object, you should add the
         options to him.
         """
 
-        pass
-
-    def _initialize(self, parser, options, args):
+    def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
         """
         override this method if you need to have additional initialization code
         before running, maybe to use your custom options from the `_add_options`
         method.
         """
-
-        pass
 
     def _usage(self) -> str:
         """
@@ -416,14 +429,14 @@ class ConsoleApplication:
 
         return "%(prog)s [options]"
 
-    def _needs_device(self):
+    def _needs_device(self) -> bool:
         """
         override this method if your command need to get a device from the user.
         """
 
         return True
 
-    def _needs_target(self):
+    def _needs_target(self) -> bool:
         """
         override this method if your command does not need to get a target
         process from the user.
@@ -431,34 +444,36 @@ class ConsoleApplication:
 
         return False
 
-    def _start(self):
+    def _start(self) -> None:
         """
         override this method with the logic of your command, it will run after
         the class is fully initialized with a connected device/target if you
         required one.
         """
 
-    def _stop(self):
+    def _stop(self) -> None:
         """
         override this method if you have something you need to do at the end of
         your command, maybe cleaning up some objects.
         """
 
-    def _resume(self):
+    def _resume(self) -> None:
         if self._resumed:
             return
         if self._spawned_pid is not None:
+            assert self._device is not None
             self._device.resume(self._spawned_pid)
+            assert self._target is not None
             if self._target[0] == "gated":
                 self._device.disable_spawn_gating()
                 self._device.off("spawn-added", self._on_spawn_added)
         self._resumed = True
 
-    def _exit(self, exit_status):
+    def _exit(self, exit_status: int) -> None:
         self._exit_status = exit_status
         self._reactor.stop()
 
-    def _try_start(self):
+    def _try_start(self) -> None:
         if self._device is not None:
             return
         if self._device_id is not None:
@@ -572,9 +587,10 @@ class ConsoleApplication:
         self._start()
         self._started = True
 
-    def _attach(self, pid):
+    def _attach(self, pid: int) -> None:
         self._target_pid = pid
 
+        assert self._device is not None
         self._session = self._device.attach(pid, realm=self._realm)
         self._session.on("detached", self._schedule_on_session_detached)
 
@@ -586,24 +602,24 @@ class ConsoleApplication:
                 peer_options["relays"] = self._relays
             self._session.setup_peer_connection(**peer_options)
 
-    def _on_script_created(self, script):
+    def _on_script_created(self, script: frida.core.Script) -> None:
         if self._enable_debugger:
             script.enable_debugger()
             self._print("Chrome Inspector server listening on port 9229\n")
 
-    def _show_message_if_no_device(self):
+    def _show_message_if_no_device(self) -> None:
         if self._device is None:
             self._print("Waiting for USB device to appear...")
 
-    def _on_sigterm(self, n, f):
+    def _on_sigterm(self, n: int, f: Optional[FrameType]) -> None:
         self._reactor.cancel_io()
         self._exit(0)
 
-    def _on_spawn_added(self, spawn):
+    def _on_spawn_added(self, spawn: _frida.Spawn) -> None:
         thread = threading.Thread(target=self._handle_spawn, args=(spawn,))
         thread.start()
 
-    def _handle_spawn(self, spawn):
+    def _handle_spawn(self, spawn: _frida.Spawn) -> None:
         pid = spawn.pid
 
         pattern = self._target[1]
@@ -612,7 +628,8 @@ class ConsoleApplication:
                 colorama.Fore.YELLOW + colorama.Style.BRIGHT + "Ignoring: " + str(spawn) + colorama.Style.RESET_ALL
             )
             try:
-                self._device.resume(pid)
+                if self._device is not None:
+                    self._device.resume(pid)
             except:
                 pass
             return
@@ -627,16 +644,16 @@ class ConsoleApplication:
             error = e
             self._reactor.schedule(lambda: self._on_spawn_unhandled(spawn, error))
 
-    def _on_spawn_handled(self, spawn):
+    def _on_spawn_handled(self, spawn: _frida.Spawn) -> None:
         self._spawned_pid = spawn.pid
         self._start()
         self._started = True
 
-    def _on_spawn_unhandled(self, spawn, error):
+    def _on_spawn_unhandled(self, spawn: _frida.Spawn, error: Exception) -> None:
         self._update_status(f"Failed to handle spawn: {error}")
         self._exit(1)
 
-    def _on_output(self, pid, fd, data):
+    def _on_output(self, pid: int, fd: int, data: Optional[bytes]) -> None:
         if pid != self._target_pid or data is None:
             return
         if fd == 1:
@@ -652,16 +669,16 @@ class ConsoleApplication:
         lines = text.split("\n")
         self._print(prefix + ("\n" + prefix).join(lines))
 
-    def _on_device_found(self):
+    def _on_device_found(self) -> None:
         pass
 
-    def _on_device_lost(self):
+    def _on_device_lost(self) -> None:
         if self._exit_status is not None:
             return
         self._print("Device disconnected.")
         self._exit(1)
 
-    def _on_session_detached(self, reason, crash):
+    def _on_session_detached(self, reason: str, crash) -> None:
         if crash is None:
             message = reason[0].upper() + reason[1:].replace("-", " ")
         else:
@@ -674,11 +691,11 @@ class ConsoleApplication:
                 self._print("\n***\n{}\n***".format(crash.report.rstrip("\n")))
         self._exit(1)
 
-    def _clear_status(self):
+    def _clear_status(self) -> None:
         if self._console_state == ConsoleState.STATUS:
             print(colorama.Cursor.UP() + (80 * " "))
 
-    def _update_status(self, message):
+    def _update_status(self, message: str) -> None:
         if self._have_terminal:
             if self._console_state == ConsoleState.STATUS:
                 cursor_position = colorama.Cursor.UP()
@@ -689,11 +706,11 @@ class ConsoleApplication:
         else:
             print(colorama.Style.BRIGHT + message + colorama.Style.RESET_ALL)
 
-    def _print(self, *args, **kwargs):
-        encoded_args = []
+    def _print(self, *args: Any, **kwargs: Any) -> None:
+        encoded_args: List[Any] = []
         encoding = sys.stdout.encoding or "UTF-8"
         if encoding == "UTF-8":
-            encoded_args = args
+            encoded_args = list(args)
         else:
             for arg in args:
                 if isinstance(arg, str):
@@ -703,7 +720,7 @@ class ConsoleApplication:
         print(*encoded_args, **kwargs)
         self._console_state = ConsoleState.TEXT
 
-    def _log(self, level, text):
+    def _log(self, level: str, text: str) -> None:
         if level == "info":
             self._print(text)
         else:
@@ -714,11 +731,11 @@ class ConsoleApplication:
             else:
                 self._print(text)
 
-    def _perform_on_reactor_thread(self, f):
+    def _perform_on_reactor_thread(self, f: Callable[[], T]) -> T:
         completed = threading.Event()
         result = [None, None]
 
-        def work():
+        def work() -> None:
             try:
                 result[0] = f()
             except Exception as e:
@@ -740,10 +757,10 @@ class ConsoleApplication:
 
         return result[0]
 
-    def _perform_on_background_thread(self, f, timeout=None):
+    def _perform_on_background_thread(self, f: Callable[[], T], timeout: Optional[float] = None) -> T:
         result = [None, None]
 
-        def work():
+        def work() -> None:
             with self._reactor.io_cancellable:
                 try:
                     result[0] = f()
@@ -772,14 +789,14 @@ class ConsoleApplication:
 
         return result[0]
 
-    def _get_default_frida_dir(self):
+    def _get_default_frida_dir(self) -> str:
         return os.path.join(os.path.expanduser("~"), ".frida")
 
-    def _get_windows_frida_dir(self):
-        appdata = os.getenv("LOCALAPPDATA")
+    def _get_windows_frida_dir(self) -> str:
+        appdata = os.environ["LOCALAPPDATA"]
         return os.path.join(appdata, "frida")
 
-    def _get_or_create_config_dir(self):
+    def _get_or_create_config_dir(self) -> str:
         config_dir = os.path.join(self._get_default_frida_dir(), "config")
         if platform.system() == "Linux":
             xdg_config_home = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
@@ -790,7 +807,7 @@ class ConsoleApplication:
             os.makedirs(config_dir)
         return config_dir
 
-    def _get_or_create_data_dir(self):
+    def _get_or_create_data_dir(self) -> str:
         data_dir = os.path.join(self._get_default_frida_dir(), "data")
         if platform.system() == "Linux":
             xdg_data_home = os.getenv("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
@@ -801,20 +818,20 @@ class ConsoleApplication:
             os.makedirs(data_dir)
         return data_dir
 
-    def _get_or_create_state_dir(self):
+    def _get_or_create_state_dir(self) -> str:
         state_dir = os.path.join(self._get_default_frida_dir(), "state")
         if platform.system() == "Linux":
             xdg_state_home = os.getenv("XDG_STATE_HOME", os.path.expanduser("~/.local/state"))
             state_dir = os.path.join(xdg_state_home, "frida")
         elif platform.system() == "Windows":
-            appdata = os.getenv("LOCALAPPDATA")
+            appdata = os.environ["LOCALAPPDATA"]
             state_dir = os.path.join(appdata, "frida", "State")
         if not os.path.exists(state_dir):
             os.makedirs(state_dir)
         return state_dir
 
 
-def compute_real_args(parser, args=None):
+def compute_real_args(parser: argparse.ArgumentParser, args: Optional[List[str]] = None) -> List[str]:
     if args is None:
         args = sys.argv[1:]
     real_args = normalize_options_file_args(args)
@@ -841,7 +858,7 @@ def compute_real_args(parser, args=None):
     return real_args
 
 
-def normalize_options_file_args(raw_args):
+def normalize_options_file_args(raw_args: List[str]) -> List[str]:
     result = []
     for arg in raw_args:
         if arg.startswith("--options-file="):
@@ -852,7 +869,7 @@ def normalize_options_file_args(raw_args):
     return result
 
 
-def find_options_file_offset(arglist, parser):
+def find_options_file_offset(arglist: List[str], parser: argparse.ArgumentParser) -> int:
     for i, arg in enumerate(arglist):
         if arg in ("-O", "--options-file"):
             if i < len(arglist) - 1:
@@ -862,21 +879,21 @@ def find_options_file_offset(arglist, parser):
     return -1
 
 
-def insert_options_file_args_in_list(args, offset, new_arg_text):
+def insert_options_file_args_in_list(args: List[str], offset: int, new_arg_text: str) -> List[str]:
     new_args = shlex.split(new_arg_text)
     new_args = normalize_options_file_args(new_args)
     new_args_list = args[:offset] + new_args + args[offset + 2 :]
     return new_args_list
 
 
-def find_device(type):
+def find_device(device_type: str) -> Optional[frida.core.Device]:
     for device in frida.enumerate_devices():
-        if device.type == type:
+        if device.type == device_type:
             return device
     return None
 
 
-def infer_target(target_value):
+def infer_target(target_value: str) -> TargetTypeTuple:
     if (
         target_value.startswith(".")
         or target_value.startswith(os.path.sep)
@@ -887,25 +904,24 @@ def infer_target(target_value):
             and target_value[2] == "\\"
         )
     ):
-        target_type = "file"
-        target_value = [target_value]
-    else:
-        try:
-            target_value = int(target_value)
-            target_type = "pid"
-        except:
-            target_type = "name"
-    return (target_type, target_value)
+        return ("file", [target_value])
+
+    try:
+        return ("pid", int(target_value))
+    except:
+        pass
+
+    return ("name", target_value)
 
 
-def expand_target(target):
+def expand_target(target: TargetTypeTuple) -> TargetTypeTuple:
     target_type, target_value = target
-    if target_type == "file":
+    if target_type == "file" and isinstance(target_value, list):
         target_value = [target_value[0]]
     return (target_type, target_value)
 
 
-def parse_aux_option(option):
+def parse_aux_option(option: str) -> Tuple[str, Union[str, bool, int]]:
     m = AUX_OPTION_PATTERN.match(option)
     if m is None:
         raise ValueError("expected name=(type)value, e.g. “uid=(int)42”; supported types are: string, bool, int")

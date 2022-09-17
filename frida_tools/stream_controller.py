@@ -1,8 +1,15 @@
 import threading
+from typing import Any, AnyStr, BinaryIO, Callable, Mapping, Optional
 
 
 class StreamController:
-    def __init__(self, post, on_incoming_stream_request=None, on_incoming_stream_closed=None, on_stats_updated=None):
+    def __init__(
+        self,
+        post: Callable[[Any, Optional[AnyStr]], None],
+        on_incoming_stream_request: Optional[Callable[[Any, Any], BinaryIO]] = None,
+        on_incoming_stream_closed=None,
+        on_stats_updated=None,
+    ) -> None:
         self.streams_opened = 0
         self.bytes_received = 0
         self.bytes_sent = 0
@@ -20,14 +27,14 @@ class StreamController:
         self._requests = {}
         self._next_request_id = 1
 
-    def dispose(self):
+    def dispose(self) -> None:
         error = DisposedException("disposed")
         for request in self._requests.values():
             request[2] = error
         for event in [request[0] for request in self._requests.values()]:
             event.set()
 
-    def open(self, label, details={}):
+    def open(self, label, details={}) -> "Sink":
         eid = self._next_endpoint_id
         self._next_endpoint_id += 1
 
@@ -40,7 +47,7 @@ class StreamController:
 
         return sink
 
-    def receive(self, stanza, data):
+    def receive(self, stanza: Mapping[str, Any], data: Any) -> None:
         sid = stanza["id"]
         name = stanza["name"]
         payload = stanza.get("payload", None)
@@ -53,7 +60,7 @@ class StreamController:
         else:
             raise ValueError("unknown stanza: " + name)
 
-    def _on_create(self, payload, data):
+    def _on_create(self, payload: Mapping[str, Any], data: Any) -> None:
         endpoint = payload["endpoint"]
         eid = endpoint["id"]
         label = endpoint["label"]
@@ -68,7 +75,7 @@ class StreamController:
         self.streams_opened += 1
         self._notify_stats_updated()
 
-    def _on_finish(self, payload, data):
+    def _on_finish(self, payload: Mapping[str, Any], data: Any) -> None:
         eid = payload["endpoint"]["id"]
 
         entry = self._sources.pop(eid, None)
@@ -81,7 +88,7 @@ class StreamController:
         if self._on_incoming_stream_closed is not None:
             self._on_incoming_stream_closed(label, details)
 
-    def _on_write(self, payload, data):
+    def _on_write(self, payload: Mapping[str, Any], data: Any) -> None:
         entry = self._sources.get(payload["endpoint"]["id"], None)
         if entry is None:
             raise ValueError("invalid endpoint ID")
@@ -92,7 +99,7 @@ class StreamController:
         self.bytes_received += len(data)
         self._notify_stats_updated()
 
-    def _request(self, name, payload, data=None):
+    def _request(self, name: str, payload: Mapping[Any, Any], data: Optional[AnyStr] = None):
         rid = self._next_request_id
         self._next_request_id += 1
 
@@ -100,7 +107,7 @@ class StreamController:
         request = [completed, None, None]
         self._requests[rid] = request
 
-        self._post({"id": rid, "name": name, "payload": payload}, data=data)
+        self._post({"id": rid, "name": name, "payload": payload}, data)
 
         completed.wait()
 
@@ -110,7 +117,7 @@ class StreamController:
 
         return request[1]
 
-    def _on_request(self, sid, name, payload, data):
+    def _on_request(self, sid, name: str, payload: Mapping[str, Any], data: Any) -> None:
         handler = self._handlers.get(name, None)
         if handler is None:
             raise ValueError("invalid request: " + name)
@@ -123,13 +130,13 @@ class StreamController:
 
         self._resolve(sid, result)
 
-    def _resolve(self, sid, value):
+    def _resolve(self, sid, value) -> None:
         self._post({"id": sid, "name": "+result", "payload": value})
 
-    def _reject(self, sid, error):
+    def _reject(self, sid, error) -> None:
         self._post({"id": sid, "name": "+error", "payload": {"message": str(error)}})
 
-    def _on_notification(self, sid, name, payload):
+    def _on_notification(self, sid, name: str, payload) -> None:
         request = self._requests.pop(sid, None)
         if request is None:
             raise ValueError("invalid request ID")
@@ -143,22 +150,22 @@ class StreamController:
         completed, *_ = request
         completed.set()
 
-    def _notify_stats_updated(self):
+    def _notify_stats_updated(self) -> None:
         if self._on_stats_updated is not None:
             self._on_stats_updated()
 
 
 class Sink:
-    def __init__(self, controller, endpoint):
+    def __init__(self, controller: StreamController, endpoint) -> None:
         self._controller = controller
         self._endpoint = endpoint
 
         controller._request(".create", {"endpoint": endpoint})
 
-    def close(self):
+    def close(self) -> None:
         self._controller._request(".finish", {"endpoint": self._endpoint})
 
-    def write(self, chunk):
+    def write(self, chunk) -> None:
         ctrl = self._controller
 
         ctrl._request(".write", {"endpoint": self._endpoint}, chunk)

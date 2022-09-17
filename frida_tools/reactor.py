@@ -1,7 +1,9 @@
 import collections
 import threading
-import frida
 import time
+from typing import Callable, Deque, Optional, Tuple, Union
+
+import frida
 
 
 class Reactor:
@@ -10,11 +12,13 @@ class Reactor:
     the run method) and in a background thread receive and run additional tasks.
     """
 
-    def __init__(self, run_until_return, on_stop=None):
+    def __init__(
+        self, run_until_return: Callable[["Reactor"], None], on_stop: Optional[Callable[[], None]] = None
+    ) -> None:
         self._running = False
         self._run_until_return = run_until_return
         self._on_stop = on_stop
-        self._pending = collections.deque([])
+        self._pending: Deque[Tuple[Callable[[], None], Union[int, float]]] = collections.deque([])
         self._lock = threading.Lock()
         self._cond = threading.Condition(self._lock)
 
@@ -23,14 +27,14 @@ class Reactor:
         self.ui_cancellable = frida.Cancellable()
         self._ui_cancellable_fd = self.ui_cancellable.get_pollfd()
 
-    def __del__(self):
+    def __del__(self) -> None:
         self._ui_cancellable_fd.release()
 
-    def is_running(self):
+    def is_running(self) -> bool:
         with self._lock:
             return self._running
 
-    def run(self):
+    def run(self) -> None:
         with self._lock:
             self._running = True
 
@@ -42,7 +46,7 @@ class Reactor:
         self.stop()
         worker.join()
 
-    def _run(self):
+    def _run(self) -> None:
         running = True
         while running:
             now = time.time()
@@ -77,14 +81,14 @@ class Reactor:
 
         self.ui_cancellable.cancel()
 
-    def stop(self):
+    def stop(self) -> None:
         self.schedule(self._stop)
 
-    def _stop(self):
+    def _stop(self) -> None:
         with self._lock:
             self._running = False
 
-    def schedule(self, f, delay=None):
+    def schedule(self, f: Callable[[], None], delay: Optional[Union[int, float]] = None) -> None:
         """
         append a function to the tasks queue of the reactor, optionally with a
         delay in seconds
@@ -99,5 +103,5 @@ class Reactor:
             self._pending.append((f, when))
             self._cond.notify()
 
-    def cancel_io(self):
+    def cancel_io(self) -> None:
         self.io_cancellable.cancel()

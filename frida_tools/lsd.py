@@ -1,4 +1,4 @@
-def main():
+def main() -> None:
     import functools
 
     import frida
@@ -6,22 +6,22 @@ def main():
     from frida_tools.application import ConsoleApplication
 
     class LSDApplication(ConsoleApplication):
-        def _usage(self):
+        def _usage(self) -> str:
             return "%(prog)s [options]"
 
-        def _needs_device(self):
+        def _needs_device(self) -> bool:
             return False
 
-        def _start(self):
+        def _start(self) -> None:
             try:
                 devices = frida.enumerate_devices()
             except Exception as e:
                 self._update_status(f"Failed to enumerate devices: {e}")
                 self._exit(1)
                 return
-            id_column_width = max(map(lambda device: len(device.id), devices))
-            type_column_width = max(map(lambda device: len(device.type), devices))
-            name_column_width = max(map(lambda device: len(device.name), devices))
+            id_column_width = max(map(lambda device: len(device.id) if device.id is not None else 0, devices))
+            type_column_width = max(map(lambda device: len(device.type) if device.type is not None else 0, devices))
+            name_column_width = max(map(lambda device: len(device.name) if device.name is not None else 0, devices))
             header_format = (
                 "%-"
                 + str(id_column_width)
@@ -50,10 +50,12 @@ def main():
                 self._print(line_format % (device.id, device.type, device.name))
             self._exit(0)
 
-    def compare_devices(a, b):
+    def compare_devices(a: frida.core.Device, b: frida.core.Device) -> int:
         a_score = score(a)
         b_score = score(b)
         if a_score == b_score:
+            if a.name is None or b.name is None:
+                return 0
             if a.name > b.name:
                 return 1
             elif a.name < b.name:
@@ -68,7 +70,7 @@ def main():
             else:
                 return 0
 
-    def score(device):
+    def score(device: frida.core.Device) -> int:
         type = device.type
         if type == "local":
             return 3

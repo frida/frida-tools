@@ -1,6 +1,8 @@
+import argparse
 import os
 import sys
 from timeit import default_timer as timer
+from typing import Any, Dict, List, Optional
 
 import frida
 
@@ -8,19 +10,19 @@ from frida_tools.application import ConsoleApplication, await_ctrl_c
 from frida_tools.cli_formatting import format_compiled, format_compiling, format_diagnostic, format_error
 
 
-def main():
+def main() -> None:
     app = CompilerApplication()
     app.run()
 
 
 class CompilerApplication(ConsoleApplication):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(await_ctrl_c)
 
-    def _usage(self):
+    def _usage(self) -> str:
         return "%(prog)s [options] <module>"
 
-    def _add_options(self, parser):
+    def _add_options(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("module", help="TypeScript/JavaScript module to compile")
         parser.add_argument("-o", "--output", help="write output to <file>")
         parser.add_argument("-w", "--watch", help="watch for changes and recompile", action="store_true")
@@ -28,7 +30,7 @@ class CompilerApplication(ConsoleApplication):
         parser.add_argument("-c", "--compress", help="compress using terser", action="store_true")
         parser.add_argument("-v", "--verbose", help="be verbose", action="store_true")
 
-    def _initialize(self, parser, options, args):
+    def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
         self._module = os.path.abspath(options.module)
         self._output = options.output
         self._mode = "watch" if options.watch else "build"
@@ -41,13 +43,13 @@ class CompilerApplication(ConsoleApplication):
         compiler = frida.Compiler()
         self._compiler = compiler
 
-        def on_compiler_finished():
+        def on_compiler_finished() -> None:
             self._reactor.schedule(lambda: self._on_compiler_finished())
 
-        def on_compiler_output(bundle):
+        def on_compiler_output(bundle: str) -> None:
             self._reactor.schedule(lambda: self._on_compiler_output(bundle))
 
-        def on_compiler_diagnostics(diagnostics):
+        def on_compiler_diagnostics(diagnostics: List[Dict[str, Any]]) -> None:
             self._reactor.schedule(lambda: self._on_compiler_diagnostics(diagnostics))
 
         compiler.on("starting", self._on_compiler_starting)
@@ -55,12 +57,12 @@ class CompilerApplication(ConsoleApplication):
         compiler.on("output", on_compiler_output)
         compiler.on("diagnostics", on_compiler_diagnostics)
 
-        self._compilation_started = None
+        self._compilation_started: Optional[float] = None
 
-    def _needs_device(self):
+    def _needs_device(self) -> bool:
         return False
 
-    def _start(self):
+    def _start(self) -> None:
         try:
             if self._mode == "build":
                 self._compiler.build(self._module, **self._compiler_options)
@@ -71,26 +73,27 @@ class CompilerApplication(ConsoleApplication):
             error = e
             self._reactor.schedule(lambda: self._on_fatal_error(error))
 
-    def _on_fatal_error(self, error):
+    def _on_fatal_error(self, error: Exception) -> None:
         self._print(format_error(error))
         self._exit(1)
 
-    def _on_compiler_starting(self):
+    def _on_compiler_starting(self) -> None:
         self._compilation_started = timer()
         if self._verbose:
             self._reactor.schedule(lambda: self._print_compiler_starting())
 
-    def _print_compiler_starting(self):
+    def _print_compiler_starting(self) -> None:
         if self._mode == "watch":
             sys.stdout.write("\x1Bc")
         self._print(format_compiling(self._module, os.getcwd()))
 
-    def _on_compiler_finished(self):
+    def _on_compiler_finished(self) -> None:
         if self._verbose:
             time_finished = timer()
+            assert self._compilation_started is not None
             self._print(format_compiled(self._module, os.getcwd(), self._compilation_started, time_finished))
 
-    def _on_compiler_output(self, bundle):
+    def _on_compiler_output(self, bundle: str) -> None:
         if self._output is not None:
             try:
                 with open(self._output, "w", encoding="utf-8", newline="\n") as f:
@@ -100,7 +103,7 @@ class CompilerApplication(ConsoleApplication):
         else:
             sys.stdout.write(bundle)
 
-    def _on_compiler_diagnostics(self, diagnostics):
+    def _on_compiler_diagnostics(self, diagnostics: List[Dict[str, Any]]) -> None:
         cwd = os.getcwd()
         for diag in diagnostics:
             self._print(format_diagnostic(diag, cwd))

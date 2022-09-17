@@ -1,10 +1,12 @@
-def main():
+def main() -> None:
+    import argparse
     import functools
     import json
     import math
     import platform
     import sys
     from base64 import b64encode
+    from typing import List, Tuple, Union
 
     try:
         import termios
@@ -12,10 +14,12 @@ def main():
     except:
         pass
 
+    import _frida
+
     from frida_tools.application import ConsoleApplication
 
     class PSApplication(ConsoleApplication):
-        def _add_options(self, parser):
+        def _add_options(self, parser: argparse.ArgumentParser) -> None:
             parser.add_argument(
                 "-a",
                 "--applications",
@@ -42,7 +46,7 @@ def main():
                 default="text",
             )
 
-        def _initialize(self, parser, options, args):
+        def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
             if options.include_all_applications and not options.list_only_applications:
                 parser.error("-i cannot be used without -a")
             self._list_only_applications = options.list_only_applications
@@ -50,22 +54,23 @@ def main():
             self._output_format = options.output_format
             self._terminal_type, self._icon_size = self._detect_terminal()
 
-        def _usage(self):
+        def _usage(self) -> str:
             return "%(prog)s [options]"
 
-        def _start(self):
+        def _start(self) -> None:
             if self._list_only_applications:
                 self._list_applications()
             else:
                 self._list_processes()
 
-        def _list_processes(self):
+        def _list_processes(self) -> None:
             if self._output_format == "text" and self._terminal_type == "iterm2":
                 scope = "full"
             else:
                 scope = "minimal"
 
             try:
+                assert self._device is not None
                 processes = self._device.enumerate_processes(scope=scope)
             except Exception as e:
                 self._update_status(f"Failed to enumerate processes: {e}")
@@ -107,13 +112,14 @@ def main():
 
             self._exit(0)
 
-        def _list_applications(self):
+        def _list_applications(self) -> None:
             if self._output_format == "text" and self._terminal_type == "iterm2":
                 scope = "full"
             else:
                 scope = "minimal"
 
             try:
+                assert self._device is not None
                 applications = self._device.enumerate_applications(scope=scope)
             except Exception as e:
                 self._update_status(f"Failed to enumerate applications: {e}")
@@ -176,12 +182,12 @@ def main():
 
             self._exit(0)
 
-        def _render_icon(self, icon):
+        def _render_icon(self, icon) -> str:
             return "\033]1337;File=inline=1;width={}px;height={}px;:{}\007".format(
                 self._icon_size, self._icon_size, b64encode(icon["image"]).decode("ascii")
             )
 
-        def _detect_terminal(self):
+        def _detect_terminal(self) -> Tuple[str, int]:
             icon_size = 0
 
             if not self._have_terminal or self._plain_terminal or platform.system() != "Darwin":
@@ -222,7 +228,7 @@ def main():
             finally:
                 termios.tcsetattr(fd, termios.TCSANOW, old_attributes)
 
-        def _read_terminal_response(self, terminator):
+        def _read_terminal_response(self, terminator: str) -> str:
             sys.stdin.read(1)
             sys.stdin.read(1)
             result = ""
@@ -233,7 +239,7 @@ def main():
                 result += ch
             return result
 
-    def compare_applications(a, b):
+    def compare_applications(a: _frida.Application, b: _frida.Application) -> int:
         a_is_running = a.pid != 0
         b_is_running = b.pid != 0
         if a_is_running == b_is_running:
@@ -248,7 +254,7 @@ def main():
         else:
             return 1
 
-    def compare_processes(a, b):
+    def compare_processes(a: _frida.Process, b: _frida.Process) -> int:
         a_has_icon = "icons" in a.parameters
         b_has_icon = "icons" in b.parameters
         if a_has_icon == b_has_icon:
@@ -263,7 +269,7 @@ def main():
         else:
             return 1
 
-    def compute_icon_width(item):
+    def compute_icon_width(item: Union[_frida.Application, _frida.Process]) -> int:
         for icon in item.parameters.get("icons", []):
             if icon["format"] == "png":
                 return 4
