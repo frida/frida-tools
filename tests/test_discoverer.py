@@ -1,4 +1,3 @@
-import platform
 import subprocess
 import threading
 import time
@@ -15,7 +14,6 @@ from .data import target_program
 class TestDiscoverer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        system = platform.system()
         cls.target = subprocess.Popen([target_program], stdin=subprocess.PIPE)
         # TODO: improve injectors to handle injection into a process that hasn't yet finished initializing
         time.sleep(0.05)

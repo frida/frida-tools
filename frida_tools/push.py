@@ -96,7 +96,7 @@ class PushApplication(ConsoleApplication):
                             break
                         sink.write(chunk)
                     sink.close()
-            except DisposedException as e:
+            except DisposedException:
                 break
             except Exception as e:
                 self._print_error(str(e))
