@@ -19,7 +19,6 @@ if platform.system() == 'Windows':
     import msvcrt
 
 import colorama
-from colorama import Cursor, Fore, Style
 import frida
 
 
@@ -104,6 +103,17 @@ class ConsoleState:
 
 
 class ConsoleApplication(object):
+    """
+    ConsoleApplication is the base class for all of Frida tools, which contains
+    the common arguments of the tools. Each application can implement one or
+    more of several methods that can be inserted inside the flow of the
+    application.
+
+    The subclass should not expose any additional methods aside from __init__
+    and run methods that are defined by this class. These methods should not be
+    overridden without calling the super method.
+    """
+
     def __init__(self, run_until_return=await_enter, on_stop=None, args=None):
         plain_terminal = os.environ.get("TERM", "").lower() == "none"
 
@@ -125,6 +135,37 @@ class ConsoleApplication(object):
             input_encoding = sys.stdin.encoding or 'UTF-8'
             options.args = [arg.decode(input_encoding) for arg in options.args]
 
+        self._initialize_device_arguments(parser, options)
+        self._initialize_target_arguments(parser, options)
+
+        self._device = None
+        self._schedule_on_output = lambda pid, fd, data: self._reactor.schedule(lambda: self._on_output(pid, fd, data))
+        self._schedule_on_device_lost = lambda: self._reactor.schedule(self._on_device_lost)
+        self._spawned_pid = None
+        self._spawned_argv = None
+        self._selected_spawn = None
+        self._target_pid = None
+        self._session = None
+        self._schedule_on_session_detached = lambda reason, crash: self._reactor.schedule(lambda: self._on_session_detached(reason, crash))
+        self._started = False
+        self._resumed = False
+        self._reactor = Reactor(run_until_return, on_stop)
+        self._exit_status = None
+        self._console_state = ConsoleState.EMPTY
+        self._have_terminal = sys.stdin.isatty() and sys.stdout.isatty() and not os.environ.get("TERM", '') == "dumb"
+        self._plain_terminal = plain_terminal
+        self._quiet = False
+        if sum(map(lambda v: int(v is not None), (self._device_id, self._device_type, self._host))) > 1:
+            parser.error("Only one of -D, -U, -R, and -H may be specified")
+
+        self._initialize_target(parser, options)
+
+        try:
+            self._initialize(parser, options, options.args)
+        except Exception as e:
+            parser.error(str(e))
+
+    def _initialize_device_arguments(self, parser, options):
         if self._needs_device():
             self._device_id = options.device_id
             self._device_type = options.device_type
@@ -151,14 +192,8 @@ class ConsoleApplication(object):
             self._session_transport = 'multiplexed'
             self._stun_server = None
             self._relays = None
-        self._device = None
-        self._schedule_on_output = lambda pid, fd, data: self._reactor.schedule(lambda: self._on_output(pid, fd, data))
-        self._schedule_on_device_lost = lambda: self._reactor.schedule(self._on_device_lost)
-        self._spawned_pid = None
-        self._spawned_argv = None
-        self._selected_spawn = None
-        self._target_pid = None
-        self._session = None
+
+    def _initialize_target_arguments(self, parser, options):
         if self._needs_target():
             self._stdio = options.stdio
             self._aux = options.aux
@@ -173,18 +208,8 @@ class ConsoleApplication(object):
             self._runtime = 'qjs'
             self._enable_debugger = False
             self._squelch_crash = False
-        self._schedule_on_session_detached = lambda reason, crash: self._reactor.schedule(lambda: self._on_session_detached(reason, crash))
-        self._started = False
-        self._resumed = False
-        self._reactor = Reactor(run_until_return, on_stop)
-        self._exit_status = None
-        self._console_state = ConsoleState.EMPTY
-        self._have_terminal = sys.stdin.isatty() and sys.stdout.isatty() and not os.environ.get("TERM", '') == "dumb"
-        self._plain_terminal = plain_terminal
-        self._quiet = False
-        if sum(map(lambda v: int(v is not None), (self._device_id, self._device_type, self._host))) > 1:
-            parser.error("Only one of -D, -U, -R, and -H may be specified")
 
+    def _initialize_target(self, parser, options):
         if self._needs_target():
             target = getattr(options, 'target', None)
             if target is None:
@@ -200,11 +225,6 @@ class ConsoleApplication(object):
             self._target = target
         else:
             self._target = None
-
-        try:
-            self._initialize(parser, options, options.args)
-        except Exception as e:
-            parser.error(str(e))
 
     def _initialize_arguments_parser(self):
         parser = self._initialize_base_arguments_parser()
@@ -290,22 +310,50 @@ class ConsoleApplication(object):
         sys.exit(self._exit_status)
 
     def _add_options(self, parser):
+        """
+        override this method if you want to add custom arguments to your
+        command. The parser command is an argparse object, you should add the
+        options to him.
+        """
+
         pass
 
     def _initialize(self, parser, options, args):
+        """
+        override this method if you need to have additional initialization code
+        before running, maybe to use your custom options from the `_add_options`
+        method.
+        """
+
         pass
 
     def _needs_device(self):
+        """
+        override this method if your command need to get a device from the user.
+        """
+
         return True
 
     def _needs_target(self):
+        """
+        override this method if your command does not need to get a target
+        process from the user.
+        """
+
         return False
 
     def _start(self):
-        pass
+        """
+        override this method with the logic of your command, it will run after
+        the class is fully initialized with a connected device/target if you
+        required one.
+        """
 
     def _stop(self):
-        pass
+        """
+        override this method if you have something you need to do at the end of
+        your command, maybe cleaning up some objects.
+        """
 
     def _resume(self):
         if self._resumed:
@@ -468,7 +516,7 @@ class ConsoleApplication(object):
 
         pattern = self._target[1]
         if pattern.match(spawn.identifier) is None or self._selected_spawn is not None:
-            self._print(Fore.YELLOW + Style.BRIGHT + "Ignoring: " + str(spawn) + Style.RESET_ALL)
+            self._print(colorama.Fore.YELLOW + colorama.Style.BRIGHT + "Ignoring: " + str(spawn) + colorama.Style.RESET_ALL)
             try:
                 self._device.resume(pid)
             except:
@@ -477,7 +525,7 @@ class ConsoleApplication(object):
 
         self._selected_spawn = spawn
 
-        self._print(Fore.GREEN + Style.BRIGHT + "Handling: " + str(spawn) + Style.RESET_ALL)
+        self._print(colorama.Fore.GREEN + colorama.Style.BRIGHT + "Handling: " + str(spawn) + colorama.Style.RESET_ALL)
         try:
             self._attach(pid)
             self._reactor.schedule(lambda: self._on_spawn_handled(spawn))
@@ -524,7 +572,7 @@ class ConsoleApplication(object):
             message = reason[0].upper() + reason[1:].replace("-", " ")
         else:
             message = "Process crashed: " + crash.summary
-        self._print(Fore.RED + Style.BRIGHT + message + Style.RESET_ALL)
+        self._print(colorama.Fore.RED + colorama.Style.BRIGHT + message + colorama.Style.RESET_ALL)
         if crash is not None:
             if self._squelch_crash is True:
                 self._print("\n*** Crash report was squelched due to user setting. ***")
@@ -534,18 +582,18 @@ class ConsoleApplication(object):
 
     def _clear_status(self):
         if self._console_state == ConsoleState.STATUS:
-            print(Cursor.UP() + (80 * " "))
+            print(colorama.Cursor.UP() + (80 * " "))
 
     def _update_status(self, message):
         if self._have_terminal:
             if self._console_state == ConsoleState.STATUS:
-                cursor_position = Cursor.UP()
+                cursor_position = colorama.Cursor.UP()
             else:
                 cursor_position = ""
-            print("%-80s" % (cursor_position + Style.BRIGHT + message + Style.RESET_ALL,))
+            print("%-80s" % (cursor_position + colorama.Style.BRIGHT + message + colorama.Style.RESET_ALL,))
             self._console_state = ConsoleState.STATUS
         else:
-            print(Style.BRIGHT + message + Style.RESET_ALL)
+            print(colorama.Style.BRIGHT + message + colorama.Style.RESET_ALL)
 
     def _print(self, *args, **kwargs):
         encoded_args = []
@@ -569,8 +617,8 @@ class ConsoleApplication(object):
         if level == 'info':
             self._print(text)
         else:
-            color = Fore.RED if level == 'error' else Fore.YELLOW
-            text = color + Style.BRIGHT + text + Style.RESET_ALL
+            color = colorama.Fore.RED if level == 'error' else colorama.Fore.YELLOW
+            text = color + colorama.Style.BRIGHT + text + colorama.Style.RESET_ALL
             if level == 'error':
                 self._print(text, file=sys.stderr)
             else:
@@ -781,6 +829,11 @@ def parse_aux_option(option):
 
 
 class Reactor(object):
+    """
+    Run the given function until return in the main thread (or the thread of
+    the run method) and in a background thread receive and run additional tasks.
+    """
+
     def __init__(self, run_until_return, on_stop=None):
         self._running = False
         self._run_until_return = run_until_return
@@ -856,6 +909,11 @@ class Reactor(object):
             self._running = False
 
     def schedule(self, f, delay=None):
+        """
+        append a function to the tasks queue of the reactor, optionally with a
+        delay in seconds
+        """
+
         now = time.time()
         if delay is not None:
             when = now + delay
