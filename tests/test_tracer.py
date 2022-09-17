@@ -2,11 +2,7 @@ import platform
 import subprocess
 import threading
 import time
-
-try:
-    import unittest2 as unittest
-except:
-    import unittest
+import unittest
 
 import frida
 

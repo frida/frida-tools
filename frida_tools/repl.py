@@ -15,10 +15,7 @@ def main():
     import platform
     import re
 
-    try:
-        from urllib.request import build_opener
-    except:
-        from urllib2 import build_opener
+    from urllib.request import build_opener
 
     from timeit import default_timer as timer
 
