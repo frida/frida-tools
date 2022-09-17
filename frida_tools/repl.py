@@ -1286,7 +1286,7 @@ if os.environ.get("TERM", "") == "dumb":
                 self.register_function(complete)
 
         EpcDocument = namedtuple(
-            "Document",
+            "EpcDocument",
             [
                 "text_before_cursor",
             ],
