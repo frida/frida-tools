@@ -14,10 +14,8 @@ def main():
     import os
     import platform
     import re
-
-    from urllib.request import build_opener
-
     from timeit import default_timer as timer
+    from urllib.request import build_opener
 
     import frida
     from colorama import Fore, Style
@@ -1158,10 +1156,10 @@ URL: {url}
         return "".join(lines)
 
     OS_BINARY_SIGNATURES = {
-            b"\x4d\x5a",  # PE
-            b"\xca\xfe\xba\xbe",  # Fat Mach-O
-            b"\xcf\xfa\xed\xfe",  # Mach-O
-            b"\x7fELF",  # ELF
+        b"\x4d\x5a",  # PE
+        b"\xca\xfe\xba\xbe",  # Fat Mach-O
+        b"\xcf\xfa\xed\xfe",  # Mach-O
+        b"\x7fELF",  # ELF
     }
 
     def code_is_native(code):

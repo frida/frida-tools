@@ -1,4 +1,6 @@
 def main():
+    import functools
+
     import frida
 
     from frida_tools.application import ConsoleApplication
@@ -32,7 +34,7 @@ def main():
                 + "s"
             )
             self._print(header_format % ("Id", "Type", "Name"))
-            self._print(f"{id_column_width * '-'}  { type_column_width * '-'}  {name_column_width * '-'}")
+            self._print(f"{id_column_width * '-'}  {type_column_width * '-'}  {name_column_width * '-'}")
             line_format = (
                 "%-"
                 + str(id_column_width)
@@ -44,7 +46,7 @@ def main():
                 + str(name_column_width)
                 + "s"
             )
-            for device in sorted(devices, key=cmp_to_key(compare_devices)):
+            for device in sorted(devices, key=functools.cmp_to_key(compare_devices)):
                 self._print(line_format % (device.id, device.type, device.name))
             self._exit(0)
 
@@ -74,33 +76,6 @@ def main():
             return 2
         else:
             return 1
-
-    def cmp_to_key(mycmp):
-        "Convert a cmp= function into a key= function"
-
-        class K:
-            def __init__(self, obj, *args):
-                self.obj = obj
-
-            def __lt__(self, other):
-                return mycmp(self.obj, other.obj) < 0
-
-            def __gt__(self, other):
-                return mycmp(self.obj, other.obj) > 0
-
-            def __eq__(self, other):
-                return mycmp(self.obj, other.obj) == 0
-
-            def __le__(self, other):
-                return mycmp(self.obj, other.obj) <= 0
-
-            def __ge__(self, other):
-                return mycmp(self.obj, other.obj) >= 0
-
-            def __ne__(self, other):
-                return mycmp(self.obj, other.obj) != 0
-
-        return K
 
     app = LSDApplication()
     app.run()

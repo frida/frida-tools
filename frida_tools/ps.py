@@ -1,4 +1,5 @@
 def main():
+    import functools
     import json
     import math
     import platform
@@ -84,7 +85,7 @@ def main():
                     line_format = "%" + str(pid_column_width) + "d  %s"
                     name_format = "%-" + str(name_column_width - icon_width) + "s"
 
-                    for process in sorted(processes, key=cmp_to_key(compare_processes)):
+                    for process in sorted(processes, key=functools.cmp_to_key(compare_processes)):
                         if icon_width != 0:
                             icons = process.parameters.get("icons", None)
                             if icons is not None:
@@ -100,7 +101,7 @@ def main():
                     self._log("error", "No running processes.")
             elif self._output_format == "json":
                 result = []
-                for process in sorted(processes, key=cmp_to_key(compare_processes)):
+                for process in sorted(processes, key=functools.cmp_to_key(compare_processes)):
                     result.append({"pid": process.pid, "name": process.name})
                 self._print(json.dumps(result, sort_keys=False, indent=2))
 
@@ -146,7 +147,7 @@ def main():
                     line_format = "%" + str(pid_column_width) + "s  %s  %-" + str(identifier_column_width) + "s"
                     name_format = "%-" + str(name_column_width - icon_width) + "s"
 
-                    for app in sorted(applications, key=cmp_to_key(compare_applications)):
+                    for app in sorted(applications, key=functools.cmp_to_key(compare_applications)):
                         if icon_width != 0:
                             icons = app.parameters.get("icons", None)
                             if icons is not None:
@@ -169,7 +170,7 @@ def main():
             elif self._output_format == "json":
                 result = []
                 if len(applications) > 0:
-                    for app in sorted(applications, key=cmp_to_key(compare_applications)):
+                    for app in sorted(applications, key=functools.cmp_to_key(compare_applications)):
                         result.append({"pid": (app.pid or None), "name": app.name, "identifier": app.identifier})
                 self._print(json.dumps(result, sort_keys=False, indent=2))
 
@@ -267,33 +268,6 @@ def main():
             if icon["format"] == "png":
                 return 4
         return 0
-
-    def cmp_to_key(mycmp):
-        "Convert a cmp= function into a key= function"
-
-        class K:
-            def __init__(self, obj, *args):
-                self.obj = obj
-
-            def __lt__(self, other):
-                return mycmp(self.obj, other.obj) < 0
-
-            def __gt__(self, other):
-                return mycmp(self.obj, other.obj) > 0
-
-            def __eq__(self, other):
-                return mycmp(self.obj, other.obj) == 0
-
-            def __le__(self, other):
-                return mycmp(self.obj, other.obj) <= 0
-
-            def __ge__(self, other):
-                return mycmp(self.obj, other.obj) >= 0
-
-            def __ne__(self, other):
-                return mycmp(self.obj, other.obj) != 0
-
-        return K
 
     app = PSApplication()
     app.run()
