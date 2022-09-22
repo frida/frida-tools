@@ -86,7 +86,7 @@ def main():
             parser.add_argument("-e", "--eval", help="evaluate CODE", metavar="CODE", action='append', dest="eval_items")
             parser.add_argument("-q", help="quiet mode (no prompt) and quit after -l and -e", action='store_true', dest="quiet", default=False)
             parser.add_argument("-t", "--timeout", help="seconds to wait before terminating in quiet mode", dest="timeout", default=0)
-            parser.add_argument("--no-pause", help="automatically start main thread after startup", action='store_true', dest="no_pause", default=False)
+            parser.add_argument("--pause", help="leave main thread paused after spawning program", action='store_const', const='pause', dest="on_spawn_complete", default='resume')
             parser.add_argument("-o", "--output", help="output to log file", dest="logfile")
             parser.add_argument("--eternalize", help="eternalize the script before exit", action='store_true', dest="eternalize", default=False)
             parser.add_argument("--exit-on-error", help="exit with code 1 after encountering any exception in the SCRIPT", action='store_true', dest="exit_on_error", default=False)
@@ -126,7 +126,7 @@ def main():
 
             self._quiet = options.quiet
             self._quiet_timeout = float(options.timeout)
-            self._no_pause = options.no_pause
+            self._on_spawn_complete = options.on_spawn_complete
             self._eternalize = options.eternalize
             self._exit_on_error = options.exit_on_error
             self._autoperform_option = options.autoperform
@@ -168,7 +168,7 @@ def main():
 
             if self._spawned_argv is not None or self._selected_spawn is not None:
                 command = " ".join(self._spawned_argv) if self._spawned_argv is not None else self._selected_spawn.identifier
-                if self._no_pause:
+                if self._on_spawn_complete == 'resume':
                     self._update_status(
                         "Spawned `{command}`. Resuming main thread!".format(command=command))
                     self._do_magic("resume")
