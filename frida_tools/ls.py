@@ -74,7 +74,7 @@ class LsApplication(ConsoleApplication):
             for name, target, type, access, nlink, owner, group, size, raw_mtime in group["entries"]:
                 mtime = datetime.fromtimestamp(raw_mtime / 1000.0, tz=timezone.utc)
                 rows.append((type + access, str(nlink), owner, group, str(size), mtime.strftime("%c"), name, target))
-            
+
             if len(rows) == 0:
                 break
 
