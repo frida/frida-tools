@@ -408,6 +408,13 @@ class ConsoleApplication:
 
         pass
 
+    def _usage(self) -> str:
+        """
+        override this method if to add a custom usage message
+        """
+
+        return "%(prog)s [options]"
+
     def _needs_device(self):
         """
         override this method if your command need to get a device from the user.
