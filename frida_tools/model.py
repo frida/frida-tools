@@ -16,9 +16,6 @@ class Module:
     def __hash__(self):
         return self.base_address.__hash__()
 
-    def __cmp__(self, other):
-        return self.base_address.__cmp__(other.base_address)
-
     def __eq__(self, other):
         return self.base_address == other.base_address
 
@@ -39,9 +36,6 @@ class Function:
 
     def __hash__(self):
         return self.absolute_address.__hash__()
-
-    def __cmp__(self, other):
-        return self.absolute_address.__cmp__(other.absolute_address)
 
     def __eq__(self, other):
         return self.absolute_address == other.absolute_address
