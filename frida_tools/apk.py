@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import argparse
 import os
 import struct
 from enum import IntEnum
 from io import BufferedReader
+from typing import List
 from zipfile import ZipFile
 
 
@@ -12,17 +13,17 @@ def main() -> None:
     from frida_tools.application import ConsoleApplication
 
     class ApkApplication(ConsoleApplication):
-        def _usage(self):
+        def _usage(self) -> str:
             return "%(prog)s [options] path.apk"
 
-        def _add_options(self, parser):
+        def _add_options(self, parser: argparse.ArgumentParser) -> None:
             parser.add_argument("-o", "--output", help="output path", metavar="OUTPUT")
             parser.add_argument("apk", help="apk file")
 
-        def _needs_device(self):
+        def _needs_device(self) -> bool:
             return False
 
-        def _initialize(self, parser, options, args):
+        def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
             self._output_path = options.output
             self._path = options.apk
 
@@ -32,11 +33,11 @@ def main() -> None:
             if self._output_path is None:
                 self._output_path = self._path.replace(".apk", ".d.apk")
 
-        def _start(self):
+        def _start(self) -> None:
             try:
                 debug(self._path, self._output_path)
             except Exception as e:
-                self._update_status("Error: {error}".format(error=e))
+                self._update_status(f"Error: {e}")
                 self._exit(1)
             self._exit(0)
 
@@ -77,7 +78,7 @@ def debug(path: str, output_path: str) -> None:
 
                     header = manifest.chunk_headers[0]
                     header_data = bytearray(header.chunk_data)
-                    header_data[4:4 + 4] = struct.pack("<I", size)
+                    header_data[4 : 4 + 4] = struct.pack("<I", size)
 
                     data = bytearray()
                     data.extend(header_data)
@@ -96,7 +97,7 @@ def debug(path: str, output_path: str) -> None:
 
 
 class BinaryXML:
-    def __init__(self, stream: BufferedReader):
+    def __init__(self, stream: BufferedReader) -> None:
         self.stream = stream
         self.chunk_headers = []
         self.parse()
@@ -136,7 +137,7 @@ class BadHeader(Exception):
 class ChunkHeader:
     FORMAT = "<HHI"
 
-    def __init__(self, stream: BufferedReader, consume_data=True):
+    def __init__(self, stream: BufferedReader, consume_data: bool = True) -> None:
         self.stream = stream
         data = self.stream.peek(struct.calcsize(self.FORMAT))
         (self.type, self.header_size, self.size) = struct.unpack_from(self.FORMAT, data)
@@ -162,10 +163,9 @@ class StartElement:
         self.name = data[6]
         self.attribute_count = data[8]
 
-        attributes_data = self.header.chunk_data[self.header_size:]
+        attributes_data = self.header.chunk_data[self.header_size :]
         if len(attributes_data[-20:]) == 20:
-            previous_attribute = struct.unpack(
-                self.ATTRIBUTE_FORMAT, attributes_data[-20:])
+            previous_attribute = struct.unpack(self.ATTRIBUTE_FORMAT, attributes_data[-20:])
             self.namespace = previous_attribute[0]
         else:
             # There are no other attributes in the application tag
@@ -185,52 +185,48 @@ class StartElement:
         # Denotes a True value in AXML, 0 is used for False
         resource_data = -1
 
-        debuggable = struct.pack(self.ATTRIBUTE_FORMAT, self.namespace,
-                                 name, -1, resource_size, 0, resource_type, resource_data)
+        debuggable = struct.pack(
+            self.ATTRIBUTE_FORMAT, self.namespace, name, -1, resource_size, 0, resource_type, resource_data
+        )
 
         # Some parts of Android expect this to be sorted by resource ID.
         attr_offset = None
         for insert_pos in range(self.attribute_count + 1):
             attr_offset = 0x24 + 20 * insert_pos
-            idx = int.from_bytes(chunk_data[attr_offset + 4:attr_offset + 8], "little")
+            idx = int.from_bytes(chunk_data[attr_offset + 4 : attr_offset + 8], "little")
             if resource_map.get_resource(idx) > ResourceMap.DEBUGGING_RESOURCE:
                 break
         chunk_data[attr_offset:attr_offset] = debuggable
 
         self.header.size = len(chunk_data)
-        chunk_data[4:4 + 4] = struct.pack("<I", self.header.size)
+        chunk_data[4 : 4 + 4] = struct.pack("<I", self.header.size)
 
         self.attribute_count += 1
-        chunk_data[28:28 + 2] = struct.pack("<H", self.attribute_count)
+        chunk_data[28 : 28 + 2] = struct.pack("<H", self.attribute_count)
 
         self.header.chunk_data = bytes(chunk_data)
 
 
 class ResourceMap:
-    DEBUGGING_RESOURCE = 0x101000f
+    DEBUGGING_RESOURCE = 0x101000F
 
-    def __init__(self, header: ChunkHeader):
+    def __init__(self, header: ChunkHeader) -> None:
         self.header = header
 
     def add_debuggable(self, idx: int) -> None:
         assert idx is not None
         data_size = len(self.header.chunk_data) - 8
         target = (idx + 1) * 4
-        self.header.chunk_data += (
-            b"\x00" * (target - data_size - 4)
-            + self.DEBUGGING_RESOURCE.to_bytes(4, "little")
-        )
+        self.header.chunk_data += b"\x00" * (target - data_size - 4) + self.DEBUGGING_RESOURCE.to_bytes(4, "little")
 
         self.header.size = len(self.header.chunk_data)
         self.header.chunk_data = (
-            self.header.chunk_data[:4] +
-            struct.pack("<I", self.header.size) +
-            self.header.chunk_data[8:]
+            self.header.chunk_data[:4] + struct.pack("<I", self.header.size) + self.header.chunk_data[8:]
         )
 
     def get_resource(self, index: int) -> int:
         offset = index * 4 + 8
-        return int.from_bytes(self.header.chunk_data[offset:offset+4], "little")
+        return int.from_bytes(self.header.chunk_data[offset : offset + 4], "little")
 
 
 class StringPool:
@@ -252,10 +248,8 @@ class StringPool:
         self.utf8 = (self.flags & StringType.UTF8) != 0
         self.dirty = False
 
-        offsets_data = self.header.chunk_data[self.header_size:
-                                              self.header_size + self.string_count * 4]
-        self.offsets = list(
-            map(lambda f: f[0], struct.iter_unpack("<I", offsets_data)))
+        offsets_data = self.header.chunk_data[self.header_size : self.header_size + self.string_count * 4]
+        self.offsets: List[int] = list(map(lambda f: f[0], struct.iter_unpack("<I", offsets_data)))
 
     def get_string(self, index: int) -> str:
         offset = self.offsets[index]
@@ -273,21 +267,18 @@ class StringPool:
             # Ignore UTF-16 length
             n = struct.unpack("<B", self.stream.read(1))[0]
             if n & 0x80:
-                n = ((n & 0x7f) << 8) | struct.unpack(
-                    "<B", self.stream.read(1))[0]
+                n = ((n & 0x7F) << 8) | struct.unpack("<B", self.stream.read(1))[0]
 
             # UTF-8 encoded length
             n = struct.unpack("<B", self.stream.read(1))[0]
             if n & 0x80:
-                n = ((n & 0x7f) << 8) | struct.unpack(
-                    "<B", self.stream.read(1))[0]
+                n = ((n & 0x7F) << 8) | struct.unpack("<B", self.stream.read(1))[0]
 
             string = self.stream.read(n).decode("utf-8")
         else:
             n = struct.unpack("<H", self.stream.read(2))[0]
             if n & 0x8000:
-                n |= ((n & 0x7fff) << 16) | struct.unpack(
-                    "<H", self.stream.read(2))[0]
+                n |= ((n & 0x7FFF) << 16) | struct.unpack("<H", self.stream.read(2))[0]
 
             string = self.stream.read(n * 2).decode("utf-16le")
 
@@ -302,7 +293,7 @@ class StringPool:
         chunk_data = bytearray(data_size)
         end = self.header_size + self.string_count * 4
         chunk_data[:end] = self.header.chunk_data[:end]
-        chunk_data[end + 4:] = self.header.chunk_data[end:]
+        chunk_data[end + 4 :] = self.header.chunk_data[end:]
 
         # Add 4 since we have added a string offset
         offset = len(chunk_data) - 8 - self.strings_offset + 4
@@ -323,25 +314,25 @@ class StringPool:
             chunk_data.extend([0, 0])
 
         # Insert a new offset at the end of the existing offsets
-        chunk_data[end:end + 4] = struct.pack("<I", offset)
+        chunk_data[end : end + 4] = struct.pack("<I", offset)
 
         # Increase the header size since we have inserted a new offset and string
         self.header.size = len(chunk_data)
-        chunk_data[4:4 + 4] = struct.pack("<I", self.header.size)
+        chunk_data[4 : 4 + 4] = struct.pack("<I", self.header.size)
 
         self.string_count += 1
-        chunk_data[8:8 + 4] = struct.pack("<I", self.string_count)
+        chunk_data[8 : 8 + 4] = struct.pack("<I", self.string_count)
 
         # Increase strings offset since we have inserted a new offset and thus
         # shifted the offset of the strings
         self.strings_offset += 4
-        chunk_data[20:20 + 4] = struct.pack("<I", self.strings_offset)
+        chunk_data[20 : 20 + 4] = struct.pack("<I", self.strings_offset)
 
         # If there are styles, offset them as we have inserted into the strings
         # offsets
         if self.styles_offset != 0:
             self.styles_offset += 4
-            chunk_data[24:24 + 4] = struct.pack("<I", self.strings_offset)
+            chunk_data[24 : 24 + 4] = struct.pack("<I", self.strings_offset)
 
         self.header.chunk_data = bytes(chunk_data)
 

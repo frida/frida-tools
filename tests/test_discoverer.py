@@ -1,17 +1,12 @@
-# -*- coding: utf-8 -*-
-
-import platform
 import subprocess
 import threading
 import time
-try:
-    import unittest2 as unittest
-except:
-    import unittest
+import unittest
 
 import frida
-from frida_tools.application import Reactor
-from frida_tools.discoverer import Discoverer, UI
+
+from frida_tools.discoverer import UI, Discoverer
+from frida_tools.reactor import Reactor
 
 from .data import target_program
 
@@ -19,7 +14,6 @@ from .data import target_program
 class TestDiscoverer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        system = platform.system()
         cls.target = subprocess.Popen([target_program], stdin=subprocess.PIPE)
         # TODO: improve injectors to handle injection into a process that hasn't yet finished initializing
         time.sleep(0.05)
@@ -35,10 +29,12 @@ class TestDiscoverer(unittest.TestCase):
     def test_basics(self):
         test_ui = TestUI()
         reactor = Reactor(lambda reactor: test_ui.on_result.wait())
+
         def start():
             d = Discoverer(reactor)
-            d.start(self.session, 'qjs', test_ui)
+            d.start(self.session, "qjs", test_ui)
             reactor.schedule(d.stop, 0.1)
+
         reactor.schedule(start)
         reactor.run()
         self.assertIsInstance(test_ui.module_functions, dict)
@@ -58,5 +54,5 @@ class TestUI(UI):
         self.on_result.set()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

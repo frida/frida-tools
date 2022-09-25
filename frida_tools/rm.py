@@ -1,30 +1,31 @@
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
-
+import argparse
 import codecs
 import os
 import sys
+from typing import Any, List
 
 from colorama import Fore, Style
 
 from frida_tools.application import ConsoleApplication
 
 
-def main():
+def main() -> None:
     app = RmApplication()
     app.run()
 
 
 class RmApplication(ConsoleApplication):
-    def _add_options(self, parser):
+    def _add_options(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("files", help="files to remove", nargs="+")
-        parser.add_argument("-f", "--force", help="ignore nonexistent files", action='store_true')
-        parser.add_argument("-r", "--recursive", help="remove directories and their contents recursively", action='store_true')
+        parser.add_argument("-f", "--force", help="ignore nonexistent files", action="store_true")
+        parser.add_argument(
+            "-r", "--recursive", help="remove directories and their contents recursively", action="store_true"
+        )
 
-    def _usage(self):
+    def _usage(self) -> str:
         return "%(prog)s [options] FILE..."
 
-    def _initialize(self, parser, options, args):
+    def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
         self._paths = options.files
         self._flags = []
         if options.force:
@@ -32,10 +33,10 @@ class RmApplication(ConsoleApplication):
         if options.recursive:
             self._flags.append("recursive")
 
-    def _needs_target(self):
+    def _needs_target(self) -> bool:
         return False
 
-    def _start(self):
+    def _start(self) -> None:
         try:
             self._attach(0)
 
@@ -43,9 +44,10 @@ class RmApplication(ConsoleApplication):
             with codecs.open(os.path.join(data_dir, "fs_agent.js"), "r", "utf-8") as f:
                 source = f.read()
 
-            def on_message(message, data):
+            def on_message(message: Any, data: Any) -> None:
                 self._reactor.schedule(lambda: self._on_message(message, data))
 
+            assert self._session is not None
             script = self._session.create_script(name="pull", source=source)
             script.on("message", on_message)
             self._on_script_created(script)
@@ -63,7 +65,7 @@ class RmApplication(ConsoleApplication):
             self._exit(1)
             return
 
-    def _on_message(self, message, data):
+    def _on_message(self, message: Any, data: Any) -> None:
         print(message)
 
 

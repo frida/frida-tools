@@ -1,44 +1,61 @@
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+def main() -> None:
+    import functools
 
-
-def main():
     import frida
+
     from frida_tools.application import ConsoleApplication
 
     class LSDApplication(ConsoleApplication):
-        def _usage(self):
+        def _usage(self) -> str:
             return "%(prog)s [options]"
 
-        def _needs_device(self):
+        def _needs_device(self) -> bool:
             return False
 
-        def _start(self):
+        def _start(self) -> None:
             try:
                 devices = frida.enumerate_devices()
             except Exception as e:
-                self._update_status("Failed to enumerate devices: %s" % e)
+                self._update_status(f"Failed to enumerate devices: {e}")
                 self._exit(1)
                 return
-            id_column_width = max(map(lambda device: len(device.id), devices))
-            type_column_width = max(map(lambda device: len(device.type), devices))
-            name_column_width = max(map(lambda device: len(device.name), devices))
-            header_format = "%-" + str(id_column_width) + "s  " + \
-                "%-" + str(type_column_width) + "s  " + \
-                "%-" + str(name_column_width) + "s"
+            id_column_width = max(map(lambda device: len(device.id) if device.id is not None else 0, devices))
+            type_column_width = max(map(lambda device: len(device.type) if device.type is not None else 0, devices))
+            name_column_width = max(map(lambda device: len(device.name) if device.name is not None else 0, devices))
+            header_format = (
+                "%-"
+                + str(id_column_width)
+                + "s  "
+                + "%-"
+                + str(type_column_width)
+                + "s  "
+                + "%-"
+                + str(name_column_width)
+                + "s"
+            )
             self._print(header_format % ("Id", "Type", "Name"))
-            self._print("%s  %s  %s" % (id_column_width * "-", type_column_width * "-", name_column_width * "-"))
-            line_format = "%-" + str(id_column_width) + "s  " + \
-                "%-" + str(type_column_width) + "s  " + \
-                "%-" + str(name_column_width) + "s"
-            for device in sorted(devices, key=cmp_to_key(compare_devices)):
+            self._print(f"{id_column_width * '-'}  {type_column_width * '-'}  {name_column_width * '-'}")
+            line_format = (
+                "%-"
+                + str(id_column_width)
+                + "s  "
+                + "%-"
+                + str(type_column_width)
+                + "s  "
+                + "%-"
+                + str(name_column_width)
+                + "s"
+            )
+            for device in sorted(devices, key=functools.cmp_to_key(compare_devices)):
                 self._print(line_format % (device.id, device.type, device.name))
             self._exit(0)
 
-    def compare_devices(a, b):
+    def compare_devices(a: frida.core.Device, b: frida.core.Device) -> int:
         a_score = score(a)
         b_score = score(b)
         if a_score == b_score:
+            if a.name is None or b.name is None:
+                return 0
             if a.name > b.name:
                 return 1
             elif a.name < b.name:
@@ -53,39 +70,20 @@ def main():
             else:
                 return 0
 
-    def score(device):
+    def score(device: frida.core.Device) -> int:
         type = device.type
-        if type == 'local':
+        if type == "local":
             return 3
-        elif type == 'usb':
+        elif type == "usb":
             return 2
         else:
             return 1
-
-    def cmp_to_key(mycmp):
-        "Convert a cmp= function into a key= function"
-        class K:
-            def __init__(self, obj, *args):
-                self.obj = obj
-            def __lt__(self, other):
-                return mycmp(self.obj, other.obj) < 0
-            def __gt__(self, other):
-                return mycmp(self.obj, other.obj) > 0
-            def __eq__(self, other):
-                return mycmp(self.obj, other.obj) == 0
-            def __le__(self, other):
-                return mycmp(self.obj, other.obj) <= 0
-            def __ge__(self, other):
-                return mycmp(self.obj, other.obj) >= 0
-            def __ne__(self, other):
-                return mycmp(self.obj, other.obj) != 0
-        return K
 
     app = LSDApplication()
     app.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
