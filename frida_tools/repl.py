@@ -269,15 +269,10 @@ class REPLApplication(ConsoleApplication):
         if self._autoreload:
             self._monitor_all()
 
-        if len(self._user_scripts) == 0:
-            name = "repl"
-        else:
-            name = "+".join(map(self._get_script_name, self._user_scripts))
-
         is_first_load = self._script is None
 
         assert self._session is not None
-        script = self._session.create_script(name=name, source=self._create_repl_script(), runtime=self._runtime)
+        script = self._session.create_script(name="repl", source=self._create_repl_script(), runtime=self._runtime)
         script.set_log_handler(self._log)
         self._unload_script()
         self._script = script
