@@ -737,6 +737,8 @@ class REPLApplication(ConsoleApplication):
         return "📦\n" + "\n✄\n".join(fragments)
 
     def _wrap_user_script(self, name, script):
+        if script.startswith("📦\n"):
+            return script
         return f"Script.evaluate({json.dumps(name)}, {json.dumps(script)});"
 
     def _on_bundle_updated(self) -> None:
