@@ -696,7 +696,9 @@ class REPLApplication(ConsoleApplication):
         raw_fragments.append(self._make_repl_runtime())
 
         if self._codeshare_script is not None:
-            raw_fragments.append(self._codeshare_script)
+            raw_fragments.append(
+                self._wrap_user_script(f"/codeshare.frida.re/{self._codeshare_uri}.js", self._codeshare_script)
+            )
 
         for user_script in self._user_scripts:
             if script_needs_compilation(user_script):
@@ -719,7 +721,7 @@ class REPLApplication(ConsoleApplication):
                     )
             else:
                 with codecs.open(user_script, "rb", "utf-8") as f:
-                    raw_fragments.append(f.read())
+                    raw_fragments.append(self._wrap_user_script(user_script, f.read()))
 
         fragments = []
         next_script_id = 1
@@ -733,6 +735,9 @@ class REPLApplication(ConsoleApplication):
                 fragments.append(f"{size} /frida/repl-{script_id}.js\n✄\n{raw_fragment}")
 
         return "📦\n" + "\n✄\n".join(fragments)
+
+    def _wrap_user_script(self, name, script):
+        return f"Script.evaluate({json.dumps(name)}, {json.dumps(script)});"
 
     def _on_bundle_updated(self) -> None:
         self._reactor.schedule(lambda: self._try_load_script())
