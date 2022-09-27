@@ -1027,9 +1027,12 @@ class CompilerContext:
             ready = threading.Event()
 
             def on_compiler_output(bundle) -> None:
+                is_initial_update = self._bundle is None
                 self._bundle = bundle
-                ready.set()
-                self._on_bundle_updated()
+                if is_initial_update:
+                    ready.set()
+                else:
+                    self._on_bundle_updated()
 
             compiler.on("output", on_compiler_output)
             compiler.watch(self._user_script)
