@@ -488,15 +488,15 @@ class REPLApplication(ConsoleApplication):
     def _print_startup_message(self) -> None:
         self._print(
             """\
- ____
-/ _  |   Frida {version} - A world-class dynamic instrumentation toolkit
-| (_| |
-> _  |   Commands:
-/_/ |_|       help      -> Displays the help system
-. . . .       object?   -> Display information about 'object'
-. . . .       exit/quit -> Exit
-. . . .
-. . . .   More info at https://frida.re/docs/home/""".format(
+     ____
+    / _  |   Frida {version} - A world-class dynamic instrumentation toolkit
+   | (_| |
+    > _  |   Commands:
+   /_/ |_|       help      -> Displays the help system
+   . . . .       object?   -> Display information about 'object'
+   . . . .       exit/quit -> Exit
+   . . . .
+   . . . .   More info at https://frida.re/docs/home/""".format(
                 version=frida.__version__
             )
         )
@@ -1001,8 +1001,8 @@ URL: {url}
         if not self._quiet:
             self._print(
                 """\
-. . . .
-. . . .   Connected to {device_name} (id={device_id})""".format(
+   . . . .
+   . . . .   Connected to {device_name} (id={device_id})""".format(
                     device_id=self._device.id, device_name=self._device.name
                 )
             )
