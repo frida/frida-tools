@@ -15,6 +15,7 @@ sources = [
   'ps.py',
   'pull.py',
   'push.py',
+  'reactor.py',
   'repl.py',
   'rm.py',
   'tracer.py',
