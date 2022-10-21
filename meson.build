@@ -33,6 +33,7 @@ subdir('apps')
 subdir('frida_tools')
 subdir('scripts')
 subdir('completions')
+subdir('build_aux')
 
 pathsep = host_machine.system() == 'windows' ? ';' : ':'
 

@@ -21,12 +21,14 @@ from colorama import Fore, Style
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
 from prompt_toolkit.document import Document
+from prompt_toolkit.filters import Condition, Filter
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.shortcuts import prompt
 from prompt_toolkit.styles import Style as PromptToolkitStyle
 from pygments.lexers.javascript import JavascriptLexer
 from pygments.token import Token
+from tree_sitter import Language, Parser
 
 from frida_tools import _repl_magic
 from frida_tools.application import ConsoleApplication
@@ -34,6 +36,13 @@ from frida_tools.cli_formatting import THEME_COLOR, format_compiled, format_comp
 from frida_tools.reactor import Reactor
 
 T = TypeVar("T")
+
+try:
+    JS_LANGUAGE = Language(os.path.join(os.path.dirname(__file__), "treesitter.so"), "javascript")
+    ERROR_QUERY = JS_LANGUAGE.query("(_ (ERROR) @error)")
+except Exception:
+    JS_LANGUAGE = None
+    ERROR_QUERY = None
 
 
 class REPLApplication(ConsoleApplication):
@@ -54,6 +63,12 @@ class REPLApplication(ConsoleApplication):
 
         super().__init__(self._process_input, self._on_stop)
 
+        try:
+            self._parser = Parser()
+            self._parser.set_language(JS_LANGUAGE)
+        except Exception:
+            self._parser = None
+
         if self._have_terminal and not self._plain_terminal:
             style = PromptToolkitStyle(
                 [
@@ -70,6 +85,7 @@ class REPLApplication(ConsoleApplication):
                 complete_in_thread=True,
                 enable_open_in_editor=True,
                 tempfile_suffix=".js",
+                multiline=self._input_complete(),
             )
             self._dumb_stdin_reader = None
         else:
@@ -355,6 +371,27 @@ class REPLApplication(ConsoleApplication):
         monitor.on("change", self._on_change)
         monitor.enable()
         self._monitored_files[path] = monitor
+
+    def _input_complete(self) -> Filter:
+        """
+        check if the current input is a valid javascript code
+        """
+
+        @Condition
+        def inner() -> bool:
+            assert self._cli is not None
+            if self._parser is None or ERROR_QUERY is None:
+                return False
+
+            tree = self._parser.parse(self._cli.default_buffer.document.text.encode())
+            query_results = ERROR_QUERY.captures(tree.root_node)
+            # It would have been nice to be able to query a MISSING node properly but as of when this code was written
+            # it was just not possible. There is an open issue for it in tree-sitter/tree-sitter#606 so maybe one day we
+            # could fix it. I hope it doesn't break some code that contain the work MISSING or something but I checked it
+            # a bit and it seems to be fine.
+            return len(query_results) or "MISSING" in tree.root_node.sexp()
+
+        return inner
 
     def _process_input(self, reactor: Reactor) -> None:
         if not self._quiet:
