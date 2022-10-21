@@ -1,0 +1,118 @@
+name: package
+on: [push, pull_request]
+
+jobs:
+  windows-wheels:
+    strategy:
+      matrix:
+        arch: [x86, x64]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          architecture: ${{ matrix.arch }}
+      - run: make
+      - run: python3 -m pip install wheel
+      - run: python3 -m pip install tree_sitter
+      - run: python3 setup.py bdist_wheel
+      - uses: actions/upload-artifact@v3
+        with:
+          name: frida-tools-windows
+          path: dist/frida_tools-*.whl
+      - name: Publish package
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+  macos-wheels:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - run: make
+      - run: python3 -m pip install wheel
+      - run: python3 -m pip install tree_sitter
+      - run: python3 setup.py bdist_wheel
+      - uses: actions/upload-artifact@v3
+        with:
+          name: frida-tools-macos
+          path: dist/frida_tools-*.whl
+      - name: Publish package
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+  linux-wheels:
+    strategy:
+      matrix:
+        arch: [x86, x86_64, armhf, arm64, mips]
+    runs-on: ubuntu-latest
+    container: ghcr.io/frida/x-tools-linux-${{ matrix.arch }}:latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - run: make
+      - run: |
+          case ${{ matrix.arch }} in
+            x86)
+              py_arch=i686
+              ;;
+            armhf)
+              py_arch=armv7l
+              ;;
+            arm64)
+              py_arch=aarch64
+              ;;
+            *)
+              py_arch=${{ matrix.arch }}
+              ;;
+          esac
+          export _PYTHON_HOST_PLATFORM=linux-$py_arch
+          export CPPFLAGS="-I/opt/x-tools/$XTOOLS_HOST/$XTOOLS_HOST/sysroot/usr/include/python3.10"
+          # TODO: set LIBDIR properly
+          sed -i "s/\/usr\/lib\/x86_64-linux-gnu/\/opt\/x-tools\/$XTOOLS_HOST\/$XTOOLS_HOST\/sysroot\/usr\/lib/" /usr/lib/python3.10/_sysconfigdata__x86_64-linux-gnu.py
+          sed -i "s/\/usr\/lib\/x86_64-linux-gnu/\/opt\/x-tools\/$XTOOLS_HOST\/$XTOOLS_HOST\/sysroot\/usr\/lib/" /usr/lib/python3.10/_sysconfigdata__linux_x86_64-linux-gnu.py
+          python3 -m pip install --verbose tree_sitter
+          case ${{ matrix.arch }} in
+            x86*)
+              py_platform=manylinux_2_5_${py_arch}.manylinux1_${py_arch}
+              ;;
+            arm*|ppc*|s390x)
+              py_platform=manylinux_2_17_${py_arch}.manylinux2014_${py_arch}
+              ;;
+            *)
+              py_platform=manylinux_2_5_${py_arch}
+              ;;
+          esac
+          bdist_wheel_py=/usr/lib/python3/dist-packages/wheel/bdist_wheel.py
+          sed "s/plat_name = plat_name\\.lower()\\.replace('-', '_')\\.replace('.', '_')/plat_name = plat_name.lower().replace('-', '_')/" \
+              $bdist_wheel_py > $bdist_wheel_py.patched
+          if cmp -s $bdist_wheel_py $bdist_wheel_py.patched; then
+            rm -f $bdist_wheel_py.patched
+            echo 'Unable to patch bdist_wheel.py' > /dev/stderr
+            exit 1
+          else
+            mv $bdist_wheel_py.patched $bdist_wheel_py
+          fi
+          echo "plat_name = $py_platform" >> setup.cfg
+          pip wheel --verbose -w ./dist --no-deps .
+      - uses: actions/upload-artifact@v3
+        with:
+          name: frida-tools-linux-${{ matrix.arch }}
+          path: dist/frida_tools-*.whl
+      - name: Publish package
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}

@@ -3,6 +3,7 @@ import codecs
 import hashlib
 import json
 import os
+import pathlib
 import platform
 import re
 import shlex
@@ -38,7 +39,7 @@ from frida_tools.reactor import Reactor
 T = TypeVar("T")
 
 try:
-    JS_LANGUAGE = Language(os.path.join(os.path.dirname(__file__), "treesitter.so"), "javascript")
+    JS_LANGUAGE = Language(str(pathlib.Path(__file__).parent / "treesitter.so"), "javascript")
     ERROR_QUERY = JS_LANGUAGE.query("(_ (ERROR) @error)")
 except Exception:
     JS_LANGUAGE = None
