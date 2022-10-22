@@ -34,6 +34,7 @@ function add_target_arguments
 	complete --command "$argv[1]" --no-files --require-parameter --short-option=f --long-option=file --description="Spawn FILE"
 	complete --command "$argv[1]" --no-files --short-option=F --long-option=attach-frontmost --description="attach to frontmost application"
 	complete --command "$argv[1]" --no-files --require-parameter --short-option=n --long-option=attach-name --description="attach to NAME" --arguments="(get_frida_names)"
+	complete --command "$argv[1]" --no-files --require-parameter --short-option=N --long-option=attach-identifier --description="attach to IDENTIFIER"
 	complete --command "$argv[1]" --no-files --require-parameter --short-option=p --long-option=attach-pid --description="attach to PID" --arguments="(__fish_complete_pids)"
 	complete --command "$argv[1]" --no-files --require-parameter --short-option=W --long-option=await --description="await spawn matching PATTERN"
 	complete --command "$argv[1]" --no-files --require-parameter --long-option=stdio --description="stdio behavior when spawning" --arguments="inherit pipe"
@@ -57,11 +58,14 @@ complete --command frida --no-files --require-parameter --long-option=toolchain 
 complete --command frida --no-files --require-parameter --short-option=c --long-option=codeshare --description="load CODESHARE_URI"
 complete --command frida --no-files --require-parameter --short-option=e --long-option=eval --description="evaluate CODE"
 complete --command frida --no-files --short-option=q --description="quiet mode (no prompt) and quit after -l and -e"
-complete --command frida --no-files --long-option=no-pause --description="automatically start main thread after startup"
+complete --command frida --no-files --require-parameter --short-option=t --long-option=timeout --description="seconds to wait before terminating in quiet mode"
+complete --command frida --no-files --long-option=pause --description="leave main thread paused after spawning program"
 complete --command frida --force-files --require-parameter --short-option=o --long-option=output --description="output to log file"
 complete --command frida --no-files --long-option=eternalize --description="eternalize the script before exit"
 complete --command frida --no-files --long-option=exit-on-error --description="exit with code 1 after encountering any exception in the SCRIPT"
 complete --command frida --no-files --long-option=auto-perform --description="wrap entered code with Java.perform"
+complete --command frida --no-files --long-option=auto-reload --description="Enable auto reload of provided scripts and c module (on by default, will be required in the future)"
+complete --command frida --no-files --long-option=no-auto-reload --description="Disable auto reload of provided scripts and c module"
 
 
 ######## frida-ls-devices ########
@@ -122,11 +126,11 @@ complete --command frida-join --no-files --require-parameter --long-option=porta
 # TODO specify positional arguments better
 
 
-######## frida-apk ########
+######## frida-create ########
 add_base_arguments frida-create
 complete --command frida-create --no-files --short-option=n --long-option=project-name --description="project name"
 complete --command frida-create --force-files --short-option=o --long-option=output-directory --description="output directory"
-complete --command frida-create --no-files --arguments "agent cmodule"
+complete --command frida-create --no-files --require-parameter --short-option=t --description="template file" --arguments "agent cmodule"
 
 
 ######## frida-apk ########
