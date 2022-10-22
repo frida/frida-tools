@@ -136,3 +136,12 @@ complete --command frida-create --no-files --require-parameter --short-option=t 
 ######## frida-apk ########
 add_base_arguments frida-apk
 complete --command frida-apk --force-files --short-option=o --long-option=output --description="output path"
+
+
+######## frida-compile ########
+add_base_arguments frida-compile
+complete --command frida-compile --short-option=o --long-option=output --description="write output to <file>" --require-parameter
+complete --command frida-compile --short-option=w --long-option=watch --description="watch for changes and recompile"
+complete --command frida-compile --short-option=S --long-option=no-source-maps --description="omit source-maps"
+complete --command frida-compile --short-option=c --long-option=compress --description="compress using terser"
+complete --command frida-compile --short-option=v --long-option=verbose --description="be verbose"
