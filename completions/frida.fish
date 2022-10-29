@@ -1,13 +1,60 @@
-function get_process_names
-	ps axco command,pid | awk '{print $1","$2}' | sort -u -t, -k1,1 | awk -F ',' '{print $1"\t"$2}'
+function get_device_arguments
+	set tokens (commandline --tokenize --current-process)
+	set device_argument_flags "-D" "--device" "-H" "--host" "--certificate" "--origin" "--token" "--stun-server" "--relay"
+	set device_flags "-U" "--usb" "-R" "--remote" "--p2p"
+
+	for idx in (seq (count $tokens))
+		if contains -- "$tokens[$idx]" $device_argument_flags
+			echo "$tokens[$idx]"
+			if not contains "=" "$tokens[$idx]"
+				set next_idx (math $idx + 1)
+				echo "$tokens[$next_idx]"
+			end
+		else if contains -- "$tokens[$idx]" $device_flags
+			echo "$tokens[$idx]"
+		end
+	end
+end
+
+function get_device_processes
+	set tmpout (mktemp)
+	set relevant_flags (get_device_arguments)
+
+	frida-ps $relevant_flags 2>/dev/null > "$tmpout"
+	cat "$tmpout" | awk 'NR>2 {print $1"\t"$2}' | sort --numeric-sort
+	cat "$tmpout" | awk 'NR>2 {print $2"\t"$1}' | sort --numeric-sort --key=2,2
+	rm --force $tmpout
+end
+
+function get_device_pids
+	set tmpout (mktemp)
+	set relevant_flags (get_device_arguments)
+
+	frida-ps $relevant_flags 2>/dev/null >"$tmpout"
+	cat "$tmpout" | awk 'NR>2 {print $1"\t"$2}' | sort --numeric-sort
+	rm --force $tmpout
+end
+
+function get_device_processes_names
+	set tmpout (mktemp)
+	set relevant_flags (get_device_arguments)
+
+	frida-ps $relevant_flags 2>/dev/null > "$tmpout"
+	cat "$tmpout" | awk 'NR>2 {print $2"\t"$1}' | sort --numeric-sort --key=2,2
+	rm --force $tmpout
+end
+
+function get_device_identifiers
+	set tmpout (mktemp)
+	set relevant_flags (get_device_arguments)
+
+	frida-ps --applications $relevant_flags 2>/dev/null > "$tmpout"
+	cat "$tmpout" | awk 'NR>2 {print $3"\t"$1}' | sort --numeric-sort --key=2,2
+	rm --force $tmpout
 end
 
 function get_frida_devices
 	frida-ls-devices | tail -n +3 | awk '{print $1"\t"substr($0, index($0,$3))}'
-end
-
-function get_frida_names
-	frida-ls-devices | tail -n +3 | awk '{print substr($0, index($0,$3))"\t"$1}'
 end
 
 function add_base_arguments
@@ -33,9 +80,9 @@ end
 function add_target_arguments
 	complete --command "$argv[1]" --no-files --require-parameter --short-option=f --long-option=file --description="Spawn FILE"
 	complete --command "$argv[1]" --no-files --short-option=F --long-option=attach-frontmost --description="attach to frontmost application"
-	complete --command "$argv[1]" --no-files --require-parameter --short-option=n --long-option=attach-name --description="attach to NAME" --arguments="(get_frida_names)"
-	complete --command "$argv[1]" --no-files --require-parameter --short-option=N --long-option=attach-identifier --description="attach to IDENTIFIER"
-	complete --command "$argv[1]" --no-files --require-parameter --short-option=p --long-option=attach-pid --description="attach to PID" --arguments="(__fish_complete_pids)"
+	complete --command "$argv[1]" --no-files --require-parameter --short-option=n --long-option=attach-name --description="attach to NAME" --arguments="(get_device_processes_names)"
+	complete --command "$argv[1]" --no-files --require-parameter --short-option=N --long-option=attach-identifier --description="attach to IDENTIFIER" --arguments="(get_device_identifiers)"
+	complete --command "$argv[1]" --no-files --require-parameter --short-option=p --long-option=attach-pid --description="attach to PID" --arguments="(get_device_pids)"
 	complete --command "$argv[1]" --no-files --require-parameter --short-option=W --long-option=await --description="await spawn matching PATTERN"
 	complete --command "$argv[1]" --no-files --require-parameter --long-option=stdio --description="stdio behavior when spawning" --arguments="inherit pipe"
 	complete --command "$argv[1]" --no-files --require-parameter --long-option=aux --description="set aux option when spawning"
@@ -43,7 +90,7 @@ function add_target_arguments
 	complete --command "$argv[1]" --no-files --require-parameter --long-option=runtime --description="script runtime to use" --arguments="qjs v8"
 	complete --command "$argv[1]" --no-files --long-option=debug --description="enable the Node.js compatible script debugger"
 	complete --command "$argv[1]" --no-files --long-option=squelch-crash --description="if enabled, will not dump crash report to console"
-	complete --command "$argv[1]" --force-files --arguments "(__fish_complete_pids) (get_process_names)"
+	complete --command "$argv[1]" --force-files --arguments "(get_device_processes)"
 end
 
 
@@ -83,7 +130,7 @@ complete --command frida-ps --no-files --short-option=j --long-option=json --des
 ######## frida-kill ########
 add_base_arguments frida-kill
 add_device_arguments frida-kill
-complete --command frida-kill --force-files --arguments "(__fish_complete_pids) (get_process_names)"
+complete --command frida-kill --no-files --arguments "(get_device_processes)"
 
 
 ######## frida-discover ########
