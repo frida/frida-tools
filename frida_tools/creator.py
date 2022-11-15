@@ -146,7 +146,7 @@ Tip: Use an editor like Visual Studio Code for code completion, inline docs,
 
             return (assets, message)
 
-        def _generate_cmodule(self) -> tuple[dict[str, str], str]:
+        def _generate_cmodule(self) -> Tuple[Dict[str, str], str]:
             assets = {}
 
             assets[
