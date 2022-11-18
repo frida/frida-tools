@@ -36,6 +36,7 @@ class CompilerApplication(ConsoleApplication):
         self._mode = "watch" if options.watch else "build"
         self._verbose = self._mode == "watch" or options.verbose
         self._compiler_options = {
+            "project_root": os.getcwd(),
             "source_maps": "omitted" if options.no_source_maps else "included",
             "compression": "terser" if options.compress else "none",
         }
