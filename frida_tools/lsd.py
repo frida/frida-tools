@@ -28,7 +28,7 @@ def main() -> None:
                     device_name[device.id] = params.get("name", device.name)
                     os = params["os"]
                     version = os.get("version")
-                    if version != None:
+                    if version is not None:
                         device_os[device.id] = os["name"] + " " + version
                     else:
                         device_os[device.id] = os["name"]
