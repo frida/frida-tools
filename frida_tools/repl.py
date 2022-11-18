@@ -1011,6 +1011,7 @@ URL: {url}
 class CompilerContext:
     def __init__(self, user_script, autoreload, on_bundle_updated) -> None:
         self._user_script = user_script
+        self._project_root = os.getcwd()
         self._autoreload = autoreload
         self._on_bundle_updated = on_bundle_updated
 
@@ -1021,7 +1022,7 @@ class CompilerContext:
         compiler = self.compiler
 
         if not self._autoreload:
-            return compiler.build(self._user_script)
+            return compiler.build(self._user_script, project_root=self._project_root)
 
         if self._bundle is None:
             ready = threading.Event()
@@ -1035,7 +1036,7 @@ class CompilerContext:
                     self._on_bundle_updated()
 
             compiler.on("output", on_compiler_output)
-            compiler.watch(self._user_script)
+            compiler.watch(self._user_script, project_root=self._project_root)
             ready.wait()
 
         return self._bundle
