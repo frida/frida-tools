@@ -25,15 +25,15 @@ def main() -> None:
                 device_name[device.id] = device.name
                 try:
                     params = device.query_system_parameters()
-                    device_name[device.id] = params.get("name", device.name)
-                    os = params["os"]
-                    version = os.get("version")
-                    if version is not None:
-                        device_os[device.id] = os["name"] + " " + version
-                    else:
-                        device_os[device.id] = os["name"]
-                except frida.ServerNotRunningError:
-                    pass
+                except:
+                    continue
+                device_name[device.id] = params.get("name", device.name)
+                os = params["os"]
+                version = os.get("version")
+                if version is not None:
+                    device_os[device.id] = os["name"] + " " + version
+                else:
+                    device_os[device.id] = os["name"]
             id_column_width = max(map(lambda device: len(device.id) if device.id is not None else 0, devices))
             type_column_width = max(map(lambda device: len(device.type) if device.type is not None else 0, devices))
             name_column_width = max(map(lambda name: len(name) if name is not None else 0, device_name.values()))
