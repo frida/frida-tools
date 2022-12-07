@@ -53,6 +53,18 @@ def input_with_cancellable(cancellable: frida.Cancellable) -> str:
             time.sleep(0.05)
 
         return result
+    elif platform.system() in ["Darwin", "FreeBSD"]:
+        while True:
+            try:
+                rlist, _, _ = select.select([sys.stdin], [], [], 0.05)
+            except OSError as e:
+                if e.args[0] != errno.EINTR:
+                    raise e
+
+            cancellable.raise_if_cancelled()
+
+            if sys.stdin in rlist:
+                return sys.stdin.readline()
     else:
         with cancellable.get_pollfd() as cancellable_fd:
             try:
