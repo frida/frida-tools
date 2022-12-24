@@ -26,7 +26,7 @@ setup(
         "pygments >= 2.0.2, < 3.0.0",
     ],
     license="wxWindows Library Licence, Version 3.1",
-    zip_safe=True,
+    zip_safe=False,
     keywords="frida debugger dynamic instrumentation inject javascript windows macos linux ios iphone ipad android qnx",
     classifiers=[
         "Development Status :: 5 - Production/Stable",
