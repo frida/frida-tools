@@ -134,6 +134,13 @@ class REPLApplication(ConsoleApplication):
             default=False,
         )
         parser.add_argument(
+            "--kill-on-exit",
+            help="kill the spawned program when Frida exits",
+            action="store_true",
+            dest="kill_on_exit",
+            default=False,
+        )
+        parser.add_argument(
             "--auto-perform",
             help="wrap entered code with Java.perform",
             action="store_true",
@@ -190,6 +197,7 @@ class REPLApplication(ConsoleApplication):
         self._on_spawn_complete = options.on_spawn_complete
         self._eternalize = options.eternalize
         self._exit_on_error = options.exit_on_error
+        self._kill_on_exit = options.kill_on_exit
         self._autoperform_option = options.autoperform
         self._autoreload = options.autoreload
 
@@ -261,6 +269,9 @@ class REPLApplication(ConsoleApplication):
 
         if self._logfile is not None:
             self._logfile.close()
+
+        if self._kill_on_exit and self._spawned_pid is not None:
+            self._device.kill(self._spawned_pid)
 
         if not self._quiet:
             self._print("\nThank you for using Frida!")
