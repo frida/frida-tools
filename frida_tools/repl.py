@@ -135,7 +135,7 @@ class REPLApplication(ConsoleApplication):
         )
         parser.add_argument(
             "--kill-on-exit",
-            help="kills the spawned program when Frida exists",
+            help="kill the spawned program when Frida exits",
             action="store_true",
             dest="kill_on_exit",
             default=False,
