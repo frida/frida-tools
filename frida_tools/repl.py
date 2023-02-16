@@ -301,11 +301,11 @@ class REPLApplication(ConsoleApplication):
             if isinstance(cmodule_code, bytes):
                 script.post({"type": "frida:cmodule-payload"}, data=cmodule_code)
                 cmodule_code = None
-            script.exports.frida_load_cmodule(cmodule_code, self._toolchain)
+            script.exports_sync.frida_load_cmodule(cmodule_code, self._toolchain)
 
         stage = "early" if self._target[0] == "file" and is_first_load else "late"
         try:
-            script.exports.init(stage, self._user_parameters)
+            script.exports_sync.init(stage, self._user_parameters)
         except:
             pass
 
@@ -621,7 +621,7 @@ class REPLApplication(ConsoleApplication):
         )
         script.load()
         try:
-            return script.exports.java_available()
+            return script.exports_sync.java_available()
         except:
             return False
 
@@ -655,12 +655,12 @@ class REPLApplication(ConsoleApplication):
 
     def _evaluate_expression(self, expression: str) -> Tuple[str, bytes]:
         assert self._script is not None
-        result = self._script.exports.frida_evaluate_expression(expression)
+        result = self._script.exports_sync.frida_evaluate_expression(expression)
         return self._parse_evaluate_result(result)
 
     def _evaluate_quick_command(self, tokens: List[str]) -> Tuple[str, bytes]:
         assert self._script is not None
-        result = self._script.exports.frida_evaluate_quick_command(tokens)
+        result = self._script.exports_sync.frida_evaluate_quick_command(tokens)
         return self._parse_evaluate_result(result)
 
     def _parse_evaluate_result(self, result: Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]) -> Tuple[str, bytes]:

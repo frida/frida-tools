@@ -351,7 +351,7 @@ class Tracer:
         ui.on_script_created(script)
         script.load()
 
-        self._agent = script.exports
+        self._agent = script.exports_sync
 
         raw_init_scripts = [{"filename": script.filename, "source": script.source} for script in self._init_scripts]
         self._agent.init(stage, parameters, raw_init_scripts, self._profile.spec)

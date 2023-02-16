@@ -93,7 +93,7 @@ class PullApplication(ConsoleApplication):
         error = None
         try:
             assert self._script is not None
-            self._script.exports.pull(self._remote_paths)
+            self._script.exports_sync.pull(self._remote_paths)
         except Exception as e:
             error = e
 

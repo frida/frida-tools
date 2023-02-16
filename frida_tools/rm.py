@@ -53,7 +53,7 @@ class RmApplication(ConsoleApplication):
             self._on_script_created(script)
             script.load()
 
-            errors = script.exports.rm(self._paths, self._flags)
+            errors = script.exports_sync.rm(self._paths, self._flags)
 
             for message in errors:
                 self._print(Fore.RED + Style.BRIGHT + message + Style.RESET_ALL, file=sys.stderr)

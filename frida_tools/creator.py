@@ -225,7 +225,7 @@ frida_log (const char * format,
             script = session.create_script("rpc.exports.getBuiltins = () => CModule.builtins;")
             self._on_script_created(script)
             script.load()
-            builtins = script.exports.get_builtins()
+            builtins = script.exports_sync.get_builtins()
             script.unload()
             session.detach()
 

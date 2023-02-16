@@ -45,13 +45,13 @@ class Discoverer:
         # self._on_script_created(script)
         self._script.load()
 
-        params = self._script.exports.start()
+        params = self._script.exports_sync.start()
         ui.on_sample_start(params["total"])
 
         self._ui = ui
 
     def stop(self) -> None:
-        result = self._script.exports.stop()
+        result = self._script.exports_sync.stop()
 
         modules = {
             int(module_id): Module(m["name"], int(m["base"], 16), m["size"], m["path"])
