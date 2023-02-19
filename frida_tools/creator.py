@@ -97,7 +97,8 @@ class CreatorApplication(ConsoleApplication):
     "allowJs": true,
     "noEmit": true,
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "moduleResolution": "node16"
   }
 }
 """
@@ -105,7 +106,7 @@ class CreatorApplication(ConsoleApplication):
         assets[
             "agent/index.ts"
         ] = """\
-import { log } from "./logger";
+import { log } from "./logger.js";
 
 const header = Memory.alloc(16);
 header
