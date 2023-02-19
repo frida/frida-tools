@@ -68,8 +68,8 @@ class CreatorApplication(ConsoleApplication):
 
         assets[
             "package.json"
-        ] = """{{
-  "name": "{project_name}-agent",
+        ] = f"""{{
+  "name": "{self._project_name}-agent",
   "version": "1.0.0",
   "description": "Frida agent written in TypeScript",
   "private": true,
@@ -85,9 +85,7 @@ class CreatorApplication(ConsoleApplication):
     "frida-compile": "^10.0.0"
   }}
 }}
-""".format(
-            project_name=self._project_name
-        )
+"""
 
         assets[
             "tsconfig.json"
@@ -158,18 +156,16 @@ Tip: Use an editor like Visual Studio Code for code completion, inline docs,
 
         assets[
             "meson.build"
-        ] = """\
-project('{project_name}', 'c',
+        ] = f"""\
+project('{self._project_name}', 'c',
   default_options: 'buildtype=release',
 )
 
-shared_module('{project_name}', '{project_name}.c',
+shared_module('{self._project_name}', '{self._project_name}.c',
   name_prefix: '',
   include_directories: include_directories('include'),
 )
-""".format(
-            project_name=self._project_name
-        )
+"""
 
         assets[
             self._project_name + ".c"
@@ -251,14 +247,12 @@ frida_log (const char * format,
 
         cmodule_path = os.path.join(self._outdir, "build", self._project_name + "." + module_extension)
 
-        message = """\
+        message = f"""\
 Run `meson build && ninja -C build` to build, then:
 - Inject CModule using the REPL: frida Calculator -C {cmodule_path}
 - Edit *.c, and build incrementally through `ninja -C build`
 - REPL will live-reload whenever {cmodule_path} changes on disk
-""".format(
-            cmodule_path=cmodule_path
-        )
+"""
 
         return (assets, message)
 
