@@ -1,71 +1,74 @@
 import argparse
+import codecs
+import os
+import platform
 from typing import Dict, List, Tuple
+
+import frida
+
+from frida_tools.application import ConsoleApplication
 
 
 def main() -> None:
-    import codecs
-    import os
-    import platform
+    app = CreatorApplication()
+    app.run()
 
-    import frida
 
-    from frida_tools.application import ConsoleApplication
+class CreatorApplication(ConsoleApplication):
+    def _usage(self) -> str:
+        return "%(prog)s [options] -t agent|cmodule"
 
-    class CreatorApplication(ConsoleApplication):
-        def _usage(self) -> str:
-            return "%(prog)s [options] -t agent|cmodule"
+    def _add_options(self, parser: argparse.ArgumentParser) -> None:
+        default_project_name = os.path.basename(os.getcwd())
+        parser.add_argument(
+            "-n", "--project-name", help="project name", dest="project_name", default=default_project_name
+        )
+        parser.add_argument("-o", "--output-directory", help="output directory", dest="outdir", default=".")
+        parser.add_argument("-t", "--template", help="template file: cmodule|agent", dest="template", default=None)
 
-        def _add_options(self, parser: argparse.ArgumentParser) -> None:
-            default_project_name = os.path.basename(os.getcwd())
-            parser.add_argument(
-                "-n", "--project-name", help="project name", dest="project_name", default=default_project_name
-            )
-            parser.add_argument("-o", "--output-directory", help="output directory", dest="outdir", default=".")
-            parser.add_argument("-t", "--template", help="template file: cmodule|agent", dest="template", default=None)
+    def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
+        parsed_args = parser.parse_args()
+        if not parsed_args.template:
+            parser.error("template must be specified")
+        impl = getattr(self, "_generate_" + parsed_args.template, None)
+        if impl is None:
+            parser.error("unknown template type")
+        self._generate = impl
 
-        def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
-            parsed_args = parser.parse_args()
-            if not parsed_args.template:
-                parser.error("template must be specified")
-            impl = getattr(self, "_generate_" + parsed_args.template, None)
-            if impl is None:
-                parser.error("unknown template type")
-            self._generate = impl
+        self._project_name = options.project_name
+        self._outdir = options.outdir
 
-            self._project_name = options.project_name
-            self._outdir = options.outdir
+    def _needs_device(self) -> bool:
+        return False
 
-        def _needs_device(self) -> bool:
-            return False
+    def _start(self) -> None:
+        (assets, message) = self._generate()
 
-        def _start(self) -> None:
-            (assets, message) = self._generate()
+        outdir = self._outdir
+        for name, data in assets.items():
+            asset_path = os.path.join(outdir, name)
 
-            outdir = self._outdir
-            for name, data in assets.items():
-                asset_path = os.path.join(outdir, name)
+            asset_dir = os.path.dirname(asset_path)
+            try:
+                os.makedirs(asset_dir)
+            except:
+                pass
 
-                asset_dir = os.path.dirname(asset_path)
-                try:
-                    os.makedirs(asset_dir)
-                except:
-                    pass
+            with codecs.open(asset_path, "wb", "utf-8") as f:
+                f.write(data)
 
-                with codecs.open(asset_path, "wb", "utf-8") as f:
-                    f.write(data)
+            self._print("Created", asset_path)
 
-                self._print("Created", asset_path)
+        self._print("\n" + message)
 
-            self._print("\n" + message)
+        self._exit(0)
 
-            self._exit(0)
+    def _generate_agent(self) -> Tuple[Dict[str, str], str]:
+        assets = {}
 
-        def _generate_agent(self) -> Tuple[Dict[str, str], str]:
-            assets = {}
-
-            assets[
-                "package.json"
-            ] = """{{
+        assets[
+            "package.json"
+        ] = """{{
   "name": "{project_name}-agent",
   "version": "1.0.0",
   "description": "Frida agent written in TypeScript",
@@ -83,12 +86,13 @@ def main() -> None:
   }}
 }}
 """.format(
-                project_name=self._project_name
-            )
+            project_name=self._project_name
+        )
 
-            assets[
-                "tsconfig.json"
-            ] = """{
+        assets[
+            "tsconfig.json"
+        ] = """\
+{
   "compilerOptions": {
     "target": "es2020",
     "lib": ["es2020"],
@@ -100,9 +104,10 @@ def main() -> None:
 }
 """
 
-            assets[
-                "agent/index.ts"
-            ] = """import { log } from "./logger";
+        assets[
+            "agent/index.ts"
+        ] = """\
+import { log } from "./logger";
 
 const header = Memory.alloc(16);
 header
@@ -126,32 +131,35 @@ Interceptor.attach(Module.getExportByName(null, "open"), {
 });
 """
 
-            assets[
-                "agent/logger.ts"
-            ] = """export function log(message: string): void {
+        assets[
+            "agent/logger.ts"
+        ] = """\
+export function log(message: string): void {
     console.log(message);
 }
 """
 
-            assets[".gitignore"] = "/node_modules/\n"
+        assets[".gitignore"] = "/node_modules/\n"
 
-            message = """Run `npm install` to bootstrap, then:
+        message = """\
+Run `npm install` to bootstrap, then:
 - Keep one terminal running: npm run watch
 - Inject agent using the REPL: frida Calculator -l _agent.js
-- Edit agent/*.ts – REPL will live-reload on save
+- Edit agent/*.ts - REPL will live-reload on save
 
 Tip: Use an editor like Visual Studio Code for code completion, inline docs,
      instant type-checking feedback, refactoring tools, etc.
 """
 
-            return (assets, message)
+        return (assets, message)
 
-        def _generate_cmodule(self) -> Tuple[Dict[str, str], str]:
-            assets = {}
+    def _generate_cmodule(self) -> Tuple[Dict[str, str], str]:
+        assets = {}
 
-            assets[
-                "meson.build"
-            ] = """project('{project_name}', 'c',
+        assets[
+            "meson.build"
+        ] = """\
+project('{project_name}', 'c',
   default_options: 'buildtype=release',
 )
 
@@ -160,12 +168,13 @@ shared_module('{project_name}', '{project_name}.c',
   include_directories: include_directories('include'),
 )
 """.format(
-                project_name=self._project_name
-            )
+            project_name=self._project_name
+        )
 
-            assets[
-                self._project_name + ".c"
-            ] = """#include <gum/guminterceptor.h>
+        assets[
+            self._project_name + ".c"
+        ] = """\
+#include <gum/guminterceptor.h>
 
 static void frida_log (const char * format, ...);
 extern void _frida_log (const gchar * message);
@@ -219,41 +228,39 @@ frida_log (const char * format,
 }
 """
 
-            assets[".gitignore"] = "/build/\n"
+        assets[".gitignore"] = "/build/\n"
 
-            session = frida.attach(0)
-            script = session.create_script("rpc.exports.getBuiltins = () => CModule.builtins;")
-            self._on_script_created(script)
-            script.load()
-            builtins = script.exports_sync.get_builtins()
-            script.unload()
-            session.detach()
+        session = frida.attach(0)
+        script = session.create_script("rpc.exports.getBuiltins = () => CModule.builtins;")
+        self._on_script_created(script)
+        script.load()
+        builtins = script.exports_sync.get_builtins()
+        script.unload()
+        session.detach()
 
-            for name, data in builtins["headers"].items():
-                assets["include/" + name] = data
+        for name, data in builtins["headers"].items():
+            assets["include/" + name] = data
 
-            system = platform.system()
-            if system == "Windows":
-                module_extension = "dll"
-            elif system == "Darwin":
-                module_extension = "dylib"
-            else:
-                module_extension = "so"
+        system = platform.system()
+        if system == "Windows":
+            module_extension = "dll"
+        elif system == "Darwin":
+            module_extension = "dylib"
+        else:
+            module_extension = "so"
 
-            cmodule_path = os.path.join(self._outdir, "build", self._project_name + "." + module_extension)
+        cmodule_path = os.path.join(self._outdir, "build", self._project_name + "." + module_extension)
 
-            message = """Run `meson build && ninja -C build` to build, then:
+        message = """\
+Run `meson build && ninja -C build` to build, then:
 - Inject CModule using the REPL: frida Calculator -C {cmodule_path}
 - Edit *.c, and build incrementally through `ninja -C build`
 - REPL will live-reload whenever {cmodule_path} changes on disk
 """.format(
-                cmodule_path=cmodule_path
-            )
+            cmodule_path=cmodule_path
+        )
 
-            return (assets, message)
-
-    app = CreatorApplication()
-    app.run()
+        return (assets, message)
 
 
 if __name__ == "__main__":
