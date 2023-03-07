@@ -636,7 +636,7 @@ function receiveResponse<T>(type: string): Promise<T> {
 }
 
 function moduleFunctionTargetFromMatch(m: ApiResolverMatch): NativeTarget {
-    const [modulePath, functionName] = m.name.split("!", 2);
+    const [modulePath, functionName] = m.name.split("!").slice(-2);
     return ["c", modulePath, functionName];
 }
 
