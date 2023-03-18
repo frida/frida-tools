@@ -486,8 +486,9 @@ class REPLApplication(ConsoleApplication):
 
             stack = error.get("stack", None)
             if stack is not None:
+                message_len = len(error["message"].split("\n"))
                 trim_amount = 5 if self._runtime == "v8" else 6
-                trimmed_stack = stack.split("\n")[1:-trim_amount]
+                trimmed_stack = stack.split("\n")[message_len:-trim_amount]
                 if len(trimmed_stack) > 0:
                     output += "\n" + "\n".join(trimmed_stack)
         except frida.InvalidOperationError:
