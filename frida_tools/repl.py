@@ -271,6 +271,8 @@ class REPLApplication(ConsoleApplication):
             self._logfile.close()
 
         if self._kill_on_exit and self._spawned_pid is not None:
+            if self._session is not None:
+                self._session.detach ()
             self._device.kill(self._spawned_pid)
 
         if not self._quiet:
