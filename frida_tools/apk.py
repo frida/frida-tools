@@ -300,10 +300,9 @@ class StringPool:
 
         if self.utf8:
             assert len(add.encode("utf-8")) < 128  # multi-byte len strings not supported yet
-            # the length of the string in characters
-            chunk_data.extend(struct.pack("<B", len(add)))
-            # the length of the UTF-8 encoding of the string in bytes
-            chunk_data.extend(struct.pack("<B", len(add.encode("utf-8"))))
+            length_in_characters = len(add)
+            length_in_bytes = len(add.encode("utf-8"))
+            chunk_data.extend(struct.pack("<BB", length_in_characters, length_in_bytes))
 
             chunk_data.extend(add.encode("utf-8"))
             # Insert a UTF-8 NUL
@@ -315,7 +314,9 @@ class StringPool:
             chunk_data.extend([0, 0])
 
         # pad to a multiple of 4 bytes
-        chunk_data.extend([0] * (4 - len(chunk_data) % 4))
+        if len(chunk_data) % 4 != 0:
+            alignment_padding = [0] * (4 - len(chunk_data) % 4)
+            chunk_data.extend(alignment_padding)
 
         # Insert a new offset at the end of the existing offsets
         chunk_data[end : end + 4] = struct.pack("<I", offset)
