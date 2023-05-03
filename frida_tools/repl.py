@@ -619,14 +619,18 @@ class REPLApplication(ConsoleApplication):
 
     def _is_java_available(self) -> bool:
         assert self._session is not None
-        script = self._session.create_script(
-            name="java_check", source="rpc.exports.javaAvailable = () => Java.available;", runtime=self._runtime
-        )
-        script.load()
+        script = None
         try:
+            script = self._session.create_script(
+                name="java_check", source="rpc.exports.javaAvailable = () => Java.available;", runtime=self._runtime
+            )
+            script.load()
             return script.exports_sync.java_available()
         except:
             return False
+        finally:
+            if script is not None:
+                script.unload()
 
     def _refresh_prompt(self) -> None:
         self._prompt_string = self._create_prompt()
