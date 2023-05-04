@@ -148,7 +148,7 @@ def main() -> None:
                         + "s"
                     )
                     self._print(header_format % ("PID", "Name", "Identifier"))
-                    self._print(f"{pid_column_width}  {name_column_width * '-'}  {identifier_column_width * '-'}")
+                    self._print(f"{pid_column_width * '-'}  {name_column_width * '-'}  {identifier_column_width * '-'}")
 
                     line_format = "%" + str(pid_column_width) + "s  %s  %-" + str(identifier_column_width) + "s"
                     name_format = "%-" + str(name_column_width - icon_width) + "s"
