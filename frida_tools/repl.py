@@ -845,19 +845,19 @@ try {
 }
 
 Object.defineProperty(rpc, 'exports', {
-get() {
-    return rpcExports;
-},
-set(value) {
-    for (const [k, v] of Object.entries(value)) {
-        rpcExports[k] = v;
+    get() {
+        return rpcExports;
+    },
+    set(value) {
+        for (const [k, v] of Object.entries(value)) {
+            rpcExports[k] = v;
+        }
     }
-}
 });
 
 function onLog(messagePtr) {
-const message = messagePtr.readUtf8String();
-console.log(message);
+    const message = messagePtr.readUtf8String();
+    console.log(message);
 }
 """
 
@@ -884,18 +884,18 @@ extern void _frida_log (const gchar * message);
 
 static void
 frida_log (const char * format,
-       ...)
+           ...)
 {
-gchar * message;
-va_list args;
+  gchar * message;
+  va_list args;
 
-va_start (args, format);
-message = g_strdup_vprintf (format, args);
-va_end (args);
+  va_start (args, format);
+  message = g_strdup_vprintf (format, args);
+  va_end (args);
 
-_frida_log (message);
+  _frida_log (message);
 
-g_free (message);
+  g_free (message);
 }
 """
         )
