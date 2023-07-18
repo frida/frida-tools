@@ -342,7 +342,6 @@ class Tracer:
         data_dir = os.path.dirname(__file__)
         with codecs.open(os.path.join(data_dir, "tracer_agent.js"), "r", "utf-8") as f:
             source = f.read()
-        runtime = "v8" if runtime == "v8" else "qjs"
         script = session.create_script(name="tracer", source=source, runtime=runtime)
 
         self._script = script
