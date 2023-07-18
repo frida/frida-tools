@@ -20,6 +20,9 @@ class UI:
     ) -> None:
         pass
 
+    def _on_script_created(self, script: frida.core.Script) -> None:
+        pass
+
 
 class Discoverer:
     def __init__(self, reactor: Reactor) -> None:
@@ -39,13 +42,13 @@ class Discoverer:
         def on_message(message, data) -> None:
             print(message, data)
 
-        self._script = session.create_script(name="discoverer", source=self._create_discover_script(), runtime=runtime)
-        self._script.on("message", on_message)
-        # TODO: find out why this line was here, as it was broken
-        # self._on_script_created(script)
-        self._script.load()
+        script = session.create_script(name="discoverer", source=self._create_discover_script(), runtime=runtime)
+        self._script = script
+        self._ui._on_script_created(script)
+        script.on("message", on_message)
+        script.load()
 
-        params = self._script.exports_sync.start()
+        params = script.exports_sync.start()
         ui.on_sample_start(params["total"])
 
         self._ui = ui
