@@ -42,6 +42,8 @@ class Discoverer:
         def on_message(message, data) -> None:
             print(message, data)
 
+        self._ui = ui
+
         script = session.create_script(name="discoverer", source=self._create_discover_script(), runtime=runtime)
         self._script = script
         self._ui._on_script_created(script)
@@ -50,8 +52,6 @@ class Discoverer:
 
         params = script.exports_sync.start()
         ui.on_sample_start(params["total"])
-
-        self._ui = ui
 
     def stop(self) -> None:
         result = self._script.exports_sync.stop()
