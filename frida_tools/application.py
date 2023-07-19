@@ -106,9 +106,9 @@ def create_target_parser(target_type: str) -> Callable[[str], TargetTypeTuple]:
     def parse_target(value: str) -> TargetTypeTuple:
         if target_type == "file":
             return (target_type, [value])
-        elif target_type == "gated":
+        if target_type == "gated":
             return (target_type, re.compile(value))
-        elif target_type == "pid":
+        if target_type == "pid":
             return (target_type, int(value))
         return (target_type, value)
 
