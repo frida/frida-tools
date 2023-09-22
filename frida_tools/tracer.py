@@ -67,6 +67,20 @@ def main() -> None:
                 type=pb.exclude_objc_method,
             )
             parser.add_argument(
+                "-y",
+                "--include-swift-func",
+                help="include SWIFT_FUNC",
+                metavar="SWIFT_FUNC",
+                type=pb.include_swift_func,
+            )
+            parser.add_argument(
+                "-Y",
+                "--exclude-swift-func",
+                help="exclude SWIFT_FUNC",
+                metavar="SWIFT_FUNC",
+                type=pb.exclude_swift_func,
+            )
+            parser.add_argument(
                 "-j",
                 "--include-java-method",
                 help="include JAVA_METHOD",
@@ -276,6 +290,16 @@ class TracerProfileBuilder:
     def exclude_objc_method(self, *function_name_globs: str) -> "TracerProfileBuilder":
         for f in function_name_globs:
             self._spec.append(("exclude", "objc-method", f))
+        return self
+
+    def include_swift_func(self, *function_name_globs: str) -> "TracerProfileBuilder":
+        for f in function_name_globs:
+            self._spec.append(("include", "swift-func", f))
+        return self
+
+    def exclude_swift_func(self, *function_name_globs: str) -> "TracerProfileBuilder":
+        for f in function_name_globs:
+            self._spec.append(("exclude", "swift-func", f))
         return self
 
     def include_java_method(self, *function_name_globs: str) -> "TracerProfileBuilder":
@@ -499,6 +523,12 @@ class Repository:
             log_str = "`" + re.sub(r":", objc_arg, target.display_name) + "`"
             if log_str.endswith("} ]`"):
                 log_str = log_str[:-3] + "]`"
+        elif target.flavor == "swift":
+            if decorate:
+                module_string = " [%s]" % os.path.basename(target.scope)
+            else:
+                module_string = ""
+            log_str = "'%(name)s()%(module_string)s'" % {"name": target.name, "module_string": module_string}
         else:
             for man_section in (2, 3):
                 args = []

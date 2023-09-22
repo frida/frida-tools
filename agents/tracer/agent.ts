@@ -10,6 +10,7 @@ class Agent {
 
     private cachedModuleResolver: ApiResolver | null = null;
     private cachedObjcResolver: ApiResolver | null = null;
+    private cachedSwiftResolver: ApiResolver | null = null;
 
     init(stage: Stage, parameters: TraceParameters, initScripts: InitScript[], spec: TraceSpec) {
         const g = global as any as TraceScriptGlobals;
@@ -88,6 +89,13 @@ class Agent {
                         this.excludeObjCMethod(pattern, plan);
                     }
                     break;
+                case "swift-func":
+                    if (operation === "include") {
+                        this.includeSwiftFunc(pattern, plan);
+                    } else {
+                        this.excludeSwiftFunc(pattern, plan);
+                    }
+                    break;
                 case "java-method":
                     javaEntries.push([operation, pattern]);
                     break;
@@ -146,9 +154,21 @@ class Agent {
     private async traceNativeTargets(targets: NativeTargets) {
         const cGroups = new Map<string, NativeItem[]>();
         const objcGroups = new Map<string, NativeItem[]>();
+        const swiftGroups = new Map<string, NativeItem[]>();
 
         for (const [id, [type, scope, name]] of targets.entries()) {
-            const entries = (type === "objc") ? objcGroups : cGroups;
+            let entries: Map<string, NativeItem[]>;
+            switch (type) {
+                case "c":
+                    entries = cGroups;
+                    break;
+                case "objc":
+                    entries = objcGroups;
+                    break;
+                case "swift":
+                    entries = swiftGroups;
+                    break;
+            }
 
             let group = entries.get(scope);
             if (group === undefined) {
@@ -161,11 +181,12 @@ class Agent {
 
         return await Promise.all([
             this.traceNativeEntries("c", cGroups),
-            this.traceNativeEntries("objc", objcGroups)
+            this.traceNativeEntries("objc", objcGroups),
+            this.traceNativeEntries("swift", swiftGroups),
         ]);
     }
 
-    private async traceNativeEntries(flavor: "c" | "objc", groups: NativeTargetScopes) {
+    private async traceNativeEntries(flavor: "c" | "objc" | "swift", groups: NativeTargetScopes) {
         if (groups.size === 0) {
             return;
         }
@@ -425,6 +446,20 @@ class Agent {
         }
     }
 
+    private includeSwiftFunc(pattern: string, plan: TracePlan) {
+        const { native } = plan;
+        for (const m of this.getSwiftResolver().enumerateMatches(`functions:${pattern}`)) {
+            native.set(m.address.toString(), swiftFuncTargetFromMatch(m));
+        }
+    }
+
+    private excludeSwiftFunc(pattern: string, plan: TracePlan) {
+        const { native } = plan;
+        for (const m of this.getSwiftResolver().enumerateMatches(`functions:${pattern}`)) {
+            native.delete(m.address.toString());
+        }
+    }
+
     private includeJavaMethod(pattern: string, plan: TracePlan) {
         const existingGroups = plan.java;
 
@@ -561,6 +596,19 @@ class Agent {
         }
         return resolver;
     }
+
+    private getSwiftResolver(): ApiResolver {
+        let resolver = this.cachedSwiftResolver;
+        if (resolver === null) {
+            try {
+                resolver = new ApiResolver("swift" as ApiResolverType); // FIXME: Update typings.
+            } catch (e: any) {
+                throw new Error("Swift runtime is not available");
+            }
+            this.cachedSwiftResolver = resolver;
+        }
+        return resolver;
+    }
 }
 
 async function getHandlers(request: HandlerRequest): Promise<HandlerResponse> {
@@ -644,6 +692,12 @@ function objcMethodTargetFromMatch(m: ApiResolverMatch): NativeTarget {
     const { name } = m;
     const [className, methodName] = name.substr(2, name.length - 3).split(" ", 2);
     return ["objc", className, [methodName, name]];
+}
+
+function swiftFuncTargetFromMatch(m: ApiResolverMatch): NativeTarget {
+    const { name } = m;
+    const [modulePath, methodName] = name.split("!", 2);
+    return ["swift", modulePath, methodName];
 }
 
 function debugSymbolTargetFromAddress(address: NativePointer): NativeTarget {
@@ -739,6 +793,7 @@ type TraceSpecScope =
     | "relative-function"
     | "imports"
     | "objc-method"
+    | "swift-func"
     | "java-method"
     | "debug-symbol"
     ;
@@ -749,12 +804,12 @@ interface TracePlan {
     java: JavaTargetGroup[];
 }
 
-type TargetType = "c" | "objc" | "java";
+type TargetType = "c" | "objc" | "swift" | "java";
 type ScopeName = string;
 type MemberName = string | [string, string]
 
 type NativeTargets = Map<NativeId, NativeTarget>;
-type NativeTarget = ["c" | "objc", ScopeName, MemberName];
+type NativeTarget = ["c" | "objc" | "swift", ScopeName, MemberName];
 type NativeTargetScopes = Map<ScopeName, NativeItem[]>;
 type NativeItem = [MemberName, NativePointer];
 type NativeId = string;
