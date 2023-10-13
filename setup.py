@@ -9,6 +9,8 @@ pkg_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "frida_tools")
 
 agents = glob.glob(os.path.join(pkg_dir, "*_agent.*"))
 assert len(agents) > 0, "Agents not compiled; run “npm install && npm run build” in agents/*/"
+os.system("python ./build_aux/build_treesitter.py")
+package_data = agents + ["treesitter.so"]
 
 setup(
     name="frida-tools",
@@ -24,6 +26,7 @@ setup(
         "frida >= 16.0.9, < 17.0.0",
         "prompt-toolkit >= 2.0.0, < 4.0.0",
         "pygments >= 2.0.2, < 3.0.0",
+        "tree_sitter==0.20.1",
     ],
     license="wxWindows Library Licence, Version 3.1",
     zip_safe=False,
@@ -51,7 +54,7 @@ setup(
     ],
     packages=["frida_tools"],
     package_data={
-        "frida_tools": agents,
+        "frida_tools": package_data,
     },
     entry_points={
         "console_scripts": [
