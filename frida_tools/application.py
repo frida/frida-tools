@@ -147,7 +147,10 @@ class ConsoleApplication:
         if hasattr(signal, "SIGPIPE"):
             signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
-        colorama.init(strip=True if plain_terminal else None)
+        # If true, emit text without colors.  https://no-color.org/
+        no_color = plain_terminal or bool(os.environ.get("NO_COLOR"))
+
+        colorama.init(strip=True if no_color else None)
 
         parser = self._initialize_arguments_parser()
         real_args = compute_real_args(parser, args=args)
