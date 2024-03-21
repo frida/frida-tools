@@ -1,5 +1,8 @@
 #!@PYTHON@
 
+import sys
+sys.path.insert(1, '@pythondir@')
+
 import frida_tools.@module@
 
 if __name__ == '__main__':
