@@ -5,3 +5,8 @@
 /deps/
 /dist/
 /frida_tools/*_agent.js
+/subprojects/frida-core.wrap
+/subprojects/frida-core/
+/subprojects/frida-gum.wrap
+/subprojects/frida-gum/
+/subprojects/frida-python/

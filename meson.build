@@ -1,5 +1,7 @@
 project('frida-tools', 'c', version: '1.0.0')
 
+subproject('frida-python')
+
 python = import('python').find_installation()
 
 subdir('agents')
