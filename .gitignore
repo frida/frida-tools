@@ -2,5 +2,6 @@
 /*.egg-info/
 /agents/*/node_modules/
 /build/
+/deps/
 /dist/
 /frida_tools/*_agent.js
