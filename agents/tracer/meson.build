@@ -17,5 +17,5 @@ custom_target('tracer-agent.js',
     '@PRIVATE_DIR@',
   ],
   install: true,
-  install_dir: pkgdir,
+  install_dir: python.get_install_dir() / 'frida_tools',
 )

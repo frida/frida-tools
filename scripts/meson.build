@@ -17,8 +17,7 @@ scripts = [
 ]
 
 common_cdata = configuration_data()
-common_cdata.set('PYTHON', python)
-common_cdata.set('pythondir', python_site_packages)
+common_cdata.set('PYTHON', python.path())
 
 foreach s : scripts
   cdata = configuration_data()

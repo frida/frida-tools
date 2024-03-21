@@ -21,4 +21,4 @@ sources = [
   'tracer.py',
 ]
 
-install_data(sources, install_dir: pkgdir)
+python.install_sources(sources, subdir: 'frida_tools')
