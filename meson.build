@@ -1,4 +1,6 @@
-project('frida-tools', 'c', version: '1.0.0')
+project('frida-tools', 'c',
+  version: '0.0.0',
+)
 
 subproject('frida-python')
 
