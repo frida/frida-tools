@@ -1,4 +1,4 @@
-build_agent = find_program('build.py')
+build_agent = [python, files('build.py')]
 
 subdir('fs')
 subdir('tracer')
