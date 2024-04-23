@@ -1,14 +1,20 @@
 # -*- coding: utf-8 -*-
 
 import glob
-import os
+from pathlib import Path
 
 from setuptools import setup
 
-pkg_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "frida_tools"))
 
-agents = glob.glob(os.path.join(pkg_dir, "*_agent.*"))
-assert len(agents) > 0, "Agents not compiled; run “npm install && npm run build” in agents/*/"
+PACKAGE_DIR = Path(__file__).resolve().parent
+
+
+agents = []
+agents_builddir = PACKAGE_DIR / "build" / "agents"
+if agents_builddir.exists():
+    for child in agents_builddir.iterdir():
+        if child.is_dir():
+            agents += [str(f) for f in child.glob("*_agent.js")]
 
 setup(
     name="frida-tools",
