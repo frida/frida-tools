@@ -1,5 +1,7 @@
 project('frida-tools', 'c',
-  version: '0.0.0',
+  version: run_command(find_program('python3'), files('setup.py'), '-V',
+    capture: true,
+    check: true).stdout().strip(),
 )
 
 subproject('frida-python')
