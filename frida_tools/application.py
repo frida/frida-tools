@@ -14,13 +14,12 @@ import time
 from types import FrameType
 from typing import Any, Callable, List, Optional, Tuple, TypeVar, Union
 
-import _frida
-
 if platform.system() == "Windows":
     import msvcrt
 
 import colorama
 import frida
+import frida._frida as _frida
 
 from frida_tools.reactor import Reactor
 
