@@ -37,8 +37,7 @@ def build(npm: Path, inputs: list[Path], output_js: Path, priv_dir: Path):
 
     subprocess.run([npm, "install"], capture_output=True, cwd=priv_dir, check=True)
 
-    frida_compile = Path("node_modules") / ".bin" / f"frida-compile{script_suffix()}"
-
+    frida_compile = priv_dir / "node_modules" / ".bin" / f"frida-compile{script_suffix()}"
     subprocess.run([frida_compile, entrypoint, "-c", "-o", output_js], cwd=priv_dir, check=True)
 
 
