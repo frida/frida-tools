@@ -14,7 +14,7 @@ def main() -> None:
     except:
         pass
 
-    import _frida
+    import frida._frida as _frida
 
     from frida_tools.application import ConsoleApplication
 
