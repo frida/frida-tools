@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Iterator
@@ -50,7 +51,7 @@ def main():
         ],
         packages=["frida_tools"],
         package_data={
-            "frida_tools": detect_built_agents(),
+            "frida_tools": copy_in_built_agents(),
         },
         entry_points={
             "console_scripts": [
@@ -94,13 +95,15 @@ def detect_version() -> str:
     return version
 
 
-def detect_built_agents() -> list[str]:
+def copy_in_built_agents() -> list[str]:
     agents = []
     agents_builddir = SOURCE_ROOT / "build" / "agents"
     if agents_builddir.exists():
         for child in agents_builddir.iterdir():
             if child.is_dir():
-                agents += [str(f) for f in child.glob("*_agent.js")]
+                for f in child.glob("*_agent.js"):
+                    shutil.copy(f, SOURCE_ROOT / "frida_tools")
+                    agents.append(f.name)
     return agents
 
 
