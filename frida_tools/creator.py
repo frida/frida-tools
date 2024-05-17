@@ -99,7 +99,8 @@ class CreatorApplication(ConsoleApplication):
     "strict": true,
     "esModuleInterop": true,
     "moduleResolution": "node16"
-  }
+  },
+  "exclude": ["_agent.js"]
 }
 """
 
