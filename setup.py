@@ -8,6 +8,9 @@ from setuptools import setup
 
 SOURCE_ROOT = Path(__file__).resolve().parent
 
+pkg_info = SOURCE_ROOT / "PKG-INFO"
+in_source_package = pkg_info.exists()
+
 
 def main():
     setup(
@@ -51,7 +54,7 @@ def main():
         ],
         packages=["frida_tools"],
         package_data={
-            "frida_tools": copy_in_built_agents(),
+            "frida_tools": fetch_built_agents(),
         },
         entry_points={
             "console_scripts": [
@@ -76,8 +79,6 @@ def main():
 
 
 def detect_version() -> str:
-    pkg_info = SOURCE_ROOT / "PKG-INFO"
-    in_source_package = pkg_info.exists()
     if in_source_package:
         version_line = [
             line for line in pkg_info.read_text(encoding="utf-8").split("\n") if line.startswith("Version: ")
@@ -95,15 +96,18 @@ def detect_version() -> str:
     return version
 
 
-def copy_in_built_agents() -> list[str]:
+def fetch_built_agents() -> list[str]:
     agents = []
-    agents_builddir = SOURCE_ROOT / "build" / "agents"
-    if agents_builddir.exists():
-        for child in agents_builddir.iterdir():
-            if child.is_dir():
-                for f in child.glob("*_agent.js"):
-                    shutil.copy(f, SOURCE_ROOT / "frida_tools")
-                    agents.append(f.name)
+    if in_source_package:
+        agents += [f.name for f in (SOURCE_ROOT / "frida_tools").glob("*_agent.js")]
+    else:
+        agents_builddir = SOURCE_ROOT / "build" / "agents"
+        if agents_builddir.exists():
+            for child in agents_builddir.iterdir():
+                if child.is_dir():
+                    for f in child.glob("*_agent.js"):
+                        shutil.copy(f, SOURCE_ROOT / "frida_tools")
+                        agents.append(f.name)
     return agents
 
 
