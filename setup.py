@@ -3,6 +3,7 @@ import shutil
 import sys
 from pathlib import Path
 from typing import Iterator
+from typing import List
 
 from setuptools import setup
 
@@ -96,7 +97,7 @@ def detect_version() -> str:
     return version
 
 
-def fetch_built_agents() -> list[str]:
+def fetch_built_agents() -> List[str]:
     agents = []
     if in_source_package:
         agents += [f.name for f in (SOURCE_ROOT / "frida_tools").glob("*_agent.js")]
