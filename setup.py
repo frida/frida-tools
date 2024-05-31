@@ -2,8 +2,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Iterator
-from typing import List
+from typing import Iterator, List
 
 from setuptools import setup
 
