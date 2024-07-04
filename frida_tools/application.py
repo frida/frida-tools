@@ -601,6 +601,15 @@ class ConsoleApplication:
         self._start()
         self._started = True
 
+    def _pick_worker_pid(self) -> int:
+        try:
+            frontmost = self._device.get_frontmost_application()
+            if frontmost is not None and frontmost.identifier == "re.frida.Gadget":
+                return frontmost.pid
+        except:
+            pass
+        return 0
+
     def _attach(self, pid: int) -> None:
         self._target_pid = pid
 

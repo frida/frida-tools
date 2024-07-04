@@ -35,7 +35,7 @@ class LsApplication(ConsoleApplication):
 
     def _start(self) -> None:
         try:
-            self._attach(0)
+            self._attach(self._pick_worker_pid())
 
             data_dir = os.path.dirname(__file__)
             with codecs.open(os.path.join(data_dir, "fs_agent.js"), "r", "utf-8") as f:
