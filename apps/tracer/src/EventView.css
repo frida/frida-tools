@@ -1,0 +1,32 @@
+.event-view {
+    border-top: 5px groove #ef6456;
+    background-color: #1e1e1e;
+    color: #e4e4e4;
+}
+
+.event-items {
+    height: 200px;
+    padding: 5px;
+    font-family: monospace;
+    font-size: 10px;
+}
+
+.event-heading {
+    margin-left: 65px;
+}
+
+.event-timestamp {
+    color: #555;
+    margin-right: 5px;
+    vertical-align: top;
+    text-align: right;
+}
+
+.event-message {
+    min-height: 0;
+    padding: 0 5px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: bold;
+    white-space: pre-line;
+}

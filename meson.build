@@ -19,6 +19,7 @@ if not npm.found()
 endif
 
 subdir('agents')
+subdir('apps')
 subdir('frida_tools')
 subdir('scripts')
 subdir('completions')

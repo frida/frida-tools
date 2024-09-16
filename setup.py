@@ -27,6 +27,7 @@ def main():
             "frida >= 16.2.2, < 17.0.0",
             "prompt-toolkit >= 2.0.0, < 4.0.0",
             "pygments >= 2.0.2, < 3.0.0",
+            "websockets >= 13.0.0, < 14.0.0",
         ],
         license="wxWindows Library Licence, Version 3.1",
         zip_safe=False,
@@ -54,7 +55,7 @@ def main():
         ],
         packages=["frida_tools"],
         package_data={
-            "frida_tools": fetch_built_agents(),
+            "frida_tools": fetch_built_assets(),
         },
         entry_points={
             "console_scripts": [
@@ -96,10 +97,12 @@ def detect_version() -> str:
     return version
 
 
-def fetch_built_agents() -> List[str]:
-    agents = []
+def fetch_built_assets() -> List[str]:
+    assets = []
     if in_source_package:
-        agents += [f.name for f in (SOURCE_ROOT / "frida_tools").glob("*_agent.js")]
+        pkgdir = SOURCE_ROOT / "frida_tools"
+        assets += [f.name for f in pkgdir.glob("*_agent.js")]
+        assets += [f.name for f in pkgdir.glob("*.zip")]
     else:
         agents_builddir = SOURCE_ROOT / "build" / "agents"
         if agents_builddir.exists():
@@ -107,8 +110,15 @@ def fetch_built_agents() -> List[str]:
                 if child.is_dir():
                     for f in child.glob("*_agent.js"):
                         shutil.copy(f, SOURCE_ROOT / "frida_tools")
-                        agents.append(f.name)
-    return agents
+                        assets.append(f.name)
+        apps_builddir = SOURCE_ROOT / "build" / "apps"
+        if apps_builddir.exists():
+            for child in apps_builddir.iterdir():
+                if child.is_dir():
+                    for f in child.glob("*.zip"):
+                        shutil.copy(f, SOURCE_ROOT / "frida_tools")
+                        assets.append(f.name)
+    return assets
 
 
 def enumerate_releng_locations() -> Iterator[Path]:

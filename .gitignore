@@ -1,10 +1,16 @@
 *.pyc
+*.tsbuildinfo
 /*.egg-info/
 /agents/*/node_modules/
+/apps/*/.vite/
+/apps/*/dist/
+/apps/*/node_modules/
+/apps/*/yarn.lock
 /build/
 /deps/
 /dist/
 /frida_tools/*_agent.js
+/frida_tools/*.zip
 /subprojects/frida-core.wrap
 /subprojects/frida-core/
 /subprojects/frida-gum.wrap

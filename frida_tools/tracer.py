@@ -1,19 +1,30 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import binascii
 import codecs
+import email.utils
+import errno
 import gzip
+import http
+import mimetypes
 import os
-import platform
 import re
 import shlex
 import subprocess
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Generator, List, Optional, Union
+from typing import Callable, Generator, List, Optional, Set
+from zipfile import ZipFile
 
 import frida
+import websockets.asyncio.server
+import websockets.datastructures
+import websockets.exceptions
+import websockets.http11
 
 from frida_tools.reactor import Reactor
 
@@ -31,9 +42,15 @@ def main() -> None:
     class TracerApplication(ConsoleApplication, UI):
         def __init__(self) -> None:
             super().__init__(await_ctrl_c)
-            self._palette = [Fore.CYAN, Fore.MAGENTA, Fore.YELLOW, Fore.GREEN, Fore.RED, Fore.BLUE]
+            self._handlers = OrderedDict()
+            self._ui_port = 1337
+            self._ui_zip = ZipFile(Path(__file__).parent / "tracer_ui.zip", "r")
+            self._ui_sockets: Set[websockets.asyncio.server.ServerConnection] = set()
+            self._ui_worker = None
+            self._asyncio_loop = None
+            self._palette = ["cyan", "magenta", "yellow", "green", "red", "blue"]
             self._next_color = 0
-            self._attributes_by_thread_id = {}
+            self._style_by_thread_id = {}
             self._last_event_tid = -1
 
         def _add_options(self, parser: argparse.ArgumentParser) -> None:
@@ -141,6 +158,7 @@ def main() -> None:
             return "%(prog)s [options] target"
 
         def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
+            self._repo: Optional[FileRepository] = None
             self._tracer: Optional[Tracer] = None
             self._profile = self._profile_builder.build()
             self._quiet: bool = options.quiet
@@ -169,14 +187,20 @@ def main() -> None:
             return True
 
         def _start(self) -> None:
+            if self._ui_worker is None:
+                worker = threading.Thread(target=self._run_ui_server, name="ui-server", daemon=True)
+                worker.start()
+                self._ui_worker = worker
+
             if self._output_path is not None:
                 self._output = OutputFile(self._output_path)
 
             stage = "early" if self._target[0] == "file" else "late"
 
+            self._repo = FileRepository(self._reactor, self._decorate)
             self._tracer = Tracer(
                 self._reactor,
-                FileRepository(self._reactor, self._decorate),
+                self._repo,
                 self._profile,
                 self._init_scripts,
                 log_handler=self._log,
@@ -186,6 +210,7 @@ def main() -> None:
             except Exception as e:
                 self._update_status(f"Failed to start tracing: {e}")
                 self._exit(1)
+                return
 
         def _stop(self) -> None:
             self._tracer.stop()
@@ -193,6 +218,11 @@ def main() -> None:
             if self._output is not None:
                 self._output.close()
             self._output = None
+
+            self._handlers.clear()
+            self._next_color = 0
+            self._style_by_thread_id.clear()
+            self._last_event_tid = -1
 
         def on_script_created(self, script: frida.core.Script) -> None:
             self._on_script_created(script)
@@ -208,7 +238,9 @@ def main() -> None:
                     plural = ""
                 else:
                     plural = "s"
-                self._update_status("Started tracing %d function%s. Press Ctrl+C to stop." % (count, plural))
+                self._update_status(
+                    f"Started tracing {count} function{plural}. Web UI available at http://localhost:{self._ui_port}/"
+                )
 
         def on_trace_warning(self, message: str) -> None:
             self._print(Fore.RED + Style.BRIGHT + "Warning" + Style.RESET_ALL + ": " + message)
@@ -217,41 +249,182 @@ def main() -> None:
             self._print(Fore.RED + Style.BRIGHT + "Error" + Style.RESET_ALL + ": " + message)
             self._exit(1)
 
-        def on_trace_events(self, events) -> None:
+        def on_trace_events(self, raw_events) -> None:
+            events = [
+                (target_id, timestamp, thread_id, depth, message, self._get_style(thread_id))
+                for target_id, timestamp, thread_id, depth, message in raw_events
+            ]
+            self._asyncio_loop.call_soon_threadsafe(
+                lambda: self._asyncio_loop.create_task(self._broadcast_trace_events(events))
+            )
+
             no_attributes = Style.RESET_ALL
-            for timestamp, thread_id, depth, message in events:
+            for target_id, timestamp, thread_id, depth, message, style in events:
                 if self._output is not None:
                     self._output.append(message + "\n")
                 elif self._quiet:
                     self._print(message)
                 else:
                     indent = depth * "   | "
-                    attributes = self._get_attributes(thread_id)
+                    attributes = getattr(Fore, style[0].upper())
+                    if len(style) > 1:
+                        attributes += getattr(Style, style[1].upper())
                     if thread_id != self._last_event_tid:
                         self._print("%s           /* TID 0x%x */%s" % (attributes, thread_id, Style.RESET_ALL))
                         self._last_event_tid = thread_id
                     self._print("%6d ms  %s%s%s%s" % (timestamp, attributes, indent, message, no_attributes))
 
-        def on_trace_handler_create(self, target, handler, source) -> None:
+        def on_trace_handler_create(self, target: TraceTarget, handler: str, source: str) -> None:
+            self._register_handler(target, source)
             if self._quiet:
                 return
             self._print('%s: Auto-generated handler at "%s"' % (target, source.replace("\\", "\\\\")))
 
-        def on_trace_handler_load(self, target, handler, source) -> None:
+        def on_trace_handler_load(self, target: TraceTarget, handler: str, source: str) -> None:
+            self._register_handler(target, source)
             if self._quiet:
                 return
             self._print('%s: Loaded handler at "%s"' % (target, source.replace("\\", "\\\\")))
 
-        def _get_attributes(self, thread_id):
-            attributes = self._attributes_by_thread_id.get(thread_id, None)
-            if attributes is None:
+        def _register_handler(self, target: TraceTarget, source: str) -> None:
+            self._handlers[target.identifier] = (target, source)
+
+        def _get_style(self, thread_id):
+            style = self._style_by_thread_id.get(thread_id, None)
+            if style is None:
                 color = self._next_color
                 self._next_color += 1
-                attributes = self._palette[color % len(self._palette)]
+                style = [self._palette[color % len(self._palette)]]
                 if (1 + int(color / len(self._palette))) % 2 == 0:
-                    attributes += Style.BRIGHT
-                self._attributes_by_thread_id[thread_id] = attributes
-            return attributes
+                    style.append("bright")
+                self._style_by_thread_id[thread_id] = style
+            return style
+
+        def _run_ui_server(self):
+            asyncio.run(self._handle_ui_requests())
+
+        async def _handle_ui_requests(self):
+            self._asyncio_loop = asyncio.get_running_loop()
+            while True:
+                try:
+                    async with websockets.asyncio.server.serve(
+                        self._handle_websocket_connection,
+                        "localhost",
+                        self._ui_port,
+                        process_request=self._handle_asset_request,
+                    ):
+                        await asyncio.get_running_loop().create_future()
+                        return
+                except OSError as e:
+                    if e.errno == errno.EADDRINUSE:
+                        self._ui_port += 1
+                    else:
+                        raise
+
+        async def _handle_websocket_connection(self, websocket: websockets.asyncio.server.ServerConnection):
+            if self._tracer is None:
+                return
+
+            self._ui_sockets.add(websocket)
+            try:
+                message = {
+                    "type": "tracer:sync",
+                    "spawned_program": self._spawned_argv[0] if self._spawned_argv is not None else None,
+                    "handlers": [target.to_json() for target, source in self._handlers.values()],
+                }
+                await websocket.send(json.dumps(message))
+
+                while True:
+                    message = json.loads(await websocket.recv())
+                    mtype = message["type"]
+                    if mtype == "tracer:respawn":
+                        self._reactor.schedule(self._respawn)
+                    elif mtype == "handler:load":
+                        target, source = self._handlers[message["id"]]
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "handler:loaded",
+                                    "code": self._repo.ensure_handler(target),
+                                }
+                            )
+                        )
+                    elif mtype == "handler:save":
+                        target, source = self._handlers[message["id"]]
+                        self._repo.update_handler(target, message["code"])
+                    elif mtype == "targets:stage":
+                        profile = TracerProfile(list(map(tuple, message["profile"]["spec"])))
+                        try:
+                            items = self._tracer.stage_targets(profile)
+                        except:
+                            continue
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "targets:staged",
+                                    "items": items,
+                                }
+                            )
+                        )
+                    elif mtype == "targets:commit":
+                        target_ids = self._tracer.commit_targets(message["id"])
+                        message = {
+                            "type": "handlers:add",
+                            "handlers": [self._handlers[target_id][0].to_json() for target_id in target_ids],
+                        }
+                        await websocket.send(json.dumps(message))
+            except:
+                pass
+            finally:
+                self._ui_sockets.remove(websocket)
+
+        async def _broadcast_trace_events(self, events):
+            for websocket in self._ui_sockets:
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "events:add",
+                            "events": events,
+                        }
+                    )
+                )
+
+        def _handle_asset_request(
+            self, connection: websockets.asyncio.server.ServerConnection, request: websockets.asyncio.server.Request
+        ):
+            if request.headers.get("Connection") == "Upgrade":
+                return
+
+            filename = request.path[1:]
+            if filename == "":
+                filename = "index.html"
+
+            try:
+                body = self._ui_zip.read(filename)
+            except KeyError:
+                return connection.respond(http.HTTPStatus.NOT_FOUND, "File not found\n")
+
+            status = http.HTTPStatus(http.HTTPStatus.OK)
+
+            content_type, content_encoding = mimetypes.guess_type(filename)
+            if content_type is None:
+                content_type = "application/octet-stream"
+
+            headers = websockets.datastructures.Headers(
+                [
+                    ("Connection", "close"),
+                    ("Content-Length", str(len(body))),
+                    ("Content-Type", content_type),
+                    ("Date", email.utils.formatdate(usegmt=True)),
+                ]
+            )
+            if content_encoding is not None:
+                headers.update({"Content-Encoding": content_encoding})
+
+            response = websockets.http11.Response(status.value, status.phrase, headers, body)
+            connection.protocol.handshake_exc = websockets.exceptions.InvalidStatus(response)
+
+            return response
 
     app = TracerApplication()
     app.run()
@@ -348,11 +521,12 @@ class Tracer:
         self._repository = repository
         self._profile = profile
         self._script: Optional[frida.core.Script] = None
+        self._schedule_on_message = None
         self._agent = None
         self._init_scripts = init_scripts
         self._log_handler = log_handler
 
-    def start_trace(self, session: frida.core.Session, stage, parameters, runtime, ui) -> None:
+    def start_trace(self, session: frida.core.Session, stage, parameters, runtime, ui: UI) -> None:
         def on_create(*args) -> None:
             ui.on_trace_handler_create(*args)
 
@@ -368,8 +542,9 @@ class Tracer:
 
         self._repository.on_update(on_update)
 
-        def on_message(message, data) -> None:
-            self._reactor.schedule(lambda: self._on_message(message, data, ui))
+        self._schedule_on_message = lambda message, data: self._reactor.schedule(
+            lambda: self._on_message(message, data, ui)
+        )
 
         ui.on_trace_progress("initializing")
         data_dir = os.path.dirname(__file__)
@@ -379,7 +554,7 @@ class Tracer:
 
         self._script = script
         script.set_log_handler(self._log_handler)
-        script.on("message", on_message)
+        script.on("message", self._schedule_on_message)
         ui.on_script_created(script)
         script.load()
 
@@ -389,12 +564,21 @@ class Tracer:
         self._agent.init(stage, parameters, raw_init_scripts, self._profile.spec)
 
     def stop(self) -> None:
+        self._repository.close()
+
         if self._script is not None:
+            self._script.off("message", self._schedule_on_message)
             try:
                 self._script.unload()
             except:
                 pass
             self._script = None
+
+    def stage_targets(self, profile: TracerProfile) -> List:
+        return self._agent.stage_targets(profile.spec)
+
+    def commit_targets(self, identifier: Optional[int]) -> List:
+        return self._agent.commit_targets(identifier)
 
     def _on_message(self, message, data, ui) -> None:
         handled = False
@@ -416,7 +600,7 @@ class Tracer:
     def _try_handle_message(self, mtype, params, data, ui) -> False:
         if mtype == "events:add":
             events = [
-                (timestamp, thread_id, depth, message)
+                (target_id, timestamp, thread_id, depth, message)
                 for target_id, timestamp, thread_id, depth, message in params["events"]
             ]
             ui.on_trace_events(events)
@@ -434,7 +618,12 @@ class Tracer:
             for scope in params["scopes"]:
                 scope_name = scope["name"]
                 for member_name in scope["members"]:
-                    target = TraceTarget(next_id, flavor, scope_name, member_name)
+                    if isinstance(member_name, list):
+                        name, display_name = member_name
+                    else:
+                        name = member_name
+                        display_name = member_name
+                    target = TraceTarget(next_id, flavor, scope_name, name, display_name)
                     next_id += 1
                     handler = repo.ensure_handler(target)
                     scripts.append(handler)
@@ -463,17 +652,16 @@ class Tracer:
         return False
 
 
+@dataclass
 class TraceTarget:
-    def __init__(self, identifier, flavor, scope, name: Union[str, List[str]]) -> None:
-        self.identifier = identifier
-        self.flavor = flavor
-        self.scope = scope
-        if isinstance(name, list):
-            self.name = name[0]
-            self.display_name = name[1]
-        else:
-            self.name = name
-            self.display_name = name
+    identifier: int
+    flavor: str
+    scope: str
+    name: str
+    display_name: str
+
+    def to_json(self) -> dict:
+        return {"id": self.identifier, "scope": self.scope, "display_name": self.display_name}
 
     def __str__(self) -> str:
         return self.display_name
@@ -486,6 +674,11 @@ class Repository:
         self._on_update_callback: Optional[Callable[[TraceTarget, str, str], None]] = None
         self._decorate = False
         self._manpages = None
+
+    def close(self) -> None:
+        self._on_create_callback = None
+        self._on_load_callback = None
+        self._on_update_callback = None
 
     def ensure_handler(self, target: TraceTarget):
         raise NotImplementedError("not implemented")
@@ -536,37 +729,14 @@ class Repository:
  * For full API reference, see: https://frida.re/docs/javascript-api/
  */
 
-{
-  /**
-   * Called synchronously when about to call %(display_name)s.
-   *
-   * @this {object} - Object allowing you to store state for use in onLeave.
-   * @param {function} log - Call this function with a string to be presented to the user.
-   * @param {array} args - Function arguments represented as an array of NativePointer objects.
-   * For example use args[0].readUtf8String() if the first argument is a pointer to a C string encoded as UTF-8.
-   * It is also possible to modify arguments by assigning a NativePointer object to an element of this array.
-   * @param {object} state - Object allowing you to keep state across function calls.
-   * Only one JavaScript function will execute at a time, so do not worry about race-conditions.
-   * However, do not use this to store function arguments across onEnter/onLeave, but instead
-   * use "this" which is an object for keeping state local to an invocation.
-   */
+defineHandler({
   onEnter(log, args, state) {
     log(%(log_str)s);
   },
 
-  /**
-   * Called synchronously when about to return from %(display_name)s.
-   *
-   * See onEnter for details.
-   *
-   * @this {object} - Object allowing you to access state stored in onEnter.
-   * @param {function} log - Call this function with a string to be presented to the user.
-   * @param {NativePointer} retval - Return value represented as a NativePointer object.
-   * @param {object} state - Object allowing you to keep state across function calls.
-   */
   onLeave(log, retval, state) {
   }
-}
+});
 """ % {
             "display_name": target.display_name,
             "log_str": log_str,
@@ -679,7 +849,7 @@ class Repository:
                             if name in self._manpages:
                                 continue
                             self._manpages[name] = (entry, section)
-            except Exception as e:
+            except:
                 return []
 
         man_entry = self._manpages.get(target.name)
@@ -838,6 +1008,13 @@ class FileRepository(Repository):
         self._repo_monitors = {}
         self._decorate = decorate
 
+    def close(self) -> None:
+        for monitor in self._repo_monitors.values():
+            monitor.disable()
+        self._repo_monitors.clear()
+
+        super().close()
+
     def ensure_handler(self, target: TraceTarget) -> str:
         entry = self._handler_by_id.get(target.identifier)
         if entry is not None:
@@ -875,6 +1052,15 @@ class FileRepository(Repository):
         self._ensure_monitor(handler_file)
 
         return handler
+
+    def update_handler(self, target: TraceTarget, handler: str) -> None:
+        _, _, handler_file = self._handler_by_id.get(target.identifier)
+        entry = (target, handler, handler_file)
+        self._handler_by_id[target.identifier] = entry
+        self._handler_by_file[handler_file] = entry
+        self._notify_update(target, handler, handler_file)
+
+        Path(handler_file).write_text(handler, encoding="utf-8")
 
     def _ensure_monitor(self, handler_file) -> None:
         handler_dir = os.path.dirname(handler_file)

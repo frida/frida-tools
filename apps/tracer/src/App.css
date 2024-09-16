@@ -1,0 +1,50 @@
+.top-area {
+    display: flex;
+    flex: 1;
+}
+
+.navigation-area {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px #ccc solid;
+}
+
+.handler-list {
+    flex: 1;
+}
+
+.target-actions {
+    padding: 5px;
+}
+
+.work-area {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+}
+
+.work-area section {
+    flex: 1;
+}
+
+.monaco-editor {
+    position: absolute !important;
+}
+
+.event-area {
+    display: flex;
+}
+
+.event-area-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 5px;
+    border-top: 5px groove #ef6456;
+    cursor: ns-resize;
+}
+
+.event-view {
+    flex: 1;
+}

@@ -1,5 +1,6 @@
 class Agent {
     private handlers = new Map<TraceTargetId, TraceHandler>();
+    private stagedPlanRequest: TracePlanRequest | null = null;
     private stackDepth = new Map<ThreadId, number>();
     private traceState: TraceState = {};
     private nextId = 1;
@@ -17,6 +18,7 @@ class Agent {
         g.stage = stage;
         g.parameters = parameters;
         g.state = this.traceState;
+        g.defineHandler = h => h;
 
         for (const script of initScripts) {
             try {
@@ -49,7 +51,113 @@ class Agent {
         handler[1] = newHandler[1];
     }
 
+    async stageTargets(spec: TraceSpec): Promise<StagedItem[]> {
+        const request = await this.createPlan(spec);
+        this.stagedPlanRequest = request;
+        await request.ready;
+        const { plan } = request;
+
+        const items: StagedItem[] = [];
+        let id: StagedItemId = 1;
+        for (const [type, scope, member] of plan.native.values()) {
+            items.push([ id, scope, member ]);
+            id++;
+        }
+        id = -1;
+        for (const group of plan.java) {
+            for (const [className, classDetails] of group.classes.entries()) {
+                for (const methodName of classDetails.methods.values()) {
+                    items.push([ id, className, methodName ]);
+                    id--;
+                }
+            }
+        }
+        return items;
+    }
+
+    async commitTargets(id: StagedItemId | null): Promise<TraceTargetId[]> {
+        const request = this.stagedPlanRequest!;
+        this.stagedPlanRequest = null;
+
+        let { plan } = request;
+        if (id !== null) {
+            plan = this.cropStagedPlan(plan, id);
+        }
+
+        const nativeIds = await this.traceNativeTargets(plan.native);
+
+        let javaIds: TraceTargetId[] = [];
+        if (plan.java.length !== 0) {
+            javaIds = await new Promise<TraceTargetId[]>((resolve, reject) => {
+                Java.perform(() => {
+                    this.traceJavaTargets(plan.java).then(resolve, reject);
+                });
+            });
+        }
+
+        return [...nativeIds, ...javaIds];
+    }
+
+    private cropStagedPlan(plan: TracePlan, id: StagedItemId): TracePlan {
+        let candidateId: StagedItemId;
+
+        if (id < 0) {
+            candidateId = -1;
+            for (const group of plan.java) {
+                for (const [className, classDetails] of group.classes.entries()) {
+                    for (const [methodName, methodNameOrSignature] of classDetails.methods.entries()) {
+                        if (candidateId === id) {
+                            const croppedMethods = new Map([[methodName, methodNameOrSignature]]);
+                            const croppedClass: JavaTargetClass = { methods: croppedMethods };
+                            const croppedGroup: JavaTargetGroup = { loader: group.loader, classes: new Map([[className, croppedClass]]) };
+                            return {
+                                native: new Map(),
+                                java: [croppedGroup],
+                            };
+                        }
+                        candidateId--;
+                    }
+                }
+            }
+        } else {
+            candidateId = 1;
+            for (const [k, v] of plan.native.entries()) {
+                if (candidateId === id) {
+                    return {
+                        native: new Map([[k, v]]),
+                        java: [],
+                    };
+                }
+                candidateId++;
+            }
+        }
+
+        throw new Error("invalid staged item ID");
+    }
+
     private async start(spec: TraceSpec) {
+        const onJavaReady = async (plan: TracePlan) => {
+            await this.traceJavaTargets(plan.java);
+        };
+
+        const request = await this.createPlan(spec, onJavaReady);
+
+        await this.traceNativeTargets(request.plan.native);
+
+        send({
+            type: "agent:initialized"
+        });
+
+        request.ready.then(() => {
+            send({
+                type: "agent:started",
+                count: this.handlers.size
+            });
+        });
+    }
+
+    private async createPlan(spec: TraceSpec,
+            onJavaReady: (plan: TracePlan) => Promise<void> = async () => {}): Promise<TracePlanRequest> {
         const plan: TracePlan = {
             native: new Map<NativeId, NativeTarget>(),
             java: []
@@ -115,43 +223,38 @@ class Agent {
             }
 
             javaStartRequest = new Promise((resolve, reject) => {
-                Java.perform(() => {
+                Java.perform(async () => {
                     javaStartDeferred = false;
 
-                    for (const [operation, pattern] of javaEntries) {
-                        if (operation === "include") {
-                            this.includeJavaMethod(pattern, plan);
-                        } else {
-                            this.excludeJavaMethod(pattern, plan);
+                    try {
+                        for (const [operation, pattern] of javaEntries) {
+                            if (operation === "include") {
+                                this.includeJavaMethod(pattern, plan);
+                            } else {
+                                this.excludeJavaMethod(pattern, plan);
+                            }
                         }
-                    }
 
-                    this.traceJavaTargets(plan.java).then(resolve).catch(reject);
+                        await onJavaReady(plan);
+
+                        resolve();
+                    } catch (e) {
+                        reject(e);
+                    }
                 });
             });
         } else {
             javaStartRequest = Promise.resolve();
         }
 
-        await this.traceNativeTargets(plan.native);
-
         if (!javaStartDeferred) {
             await javaStartRequest;
         }
 
-        send({
-            type: "agent:initialized"
-        });
-
-        javaStartRequest.then(() => {
-            send({
-                type: "agent:started",
-                count: this.handlers.size
-            });
-        });
+        return { plan, ready: javaStartRequest };
     }
 
-    private async traceNativeTargets(targets: NativeTargets) {
+    private async traceNativeTargets(targets: NativeTargets): Promise<TraceTargetId[]> {
         const cGroups = new Map<string, NativeItem[]>();
         const objcGroups = new Map<string, NativeItem[]>();
         const swiftGroups = new Map<string, NativeItem[]>();
@@ -179,16 +282,18 @@ class Agent {
             group.push([name, ptr(id)]);
         }
 
-        return await Promise.all([
+        const [cIds, objcIds, swiftIds] = await Promise.all([
             this.traceNativeEntries("c", cGroups),
             this.traceNativeEntries("objc", objcGroups),
             this.traceNativeEntries("swift", swiftGroups),
         ]);
+
+        return [...cIds, ...objcIds, ...swiftIds];
     }
 
-    private async traceNativeEntries(flavor: "c" | "objc" | "swift", groups: NativeTargetScopes) {
+    private async traceNativeEntries(flavor: "c" | "objc" | "swift", groups: NativeTargetScopes): Promise<TraceTargetId[]> {
         if (groups.size === 0) {
-            return;
+            return [];
         }
 
         const baseId = this.nextId;
@@ -209,6 +314,7 @@ class Agent {
 
         const { scripts }: HandlerResponse = await getHandlers(request);
 
+        const ids: TraceTargetId[] = [];
         let offset = 0;
         for (const items of groups.values()) {
             for (const [name, address] of items) {
@@ -227,12 +333,14 @@ class Agent {
                     });
                 }
 
+                ids.push(id);
                 offset++;
             }
         }
+        return ids;
     }
 
-    private async traceJavaTargets(groups: JavaTargetGroup[]) {
+    private async traceJavaTargets(groups: JavaTargetGroup[]): Promise<TraceTargetId[]> {
         const baseId = this.nextId;
         const scopes: HandlerRequestScope[] = [];
         const request: HandlerRequest = {
@@ -256,8 +364,9 @@ class Agent {
 
         const { scripts }: HandlerResponse = await getHandlers(request);
 
-        return new Promise<void>(resolve => {
+        return new Promise<TraceTargetId[]>(resolve => {
             Java.perform(() => {
+                const ids: TraceTargetId[] = [];
                 let offset = 0;
                 for (const group of groups) {
                     const factory = Java.ClassFactory.get(group.loader as any);
@@ -276,12 +385,13 @@ class Agent {
                                 method.implementation = this.makeJavaMethodWrapper(id, method, handler);
                             }
 
+                            ids.push(id);
                             offset++;
                         }
                     }
                 }
 
-                resolve();
+                resolve(ids);
             });
         });
     }
@@ -369,13 +479,14 @@ class Agent {
     }
 
     private parseHandler(name: string, script: string): TraceHandler {
+        const id = `/handlers/${name}.js`;
         try {
-            const h = (1, eval)("(" + script + ")");
+            const h = Script.evaluate(id, script);
             return [h.onEnter ?? noop, h.onLeave ?? noop];
         } catch (e: any) {
             send({
                 type: "agent:warning",
-                message: `Invalid handler for "${name}": ${e.message}`
+                message: `${id}: ${e.message}`
             });
             return [noop, noop];
         }
@@ -767,6 +878,18 @@ interface TraceScriptGlobals {
     stage: Stage;
     parameters: TraceParameters;
     state: TraceState;
+    defineHandler: (handler: TraceScriptHandler) => TraceScriptHandler;
+}
+
+interface TraceScriptHandler {
+    onEnter?(this: InvocationContext, log: TraceLogFunction, args: InvocationArguments, state: TraceScriptState): void;
+    onLeave?(this: InvocationContext, log: TraceLogFunction, retval: InvocationReturnValue, state: TraceScriptState): void;
+}
+
+type TraceLogFunction = (...args: any[]) => void;
+
+interface TraceScriptState {
+    [x: string]: any;
 }
 
 type Stage = "early" | "late";
@@ -799,6 +922,11 @@ type TraceSpecScope =
     ;
 type TraceSpecPattern = string;
 
+interface TracePlanRequest {
+    plan: TracePlan;
+    ready: Promise<void>;
+}
+
 interface TracePlan {
     native: NativeTargets;
     java: JavaTargetGroup[];
@@ -806,7 +934,7 @@ interface TracePlan {
 
 type TargetType = "c" | "objc" | "swift" | "java";
 type ScopeName = string;
-type MemberName = string | [string, string]
+type MemberName = string | [string, string];
 
 type NativeTargets = Map<NativeId, NativeTarget>;
 type NativeTarget = ["c" | "objc" | "swift", ScopeName, MemberName];
@@ -824,6 +952,9 @@ interface JavaTargetClass {
 type JavaClassName = string;
 type JavaMethodName = string;
 type JavaMethodNameOrSignature = string;
+
+type StagedItem = [id: StagedItemId, scope: ScopeName, member: MemberName];
+type StagedItemId = number;
 
 interface HandlerRequest {
     type: "handlers:get",
@@ -860,5 +991,7 @@ const agent = new Agent();
 rpc.exports = {
     init: agent.init.bind(agent),
     dispose: agent.dispose.bind(agent),
-    update: agent.update.bind(agent)
+    update: agent.update.bind(agent),
+    stageTargets: agent.stageTargets.bind(agent),
+    commitTargets: agent.commitTargets.bind(agent,)
 };
