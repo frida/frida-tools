@@ -422,6 +422,19 @@ class ConsoleApplication:
         frida.shutdown()
         sys.exit(self._exit_status)
 
+    def _respawn(self) -> None:
+        self._session.off("detached", self._schedule_on_session_detached)
+        self._stop()
+        self._session = None
+
+        self._device.kill(self._spawned_pid)
+        self._spawned_pid = None
+        self._spawned_argv = None
+        self._resumed = False
+
+        self._attach_and_instrument()
+        self._resume()
+
     def _add_options(self, parser: argparse.ArgumentParser) -> None:
         """
         override this method if you want to add custom arguments to your
@@ -525,6 +538,9 @@ class ConsoleApplication:
         self._on_device_found()
         self._device.on("output", self._schedule_on_output)
         self._device.on("lost", self._schedule_on_device_lost)
+        self._attach_and_instrument()
+
+    def _attach_and_instrument(self) -> None:
         if self._target is not None:
             target_type, target_value = self._target
 
