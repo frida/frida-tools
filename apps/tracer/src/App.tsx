@@ -33,7 +33,10 @@ export default function App() {
     const [addingTargets, setAddingTargets] = useState(false);
     const [events, setEvents] = useState<Event[]>([]);
     const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
-    const { sendJsonMessage, lastJsonMessage, readyState } = useWebSocket<TracerMessage>("ws://localhost:1337" /* window.location.origin */);
+    const { sendJsonMessage, lastJsonMessage, readyState } = useWebSocket<TracerMessage>(
+        (import.meta.env.MODE === "development")
+            ? "ws://localhost:1337"
+            : `ws://${window.location.host}`);
 
     function handleHandlerSelection(id: HandlerId) {
         setSelectedHandler(id);
