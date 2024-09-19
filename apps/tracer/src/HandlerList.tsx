@@ -1,6 +1,7 @@
 import "./HandlerList.css";
 import { Handler, ScopeId, HandlerId } from "./model.js";
 import { Tree, TreeNodeInfo } from "@blueprintjs/core";
+import { useEffect, useRef, useState } from "react";
 
 export interface HandlerListProps {
     handlers: Handler[];
@@ -14,6 +15,9 @@ export type ScopeEventHandler = (id: ScopeId) => void;
 export type HandlerEventHandler = (id: HandlerId) => void;
 
 export default function HandlerList({ handlers, selectedScope, onScopeSelect, selectedHandler, onHandlerSelect }: HandlerListProps) {
+    const treeRef = useRef<Tree>(null);
+    const [mouseInsideNode, setMouseInsideNode] = useState(false);
+
     const scopes = handlers.reduce((result, { scope }) => result.add(scope), new Set<string>());
     const handlerNodes: TreeNodeInfo[] = Array.from(scopes).map(scope => {
         const isExpanded = scope === selectedScope;
@@ -51,10 +55,41 @@ export default function HandlerList({ handlers, selectedScope, onScopeSelect, se
         onScopeSelect("");
     }
 
+    useEffect(() => {
+        if (mouseInsideNode) {
+            return;
+        }
+
+        const tree = treeRef.current;
+        if (tree === null) {
+            return;
+        }
+
+        const scopeElement = tree.getNodeContentElement(selectedScope);
+        if (scopeElement === undefined) {
+            return;
+        }
+
+        scopeElement.addEventListener("transitionend", scrollIntoView);
+
+        requestAnimationFrame(scrollIntoView);
+
+        function scrollIntoView() {
+            tree!.getNodeContentElement(selectedHandler)?.scrollIntoView({ block: "center" });
+        }
+
+        return () => {
+            scopeElement.removeEventListener("transitionend", scrollIntoView);
+        };
+    }, [treeRef, selectedScope, selectedHandler, mouseInsideNode]);
+
     return (
         <Tree
+            ref={treeRef}
             className="handler-list"
             contents={handlerNodes}
+            onNodeMouseEnter={() => setMouseInsideNode(true)}
+            onNodeMouseLeave={() => setMouseInsideNode(false)}
             onNodeClick={handleNodeClick}
             onNodeExpand={handleNodeExpand}
             onNodeCollapse={handleNodeCollapse}
