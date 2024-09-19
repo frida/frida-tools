@@ -15,7 +15,7 @@
     "monaco-editor": "^0.51.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-resizable": "^3.0.5",
+    "react-resplit": "^1.3.2-alpha.0",
     "react-scroll-to-bottom": "^4.2.0",
     "react-use-websocket": "^4.8.1",
     "use-debounce": "^10.0.3"

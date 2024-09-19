@@ -1,6 +1,18 @@
+.app-content {
+    flex: 1;
+}
+
 .top-area {
     display: flex;
-    flex: 1;
+    overflow: hidden;
+}
+
+.app-splitter {
+    border-top: 5px groove #ef6456;
+}
+
+.bottom-area {
+    display: flex;
 }
 
 .navigation-area {
@@ -11,6 +23,7 @@
 
 .handler-list {
     flex: 1;
+    overflow: scroll;
 }
 
 .target-actions {
@@ -29,20 +42,6 @@
 
 .monaco-editor {
     position: absolute !important;
-}
-
-.event-area {
-    display: flex;
-}
-
-.event-area-handle {
-    position: absolute;
-    top: 0;
-    right: 0;
-    left: 0;
-    height: 5px;
-    border-top: 5px groove #ef6456;
-    cursor: ns-resize;
 }
 
 .event-view {

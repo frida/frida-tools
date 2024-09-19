@@ -1,5 +1,4 @@
 import "./App.css";
-import "react-resizable/css/styles.css";
 import AddTargetsDialog from "./AddTargetsDialog.tsx";
 import EventView from "./EventView.tsx";
 import HandlerEditor from "./HandlerEditor.tsx";
@@ -20,7 +19,7 @@ import {
     ButtonGroup,
 } from "@blueprintjs/core";
 import { useEffect, useState } from "react";
-import { ResizableBox } from "react-resizable";
+import { Resplit } from 'react-resplit';
 import useWebSocket, { ReadyState } from "react-use-websocket";
 
 export default function App() {
@@ -121,42 +120,45 @@ export default function App() {
 
     return (
         <>
-            <section className="top-area">
-                <section className="navigation-area">
-                    <HandlerList
-                        handlers={handlers}
-                        selectedScope={selectedScope}
-                        onScopeSelect={scope => setSelectedScope(scope)}
-                        selectedHandler={selectedHandler}
-                        onHandlerSelect={handleHandlerSelection}
-                    />
-                    <ButtonGroup className="target-actions" vertical={true} minimal={true} alignText="left">
-                        <Button intent="success" icon="add" onClick={() => setAddingTargets(true)}>Add</Button>
-                        {(spawnedProgram !== null) ? <Button intent="danger" icon="reset" onClick={handleRespawnRequest}>Respawn</Button> : null}
-                    </ButtonGroup>
-                </section>
-                <section className="work-area">
-                    {connectionError}
-                    <ButtonGroup minimal={true}>
-                        <Button
-                            icon="rocket-slant"
-                            disabled={draftedCode === handlerCode}
-                            onClick={() => deploy(draftedCode)}
-                        >
-                            Deploy
-                        </Button>
-                    </ButtonGroup>
-                    <HandlerEditor
-                        handlerId={selectedHandler}
-                        handlerCode={handlerCode}
-                        onChange={setDraftedCode}
-                        onSave={deploy}
-                    />
-                </section>
-            </section>
-            <ResizableBox className="event-area" axis="y" height={300} resizeHandles={["n"]} handle={<div className="event-area-handle" />}>
-                <EventView events={events} onActivate={handleEventActivation} />
-            </ResizableBox>
+            <Resplit.Root className="app-content" direction="vertical">
+                <Resplit.Pane className="top-area" order={0} initialSize="0.7fr">
+                    <section className="navigation-area">
+                        <HandlerList
+                            handlers={handlers}
+                            selectedScope={selectedScope}
+                            onScopeSelect={scope => setSelectedScope(scope)}
+                            selectedHandler={selectedHandler}
+                            onHandlerSelect={handleHandlerSelection}
+                        />
+                        <ButtonGroup className="target-actions" vertical={true} minimal={true} alignText="left">
+                            <Button intent="success" icon="add" onClick={() => setAddingTargets(true)}>Add</Button>
+                            {(spawnedProgram !== null) ? <Button intent="danger" icon="reset" onClick={handleRespawnRequest}>Respawn</Button> : null}
+                        </ButtonGroup>
+                    </section>
+                    <section className="work-area">
+                        {connectionError}
+                        <ButtonGroup minimal={true}>
+                            <Button
+                                icon="rocket-slant"
+                                disabled={draftedCode === handlerCode}
+                                onClick={() => deploy(draftedCode)}
+                            >
+                                Deploy
+                            </Button>
+                        </ButtonGroup>
+                        <HandlerEditor
+                            handlerId={selectedHandler}
+                            handlerCode={handlerCode}
+                            onChange={setDraftedCode}
+                            onSave={deploy}
+                        />
+                    </section>
+                </Resplit.Pane>
+                <Resplit.Splitter className="app-splitter" order={1} size="5px" />
+                <Resplit.Pane className="bottom-area" order={2} initialSize="0.3fr">
+                    <EventView events={events} onActivate={handleEventActivation} />
+                </Resplit.Pane>
+            </Resplit.Root>
             <AddTargetsDialog
                 isOpen={addingTargets}
                 stagedItems={stagedItems}

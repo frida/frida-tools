@@ -1,11 +1,9 @@
 .event-view {
-    border-top: 5px groove #ef6456;
     background-color: #1e1e1e;
     color: #e4e4e4;
 }
 
 .event-items {
-    height: 200px;
     padding: 5px;
     font-family: monospace;
     font-size: 10px;
