@@ -395,7 +395,9 @@ def main() -> None:
             if request.headers.get("Connection") == "Upgrade":
                 return
 
-            filename = request.path[1:]
+            raw_path = request.path.split("?", maxsplit=1)[0]
+
+            filename = raw_path[1:]
             if filename == "":
                 filename = "index.html"
 
