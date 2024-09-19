@@ -1,12 +1,10 @@
 .event-view {
-    background-color: #1e1e1e;
-    color: #e4e4e4;
-}
-
-.event-items {
     padding: 5px;
+    overflow: scroll;
     font-family: monospace;
     font-size: 10px;
+    background-color: #1e1e1e;
+    color: #e4e4e4;
 }
 
 .event-heading {
