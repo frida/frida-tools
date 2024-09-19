@@ -97,7 +97,7 @@ export default function App() {
                 break;
             }
             case "targets:staged":
-                setStagedItems(lastJsonMessage.items)
+                setStagedItems(lastJsonMessage.items);
                 break;
             case "events:add":
                 setEvents(events.concat(lastJsonMessage.events));
@@ -113,7 +113,7 @@ export default function App() {
         ? <Callout
             title="Lost connection to frida-trace"
             intent="danger"
-            />
+        />
         : null;
 
     return (
