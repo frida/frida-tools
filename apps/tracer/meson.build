@@ -1,5 +1,6 @@
 sources = [
   'package.json',
+  'package-lock.json',
   'index.html',
   'tsconfig.json',
   'tsconfig.app.json',
