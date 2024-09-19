@@ -1010,7 +1010,10 @@ class FileRepository(Repository):
 
     def close(self) -> None:
         for monitor in self._repo_monitors.values():
-            monitor.disable()
+            try:
+                monitor.disable()
+            except:
+                pass
         self._repo_monitors.clear()
 
         super().close()
