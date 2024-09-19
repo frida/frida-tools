@@ -1,10 +1,12 @@
 import "./EventView.css";
 import { Event, HandlerId } from "./model.js";
 import { Button } from "@blueprintjs/core";
+import { useEffect, useRef } from "react";
 import ScrollToBottom from "react-scroll-to-bottom";
 
 export interface EventViewProps {
     events: Event[];
+    highlightedIndex: number | null;
     onActivate: ActivateEventHandler;
 }
 
@@ -13,8 +15,13 @@ export type ActivateEventHandler = (id: HandlerId) => void;
 const NON_BLOCKING_SPACE = "\u00A0";
 const INDENT = NON_BLOCKING_SPACE.repeat(3) + "|" + NON_BLOCKING_SPACE;
 
-export default function EventView({ events, onActivate }: EventViewProps) {
+export default function EventView({ events, highlightedIndex = null, onActivate }: EventViewProps) {
+    const highlightedRef = useRef<HTMLDivElement>(null);
     let lastTid: number | null = null;
+
+    useEffect(() => {
+        highlightedRef.current?.scrollIntoView({ block: "center" });
+    }, [highlightedRef, highlightedIndex]);
 
     return (
         <ScrollToBottom className="event-view">
@@ -38,8 +45,14 @@ export default function EventView({ events, onActivate }: EventViewProps) {
                             lastTid = threadId;
                         }
 
+                        const isHighlighted = i === highlightedIndex;
+
                         result.push(
-                            <div key={i}>
+                            <div
+                                key={i}
+                                ref={isHighlighted ? highlightedRef : undefined}
+                                className={isHighlighted ? "event-highlighted" : ""}
+                            >
                                 <span className="event-timestamp">{timestampStr} ms</span>
                                 <span className={"event-indent " + colorClass}>{INDENT.repeat(depth)}</span>
                                 <Button

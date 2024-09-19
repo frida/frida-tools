@@ -31,6 +31,8 @@ export default function App() {
     const [draftedCode, setDraftedCode] = useState("");
     const [addingTargets, setAddingTargets] = useState(false);
     const [events, setEvents] = useState<Event[]>([]);
+    const [latestMatchingEventIndex, setLatestMatchingEventIndex] = useState<number | null>(null);
+    const [highlightedEventIndex, setHighlightedEventIndex] = useState<number | null>(null);
     const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
     const { sendJsonMessage, lastJsonMessage, readyState } = useWebSocket<TracerMessage>(
         (import.meta.env.MODE === "development")
@@ -39,6 +41,7 @@ export default function App() {
 
     function handleHandlerSelection(id: HandlerId) {
         setSelectedHandler(id);
+        setHighlightedEventIndex(null);
         sendJsonMessage({ type: "handler:load", id });
     }
 
@@ -111,6 +114,17 @@ export default function App() {
 
     }, [lastJsonMessage]);
 
+    useEffect(() => {
+        for (let i = events.length - 1; i !== -1; i--) {
+            const event = events[i];
+            if (event[0] === selectedHandler) {
+                setLatestMatchingEventIndex(i);
+                return;
+            }
+        }
+        setLatestMatchingEventIndex(null);
+    }, [selectedHandler, events]);
+
     const connectionError = (readyState === ReadyState.CLOSED)
         ? <Callout
             title="Lost connection to frida-trace"
@@ -145,6 +159,13 @@ export default function App() {
                             >
                                 Deploy
                             </Button>
+                            <Button
+                                icon="arrow-down"
+                                disabled={latestMatchingEventIndex === null}
+                                onClick={() => setHighlightedEventIndex(latestMatchingEventIndex)}
+                            >
+                                Latest Event
+                            </Button>
                         </ButtonGroup>
                         <HandlerEditor
                             handlerId={selectedHandler}
@@ -156,7 +177,11 @@ export default function App() {
                 </Resplit.Pane>
                 <Resplit.Splitter className="app-splitter" order={1} size="5px" />
                 <Resplit.Pane className="bottom-area" order={2} initialSize="0.3fr">
-                    <EventView events={events} onActivate={handleEventActivation} />
+                    <EventView
+                        events={events}
+                        highlightedIndex={highlightedEventIndex}
+                        onActivate={handleEventActivation}
+                    />
                 </Resplit.Pane>
             </Resplit.Root>
             <AddTargetsDialog

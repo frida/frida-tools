@@ -28,3 +28,15 @@
     font-weight: bold;
     white-space: pre-line;
 }
+
+.event-highlighted {
+    background-color: #EF6456;
+}
+
+.event-highlighted .event-timestamp {
+    color: white !important;
+}
+
+.event-highlighted .event-message {
+    color: white !important;
+}
