@@ -15,6 +15,10 @@ def main(argv: list[str]):
 
     try:
         build(npm, inputs, output_zip, priv_dir)
+    except subprocess.CalledProcessError as e:
+        print(e, file=sys.stderr)
+        print("Output:\n\t| " + "\n\t| ".join(e.output.strip().split("\n")), file=sys.stderr)
+        sys.exit(1)
     except Exception as e:
         print(e, file=sys.stderr)
         sys.exit(1)
@@ -34,7 +38,13 @@ def build(npm: Path, inputs: list[Path], output_zip: Path, priv_dir: Path):
 
         shutil.copy(srcfile, dstfile)
 
-    npm_opts = {"cwd": priv_dir, "capture_output": True, "check": True}
+    npm_opts = {
+        "cwd": priv_dir,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.STDOUT,
+        "encoding": "utf-8",
+        "check": True,
+    }
     subprocess.run([npm, "install"], **npm_opts)
     subprocess.run([npm, "run", "build"], **npm_opts)
 

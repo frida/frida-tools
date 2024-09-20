@@ -15,6 +15,10 @@ def main(argv: list[str]):
 
     try:
         build(npm, inputs, output_js, priv_dir)
+    except subprocess.CalledProcessError as e:
+        print(e, file=sys.stderr)
+        print("Output:\n\t| " + "\n\t| ".join(e.output.strip().split("\n")), file=sys.stderr)
+        sys.exit(1)
     except Exception as e:
         print(e, file=sys.stderr)
         sys.exit(1)
@@ -35,7 +39,9 @@ def build(npm: Path, inputs: list[Path], output_js: Path, priv_dir: Path):
 
         shutil.copy(srcfile, dstfile)
 
-    subprocess.run([npm, "install"], capture_output=True, cwd=priv_dir, check=True)
+    subprocess.run(
+        [npm, "install"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", cwd=priv_dir, check=True
+    )
 
     frida_compile = priv_dir / "node_modules" / ".bin" / f"frida-compile{script_suffix()}"
     subprocess.run([frida_compile, entrypoint, "-c", "-o", output_js], cwd=priv_dir, check=True)
