@@ -11,6 +11,8 @@ sources = [
   'src' / 'AddTargetsDialog.tsx',
   'src' / 'App.css',
   'src' / 'App.tsx',
+  'src' / 'DisassemblyView.css',
+  'src' / 'DisassemblyView.tsx',
   'src' / 'EventView.css',
   'src' / 'EventView.tsx',
   'src' / 'HandlerEditor.tsx',

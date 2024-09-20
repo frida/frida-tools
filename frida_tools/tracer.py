@@ -34,6 +34,7 @@ MANPAGE_FUNCTION_PROTOTYPE = re.compile(r"([a-zA-Z_]\w+)\(([^\)]+)")
 
 def main() -> None:
     import json
+    import traceback
 
     from colorama import Fore, Style
 
@@ -45,7 +46,7 @@ def main() -> None:
             self._handlers = OrderedDict()
             self._ui_port = 1337
             self._ui_zip = ZipFile(Path(__file__).parent / "tracer_ui.zip", "r")
-            self._ui_sockets: Set[websockets.asyncio.server.ServerConnection] = set()
+            self._ui_socket_handlers: Set[UISocketHandler] = set()
             self._ui_worker = None
             self._asyncio_loop = None
             self._palette = ["cyan", "magenta", "yellow", "green", "red", "blue"]
@@ -251,15 +252,15 @@ def main() -> None:
 
         def on_trace_events(self, raw_events) -> None:
             events = [
-                (target_id, timestamp, thread_id, depth, message, self._get_style(thread_id))
-                for target_id, timestamp, thread_id, depth, message in raw_events
+                (target_id, timestamp, thread_id, depth, caller, backtrace, message, self._get_style(thread_id))
+                for target_id, timestamp, thread_id, depth, caller, backtrace, message in raw_events
             ]
             self._asyncio_loop.call_soon_threadsafe(
                 lambda: self._asyncio_loop.create_task(self._broadcast_trace_events(events))
             )
 
             no_attributes = Style.RESET_ALL
-            for target_id, timestamp, thread_id, depth, message, style in events:
+            for target_id, timestamp, thread_id, depth, caller, backtrace, message, style in events:
                 if self._output is not None:
                     self._output.append(message + "\n")
                 elif self._quiet:
@@ -287,7 +288,8 @@ def main() -> None:
             self._print('%s: Loaded handler at "%s"' % (target, source.replace("\\", "\\\\")))
 
         def _register_handler(self, target: TraceTarget, source: str) -> None:
-            self._handlers[target.identifier] = (target, source)
+            config = {"capture_backtraces": False}
+            self._handlers[target.identifier] = (target, source, config)
 
         def _get_style(self, thread_id):
             style = self._style_by_thread_id.get(thread_id, None)
@@ -325,68 +327,23 @@ def main() -> None:
             if self._tracer is None:
                 return
 
-            self._ui_sockets.add(websocket)
+            handler = UISocketHandler(self, websocket)
+            self._ui_socket_handlers.add(handler)
             try:
-                message = {
-                    "type": "tracer:sync",
-                    "spawned_program": self._spawned_argv[0] if self._spawned_argv is not None else None,
-                    "handlers": [target.to_json() for target, source in self._handlers.values()],
-                }
-                await websocket.send(json.dumps(message))
-
-                while True:
-                    message = json.loads(await websocket.recv())
-                    mtype = message["type"]
-                    if mtype == "tracer:respawn":
-                        self._reactor.schedule(self._respawn)
-                    elif mtype == "handler:load":
-                        target, source = self._handlers[message["id"]]
-                        await websocket.send(
-                            json.dumps(
-                                {
-                                    "type": "handler:loaded",
-                                    "code": self._repo.ensure_handler(target),
-                                }
-                            )
-                        )
-                    elif mtype == "handler:save":
-                        target, source = self._handlers[message["id"]]
-                        self._repo.update_handler(target, message["code"])
-                    elif mtype == "targets:stage":
-                        profile = TracerProfile(list(map(tuple, message["profile"]["spec"])))
-                        try:
-                            items = self._tracer.stage_targets(profile)
-                        except:
-                            continue
-                        await websocket.send(
-                            json.dumps(
-                                {
-                                    "type": "targets:staged",
-                                    "items": items,
-                                }
-                            )
-                        )
-                    elif mtype == "targets:commit":
-                        target_ids = self._tracer.commit_targets(message["id"])
-                        message = {
-                            "type": "handlers:add",
-                            "handlers": [self._handlers[target_id][0].to_json() for target_id in target_ids],
-                        }
-                        await websocket.send(json.dumps(message))
+                await handler.process_messages()
             except:
-                pass
+                traceback.print_exc()
+                # pass
             finally:
-                self._ui_sockets.remove(websocket)
+                self._ui_socket_handlers.remove(handler)
 
         async def _broadcast_trace_events(self, events):
-            for websocket in self._ui_sockets:
-                await websocket.send(
-                    json.dumps(
-                        {
-                            "type": "events:add",
-                            "events": events,
-                        }
-                    )
+            for handler in self._ui_socket_handlers:
+                await handler.post(
+                    {
+                        "type": "events:add",
+                        "events": events,
+                    }
                 )
 
         def _handle_asset_request(
@@ -427,6 +384,98 @@ def main() -> None:
             connection.protocol.handshake_exc = websockets.exceptions.InvalidStatus(response)
 
             return response
+
+    class UISocketHandler:
+        def __init__(self, app: TracerApplication, socket: websockets.asyncio.server.ServerConnection) -> None:
+            self.app = app
+            self.socket = socket
+
+        async def process_messages(self) -> None:
+            app = self.app
+
+            await self.post(
+                {
+                    "type": "tracer:sync",
+                    "spawned_program": app._spawned_argv[0] if app._spawned_argv is not None else None,
+                    "process": app._tracer.process,
+                    "handlers": [target.to_json() for target, _, _ in app._handlers.values()],
+                }
+            )
+
+            while True:
+                request = json.loads(await self.socket.recv())
+                request_id = request.get("id")
+
+                try:
+                    handle_request = getattr(self, "_on_" + request["type"].replace(":", "_").replace("-", "_"), None)
+                    if handle_request is None:
+                        raise NameError("unsupported request type")
+                    result = await handle_request(request["payload"])
+                except Exception as e:
+                    if request_id is not None:
+                        await self.post(
+                            {
+                                "type": "request:error",
+                                "id": request_id,
+                                "payload": {
+                                    "message": str(e),
+                                    "stack": traceback.format_exc(),
+                                },
+                            }
+                        )
+                    continue
+
+                if request_id is not None:
+                    await self.post({"type": "request:result", "id": request_id, "payload": result})
+
+        async def post(self, message: dict) -> None:
+            await self.socket.send(json.dumps(message))
+
+        async def _on_tracer_respawn(self, _: dict) -> None:
+            self.app._reactor.schedule(self.app._respawn)
+
+        async def _on_handler_load(self, payload: dict) -> None:
+            target, source, config = self.app._handlers[payload["id"]]
+            return {"code": self.app._repo.ensure_handler(target), "config": config}
+
+        async def _on_handler_save(self, payload: dict) -> None:
+            target, _, _ = self.app._handlers[payload["id"]]
+            self.app._repo.update_handler(target, payload["code"])
+
+        async def _on_handler_configure(self, payload: dict) -> None:
+            identifier = payload["id"]
+            _, _, config = self.app._handlers[identifier]
+            for k, v in payload["parameters"].items():
+                config[k] = v
+            self.app._tracer.update_handler_config(identifier, config)
+
+        async def _on_targets_stage(self, payload: dict) -> None:
+            profile = TracerProfile(list(map(tuple, payload["profile"]["spec"])))
+            items = self.app._tracer.stage_targets(profile)
+            return {
+                "items": items,
+            }
+
+        async def _on_targets_commit(self, payload: dict) -> None:
+            result = self.app._tracer.commit_targets(payload["id"])
+            target_ids = result["ids"]
+
+            await self.post(
+                {
+                    "type": "handlers:add",
+                    "handlers": [self.app._handlers[target_id][0].to_json() for target_id in target_ids],
+                }
+            )
+
+            return result
+
+        async def _on_memory_read(self, payload: dict) -> None:
+            data = self.app._tracer.read_memory(payload["address"], payload["size"])
+            return list(data) if data is not None else None
+
+        async def _on_symbols_resolve_addresses(self, payload: dict) -> None:
+            names = self.app._tracer.resolve_addresses(payload["addresses"])
+            return {"names": names}
 
     app = TracerApplication()
     app.run()
@@ -519,6 +568,7 @@ class Tracer:
         init_scripts=[],
         log_handler: Callable[[str, str], None] = None,
     ) -> None:
+        self.main_module = None
         self._reactor = reactor
         self._repository = repository
         self._profile = profile
@@ -540,7 +590,7 @@ class Tracer:
         self._repository.on_load(on_load)
 
         def on_update(target, handler, source) -> None:
-            self._agent.update(target.identifier, target.display_name, handler)
+            self._agent.update_handler_code(target.identifier, target.display_name, handler)
 
         self._repository.on_update(on_update)
 
@@ -563,7 +613,7 @@ class Tracer:
         self._agent = script.exports_sync
 
         raw_init_scripts = [{"filename": script.filename, "source": script.source} for script in self._init_scripts]
-        self._agent.init(stage, parameters, raw_init_scripts, self._profile.spec)
+        self.process = self._agent.init(stage, parameters, raw_init_scripts, self._profile.spec)
 
     def stop(self) -> None:
         self._repository.close()
@@ -576,11 +626,20 @@ class Tracer:
                 pass
             self._script = None
 
+    def update_handler_config(self, identifier: int, config: dict) -> None:
+        return self._agent.update_handler_config(identifier, config)
+
     def stage_targets(self, profile: TracerProfile) -> List:
         return self._agent.stage_targets(profile.spec)
 
-    def commit_targets(self, identifier: Optional[int]) -> List:
+    def commit_targets(self, identifier: Optional[int]) -> dict:
         return self._agent.commit_targets(identifier)
+
+    def read_memory(self, address: str, size: int) -> bytes:
+        return self._agent.read_memory(address, size)
+
+    def resolve_addresses(self, addresses: List[str]) -> List[str]:
+        return self._agent.resolve_addresses(addresses)
 
     def _on_message(self, message, data, ui) -> None:
         handled = False
@@ -602,8 +661,8 @@ class Tracer:
     def _try_handle_message(self, mtype, params, data, ui) -> False:
         if mtype == "events:add":
             events = [
-                (target_id, timestamp, thread_id, depth, message)
-                for target_id, timestamp, thread_id, depth, message in params["events"]
+                (target_id, timestamp, thread_id, depth, caller, backtrace, message)
+                for target_id, timestamp, thread_id, depth, caller, backtrace, message in params["events"]
             ]
             ui.on_trace_events(events)
             return True
@@ -619,16 +678,20 @@ class Tracer:
             next_id = base_id
             for scope in params["scopes"]:
                 scope_name = scope["name"]
+                addresses = scope.get("addresses")
+                i = 0
                 for member_name in scope["members"]:
                     if isinstance(member_name, list):
-                        name, display_name = member_name
+                        name, display_name, address = member_name
                     else:
                         name = member_name
                         display_name = member_name
-                    target = TraceTarget(next_id, flavor, scope_name, name, display_name)
+                    address = int(addresses[i], 16) if addresses is not None else None
+                    target = TraceTarget(next_id, flavor, scope_name, name, display_name, address)
                     next_id += 1
                     handler = repo.ensure_handler(target)
                     scripts.append(handler)
+                    i += 1
 
             self._script.post(response)
 
@@ -661,9 +724,16 @@ class TraceTarget:
     scope: str
     name: str
     display_name: str
+    address: Optional[int]
 
     def to_json(self) -> dict:
-        return {"id": self.identifier, "scope": self.scope, "display_name": self.display_name}
+        return {
+            "id": self.identifier,
+            "flavor": self.flavor,
+            "scope": self.scope,
+            "display_name": self.display_name,
+            "address": hex(self.address) if self.address is not None else None,
+        }
 
     def __str__(self) -> str:
         return self.display_name
@@ -710,10 +780,26 @@ class Repository:
             self._on_update_callback(target, handler, source)
 
     def _create_stub_handler(self, target: TraceTarget, decorate: bool) -> str:
+        if target.flavor == "insn":
+            return self._create_stub_instruction_handler(target, decorate)
         if target.flavor == "java":
             return self._create_stub_java_handler(target, decorate)
-        else:
-            return self._create_stub_native_handler(target, decorate)
+        return self._create_stub_native_handler(target, decorate)
+
+    def _create_stub_instruction_handler(self, target: TraceTarget, decorate: bool) -> str:
+        return """\
+/*
+ * Auto-generated by Frida.
+ *
+ * For full API reference, see: https://frida.re/docs/javascript-api/
+ */
+
+defineHandler(function (log, args, state) {
+  log(`%(display_name)s hit! sp=${this.context.sp}`);
+});
+""" % {
+            "display_name": target.display_name
+        }
 
     def _create_stub_native_handler(self, target: TraceTarget, decorate: bool) -> str:
         if target.flavor == "objc":

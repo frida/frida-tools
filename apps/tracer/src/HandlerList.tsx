@@ -7,7 +7,7 @@ export interface HandlerListProps {
     handlers: Handler[];
     selectedScope: ScopeId;
     onScopeSelect: ScopeEventHandler;
-    selectedHandler: HandlerId;
+    selectedHandler: HandlerId | null;
     onHandlerSelect: HandlerEventHandler;
 }
 
@@ -56,7 +56,7 @@ export default function HandlerList({ handlers, selectedScope, onScopeSelect, se
     }
 
     useEffect(() => {
-        if (mouseInsideNode) {
+        if (selectedHandler === null || mouseInsideNode) {
             return;
         }
 
@@ -75,7 +75,7 @@ export default function HandlerList({ handlers, selectedScope, onScopeSelect, se
         requestAnimationFrame(scrollIntoView);
 
         function scrollIntoView() {
-            tree!.getNodeContentElement(selectedHandler)?.scrollIntoView({ block: "center" });
+            tree!.getNodeContentElement(selectedHandler!)?.scrollIntoView({ block: "center" });
         }
 
         return () => {

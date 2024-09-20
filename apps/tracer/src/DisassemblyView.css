@@ -1,0 +1,18 @@
+.disassembly-view {
+    padding: 5px;
+    overflow: auto;
+    font-family: monospace;
+    font-size: 10px;
+    background-color: #1e1e1e;
+    color: #e4e4e4;
+    user-select: text;
+}
+
+a.disassembly-address-has-handler {
+    font-weight: bold;
+    color: white;
+}
+
+a.disassembly-menu-open {
+    background-color: #ef6456;
+}

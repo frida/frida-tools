@@ -4,7 +4,7 @@ import type monaco from "monaco-editor";
 import { useEffect, useState } from "react";
 
 export interface HandlerEditorProps {
-    handlerId: HandlerId;
+    handlerId: HandlerId | null;
     handlerCode: string;
     onChange: CodeEventHandler;
     onSave: CodeEventHandler;
@@ -20,7 +20,7 @@ export default function HandlerEditor({ handlerId, handlerCode, onChange, onSave
 
     const editorOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
         automaticLayout: true,
-        readOnly: handlerId === -1,
+        readOnly: handlerId === null,
         readOnlyMessage: { value: "Cannot edit without a handler selected" },
     };
 
@@ -66,18 +66,21 @@ async function handleEditorWillMount(monaco: any) {
     const typingsResponse = await fetch("https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/master/types/frida-gum/index.d.ts");
     const typingsContent = await typingsResponse.text();
     monaco.languages.typescript.typescriptDefaults.addExtraLib(typingsContent + `
-      declare function defineHandler(handler: TraceScriptHandler): TraceScriptHandler;
-  
-      interface TraceScriptHandler {
+      declare function defineHandler(handler: TraceHandler): TraceHandler;
+
+      type TraceHandler = FunctionTraceHandler | InstructionTraceHandler;
+
+      interface FunctionTraceHandler {
         /**
          * Called synchronously when about to call the traced function.
          *
-         * @this {object} - Object allowing you to store state for use in onLeave.
+         * @this {InvocationContext} - Object with useful properties, where you may also add properties
+         * of your own for use in onLeave.
          * @param {function} log - Call this function with a string to be presented to the user.
          * @param {array} args - Function arguments represented as an array of NativePointer objects.
          * For example use args[0].readUtf8String() if the first argument is a pointer to a C string encoded as UTF-8.
          * It is also possible to modify arguments by assigning a NativePointer object to an element of this array.
-         * @param {object} state - Object allowing you to keep state across function calls.
+         * @param {object} state - Object allowing you to keep state across handlers.
          * Only one JavaScript function will execute at a time, so do not worry about race-conditions.
          * However, do not use this to store function arguments across onEnter/onLeave, but instead
          * use "this" which is an object for keeping state local to an invocation.
@@ -89,14 +92,29 @@ async function handleEditorWillMount(monaco: any) {
          *
          * See onEnter for details.
          *
-         * @this {object} - Object allowing you to access state stored in onEnter.
+         * @this {InvocationContext} - Object with useful properties, including any extra properties
+         * added by your onEnter code.
          * @param {function} log - Call this function with a string to be presented to the user.
          * @param {NativePointer} retval - Return value represented as a NativePointer object.
-         * @param {object} state - Object allowing you to keep state across function calls.
+         * @param {object} state - Object allowing you to keep state across handlers.
          */
         onLeave?(this: InvocationContext, log: TraceLogFunction, retval: InvocationReturnValue, state: TraceScriptState): void;
       }
-  
+
+      /**
+       * Called synchronously when about to execute the traced instruction.
+       *
+       * @this {InvocationContext} - Object with useful properties.
+       * @param {function} log - Call this function with a string to be presented to the user.
+       * @param {array} args - When the traced instruction is the first instruction of a function,
+       * use this parameter to access its arguments represented as an array of NativePointer objects.
+       * For example use args[0].readUtf8String() if the first argument is a pointer to a C string encoded as UTF-8.
+       * It is also possible to modify arguments by assigning a NativePointer object to an element of this array.
+       * @param {object} state - Object allowing you to keep state across handlers.
+       * Only one JavaScript function will execute at a time, so do not worry about race-conditions.
+       */
+      type InstructionTraceHandler = (this: InvocationContext, log: TraceLogFunction, args: InvocationArguments, state: TraceScriptState) => void;
+
       type TraceLogFunction = (...args: any[]) => void;
   
       interface TraceScriptState {

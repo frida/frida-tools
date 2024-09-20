@@ -1,233 +1,184 @@
 import "./App.css";
 import AddTargetsDialog from "./AddTargetsDialog.tsx";
+import DisassemblyView, { type DisassemblyTarget } from "./DisassemblyView.tsx";
 import EventView from "./EventView.tsx";
 import HandlerEditor from "./HandlerEditor.tsx";
 import HandlerList from "./HandlerList.tsx";
-import {
-    Event,
-    Handler,
-    HandlerId,
-    ScopeId,
-    StagedItem,
-    StagedItemId,
-    TraceSpecScope
-} from "./model.js";
+import { useModel } from "./model.js";
 import {
     BlueprintProvider,
     Callout,
     Button,
     ButtonGroup,
+    Switch,
+    Tabs,
+    Tab,
 } from "@blueprintjs/core";
-import { useEffect, useState } from "react";
-import { Resplit } from 'react-resplit';
-import useWebSocket, { ReadyState } from "react-use-websocket";
+import { useRef, useState } from "react";
+import { Resplit } from "react-resplit";
 
 export default function App() {
-    const [spawnedProgram, setSpawnedProgram] = useState<string | null>(null);
-    const [handlers, setHandlers] = useState<Handler[]>([]);
-    const [selectedScope, setSelectedScope] = useState<ScopeId>("");
-    const [selectedHandler, setSelectedHandler] = useState<HandlerId>(-1);
-    const [handlerCode, setHandlerCode] = useState("");
-    const [draftedCode, setDraftedCode] = useState("");
-    const [addingTargets, setAddingTargets] = useState(false);
-    const [events, setEvents] = useState<Event[]>([]);
-    const [latestMatchingEventIndex, setLatestMatchingEventIndex] = useState<number | null>(null);
-    const [highlightedEventIndex, setHighlightedEventIndex] = useState<number | null>(null);
-    const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
-    const { sendJsonMessage, lastJsonMessage, readyState } = useWebSocket<TracerMessage>(
-        (import.meta.env.MODE === "development")
-            ? "ws://localhost:1337"
-            : `ws://${window.location.host}`);
+    const {
+        lostConnection,
 
-    function handleHandlerSelection(id: HandlerId) {
-        setSelectedHandler(id);
-        setHighlightedEventIndex(null);
-        sendJsonMessage({ type: "handler:load", id });
-    }
+        spawnedProgram,
+        respawn,
 
-    function deploy(code: string) {
-        setHandlerCode(code);
-        setDraftedCode(code);
-        sendJsonMessage({ type: "handler:save", id: selectedHandler, code });
-    }
+        handlers,
+        selectedScope,
+        selectScope,
+        selectedHandler,
+        setSelectedHandlerId,
+        handlerCode,
+        draftedCode,
+        setDraftedCode,
+        deployCode,
+        captureBacktraces,
+        setCaptureBacktraces,
 
-    function handleEventActivation(id: HandlerId) {
-        const handler = handlers.find(h => h.id === id);
-        setSelectedScope(handler!.scope);
-        handleHandlerSelection(id);
-    }
+        events,
+        latestMatchingEventIndex,
+        selectedEventIndex,
+        setSelectedEventIndex,
 
-    function handleAddTargetsClose() {
-        setAddingTargets(false);
-        setStagedItems([]);
-    }
+        addingTargets,
+        startAddingTargets,
+        finishAddingTargets,
+        stageItems,
+        stagedItems,
+        commitItems,
 
-    function handleAddTargetsQuery(scope: TraceSpecScope, query: string) {
-        if (query.length === 0 || query === "*") {
-            return;
-        }
+        addInstructionHook,
 
-        const spec = [
-            ["include", scope, query],
-        ];
-        sendJsonMessage({ type: "targets:stage", profile: { spec } });
-    }
+        symbolicate,
+    } = useModel();
+    const captureBacktracesSwitchRef = useRef<HTMLInputElement>(null);
+    const [selectedTabId, setSelectedTabId] = useState("events");
+    const [disassemblyTarget, setDisassemblyTarget] = useState<DisassemblyTarget>();
 
-    function handleAddTargetsCommit(id: StagedItemId | null) {
-        handleAddTargetsClose();
-        sendJsonMessage({ type: "targets:commit", id });
-    }
-
-    function handleRespawnRequest() {
-        sendJsonMessage({ type: "tracer:respawn" });
-    }
-
-    useEffect(() => {
-        if (lastJsonMessage === null) {
-            return;
-        }
-
-        switch (lastJsonMessage.type) {
-            case "tracer:sync":
-                setSpawnedProgram(lastJsonMessage.spawned_program);
-                setHandlers(lastJsonMessage.handlers);
-                break;
-            case "handlers:add":
-                setHandlers(handlers.concat(lastJsonMessage.handlers));
-                break;
-            case "handler:loaded": {
-                const { code } = lastJsonMessage;
-                setHandlerCode(code);
-                setDraftedCode(code);
-                break;
-            }
-            case "targets:staged":
-                setStagedItems(lastJsonMessage.items);
-                break;
-            case "events:add":
-                setEvents(events.concat(lastJsonMessage.events));
-                break;
-            default:
-                console.log("TODO:", lastJsonMessage);
-                break;
-        }
-
-    }, [lastJsonMessage]);
-
-    useEffect(() => {
-        for (let i = events.length - 1; i !== -1; i--) {
-            const event = events[i];
-            if (event[0] === selectedHandler) {
-                setLatestMatchingEventIndex(i);
-                return;
-            }
-        }
-        setLatestMatchingEventIndex(null);
-    }, [selectedHandler, events]);
-
-    const connectionError = (readyState === ReadyState.CLOSED)
+    const connectionError = lostConnection
         ? <Callout
             title="Lost connection to frida-trace"
             intent="danger"
         />
         : null;
 
+    const eventView = (
+        <EventView
+            events={events}
+            selectedIndex={selectedEventIndex}
+            onActivate={(handlerId, eventIndex) => {
+                setSelectedHandlerId(handlerId);
+                setSelectedEventIndex(eventIndex);
+            }}
+            onDeactivate={() => {
+                setSelectedEventIndex(null);
+            }}
+            onDisassemble={address => {
+                setSelectedTabId("disassembly");
+                setDisassemblyTarget({ type: "instruction", address });
+            }}
+            onSymbolicate={symbolicate}
+        />
+    );
+
+    const disassemblyView = (
+        <DisassemblyView
+            target={disassemblyTarget}
+            handlers={handlers}
+            onSelectTarget={setDisassemblyTarget}
+            onSelectHandler={setSelectedHandlerId}
+            onAddInstructionHook={addInstructionHook}
+        />
+    );
+
     return (
         <>
             <Resplit.Root className="app-content" direction="vertical">
-                <Resplit.Pane className="top-area" order={0} initialSize="0.7fr">
+                <Resplit.Pane className="top-area" order={0} initialSize="0.5fr">
                     <section className="navigation-area">
                         <HandlerList
                             handlers={handlers}
                             selectedScope={selectedScope}
-                            onScopeSelect={scope => setSelectedScope(scope)}
-                            selectedHandler={selectedHandler}
-                            onHandlerSelect={handleHandlerSelection}
+                            onScopeSelect={selectScope}
+                            selectedHandler={selectedHandler?.id ?? null}
+                            onHandlerSelect={setSelectedHandlerId}
                         />
                         <ButtonGroup className="target-actions" vertical={true} minimal={true} alignText="left">
-                            <Button intent="success" icon="add" onClick={() => setAddingTargets(true)}>Add</Button>
-                            {(spawnedProgram !== null) ? <Button intent="danger" icon="reset" onClick={handleRespawnRequest}>Respawn</Button> : null}
+                        <Button intent="success" icon="add" onClick={startAddingTargets}>Add</Button>
+                            {(spawnedProgram !== null) ? <Button intent="danger" icon="reset" onClick={respawn}>Respawn</Button> : null}
                         </ButtonGroup>
                     </section>
-                    <section className="work-area">
+                    <section className="editor-area">
                         {connectionError}
-                        <ButtonGroup minimal={true}>
-                            <Button
-                                icon="rocket-slant"
-                                disabled={draftedCode === handlerCode}
-                                onClick={() => deploy(draftedCode)}
+                        <section className="editor-toolbar">
+                            <ButtonGroup minimal={true}>
+                                <Button
+                                    icon="rocket-slant"
+                                    disabled={draftedCode === handlerCode}
+                                    onClick={() => deployCode(draftedCode)}
+                                >
+                                    Deploy
+                                </Button>
+                                <Button
+                                    icon="arrow-down"
+                                    disabled={latestMatchingEventIndex === null}
+                                    onClick={() => {
+                                        setSelectedTabId("events");
+                                        setSelectedEventIndex(latestMatchingEventIndex);
+                                    }}
+                                >
+                                    Latest Event
+                                </Button>
+                                <Button
+                                    icon="code"
+                                    disabled={lostConnection || selectedHandler === null || selectedHandler.address === null}
+                                    onClick={() => {
+                                        setSelectedTabId("disassembly");
+                                        setDisassemblyTarget({
+                                            type: (selectedHandler!.flavor === "insn") ? "instruction" : "function",
+                                            name: selectedHandler!.display_name,
+                                            address: selectedHandler!.address!
+                                        });
+                                    }}
+                                >
+                                    Disassemble
+                                </Button>
+                            </ButtonGroup>
+                            <Switch
+                                inputRef={captureBacktracesSwitchRef}
+                                checked={captureBacktraces}
+                                onChange={() => setCaptureBacktraces(captureBacktracesSwitchRef.current!.checked)}
                             >
-                                Deploy
-                            </Button>
-                            <Button
-                                icon="arrow-down"
-                                disabled={latestMatchingEventIndex === null}
-                                onClick={() => setHighlightedEventIndex(latestMatchingEventIndex)}
-                            >
-                                Latest Event
-                            </Button>
-                        </ButtonGroup>
+                                Capture Backtraces
+                            </Switch>
+                        </section>
                         <HandlerEditor
-                            handlerId={selectedHandler}
+                            handlerId={selectedHandler?.id ?? null}
                             handlerCode={handlerCode}
                             onChange={setDraftedCode}
-                            onSave={deploy}
+                            onSave={deployCode}
                         />
                     </section>
                 </Resplit.Pane>
                 <Resplit.Splitter className="app-splitter" order={1} size="5px" />
-                <Resplit.Pane className="bottom-area" order={2} initialSize="0.3fr">
-                    <EventView
-                        events={events}
-                        highlightedIndex={highlightedEventIndex}
-                        onActivate={handleEventActivation}
-                    />
+                <Resplit.Pane className="bottom-area" order={2} initialSize="0.5fr">
+                    <Tabs className="bottom-tabs" selectedTabId={selectedTabId} onChange={tabId => setSelectedTabId(tabId as string)} animate={false}>
+                        <Tab id="events" title="Events" panel={eventView} panelClassName="bottom-tab-panel" />
+                        <Tab id="disassembly" title="Disassembly" panel={disassemblyView} panelClassName="bottom-tab-panel" />
+                    </Tabs>
                 </Resplit.Pane>
             </Resplit.Root>
             <AddTargetsDialog
                 isOpen={addingTargets}
                 stagedItems={stagedItems}
-                onClose={handleAddTargetsClose}
-                onQuery={handleAddTargetsQuery}
-                onCommit={handleAddTargetsCommit}
+                onClose={finishAddingTargets}
+                onQuery={stageItems}
+                onCommit={commitItems}
             />
             <BlueprintProvider>
                 <div />
             </BlueprintProvider>
         </>
     );
-}
-
-type TracerMessage =
-    | TracerSyncMessage
-    | HandlersAddMessage
-    | HandlerLoadedMessage
-    | TargetsStagedMessage
-    | EventsAddMessage
-    ;
-
-interface TracerSyncMessage {
-    type: "tracer:sync";
-    spawned_program: string | null;
-    handlers: Handler[];
-}
-
-interface HandlersAddMessage {
-    type: "handlers:add";
-    handlers: Handler[];
-}
-
-interface HandlerLoadedMessage {
-    type: "handler:loaded";
-    code: string;
-}
-
-interface TargetsStagedMessage {
-    type: "targets:staged";
-    items: StagedItem[];
-}
-
-interface EventsAddMessage {
-    type: "events:add";
-    events: Event[];
 }

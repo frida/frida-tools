@@ -106,6 +106,8 @@ function labelForTraceSpecScope(scope: TraceSpecScope) {
             return "Function";
         case TraceSpecScope.RelativeFunction:
             return "Relative Function";
+        case TraceSpecScope.AbsoluteInstruction:
+            return "Instruction";
         case TraceSpecScope.Imports:
             return "All Module Imports";
         case TraceSpecScope.Module:
@@ -127,6 +129,8 @@ function placeholderForTraceTargetSpecScope(scope: TraceSpecScope) {
             return "[Module!]Function";
         case TraceSpecScope.RelativeFunction:
             return "Module!Offset";
+        case TraceSpecScope.AbsoluteInstruction:
+            return "0x1234";
         case TraceSpecScope.Imports:
         case TraceSpecScope.Module:
             return "Module";
