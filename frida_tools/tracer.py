@@ -792,7 +792,7 @@ defineHandler({
  * For full API reference, see: https://frida.re/docs/javascript-api/
  */
 
-{
+defineHandler({
   /**
    * Called synchronously when about to call %(display_name)s.
    *
@@ -820,7 +820,7 @@ defineHandler({
       log(`<= ${JSON.stringify(retval)}`);
     }
   }
-}
+});
 """ % {
             "display_name": target.display_name
         }
