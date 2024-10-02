@@ -183,6 +183,7 @@ complete --command frida-create --no-files --require-parameter --short-option=t 
 ######## frida-apk ########
 add_base_arguments frida-apk
 complete --command frida-apk --force-files --short-option=o --long-option=output --description="output path"
+complete --command frida-apk --force-files --short-option=g --long-option=gadget --description="inject the specified gadget library"
 
 
 ######## frida-compile ########
