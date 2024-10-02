@@ -191,18 +191,26 @@ class StartElement:
 
         # Some parts of Android expect this to be sorted by resource ID.
         attr_offset = None
+        replace = False
         for insert_pos in range(self.attribute_count + 1):
-            attr_offset = 0x24 + 20 * insert_pos
+            attr_offset = 0x24 + struct.calcsize(self.ATTRIBUTE_FORMAT) * insert_pos
             idx = int.from_bytes(chunk_data[attr_offset + 4 : attr_offset + 8], "little")
-            if resource_map.get_resource(idx) > ResourceMap.DEBUGGING_RESOURCE:
+            res = resource_map.get_resource(idx)
+            if res >= ResourceMap.DEBUGGING_RESOURCE:
+                # If there's already a debugging resource, replace it.
+                replace = res == ResourceMap.DEBUGGING_RESOURCE
                 break
-        chunk_data[attr_offset:attr_offset] = debuggable
 
-        self.header.size = len(chunk_data)
-        chunk_data[4 : 4 + 4] = struct.pack("<I", self.header.size)
+        if replace:
+            chunk_data[attr_offset : attr_offset + struct.calcsize(self.ATTRIBUTE_FORMAT)] = debuggable
+        else:
+            chunk_data[attr_offset:attr_offset] = debuggable
 
-        self.attribute_count += 1
-        chunk_data[28 : 28 + 2] = struct.pack("<H", self.attribute_count)
+            self.header.size = len(chunk_data)
+            chunk_data[4 : 4 + 4] = struct.pack("<I", self.header.size)
+
+            self.attribute_count += 1
+            chunk_data[28 : 28 + 2] = struct.pack("<H", self.attribute_count)
 
         self.header.chunk_data = bytes(chunk_data)
 
