@@ -5,8 +5,14 @@ import os
 import struct
 from enum import IntEnum
 from io import BufferedReader
-from typing import List
+from typing import BinaryIO, List
 from zipfile import ZipFile
+
+GADGET_NAME = "libfridagadget.so"
+
+WRAP_SCRIPT = f"""#!/bin/sh
+LD_PRELOAD="$(dirname "$0")/{GADGET_NAME}" "$@"
+"""
 
 
 def main() -> None:
@@ -18,6 +24,13 @@ def main() -> None:
 
         def _add_options(self, parser: argparse.ArgumentParser) -> None:
             parser.add_argument("-o", "--output", help="output path", metavar="OUTPUT")
+            parser.add_argument(
+                "-g",
+                "--gadget",
+                type=argparse.FileType("rb"),
+                help="inject the specified gadget library",
+                metavar="GADGET",
+            )
             parser.add_argument("apk", help="apk file")
 
         def _needs_device(self) -> bool:
@@ -26,6 +39,7 @@ def main() -> None:
         def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
             self._output_path = options.output
             self._path = options.apk
+            self._gadget = options.gadget
 
             if not self._path.endswith(".apk"):
                 parser.error("path must end in .apk")
@@ -36,6 +50,10 @@ def main() -> None:
         def _start(self) -> None:
             try:
                 debug(self._path, self._output_path)
+                if self._gadget is not None:
+                    gadget_arch = get_gadget_arch(self._gadget)
+                    lib_dir = f"lib/{gadget_arch}/"
+                    inject(self._gadget.name, lib_dir, self._output_path)
             except Exception as e:
                 self._update_status(f"Error: {e}")
                 self._exit(1)
@@ -94,6 +112,35 @@ def debug(path: str, output_path: str) -> None:
                     oz.writestr(info.filename, f.read(), info.compress_type)
                 else:
                     oz.writestr(info.filename, f.read(), info.compress_type)
+
+
+def inject(gadget_so: str, lib_dir: str, output_apk: str) -> None:
+    with ZipFile(output_apk, "a") as oz:
+        oz.writestr(lib_dir + "wrap.sh", WRAP_SCRIPT)
+        oz.write(gadget_so, lib_dir + GADGET_NAME)
+
+
+def get_gadget_arch(gadget: BinaryIO) -> str:
+    ELF_HEADER = struct.Struct("<B3sB13xH")
+
+    (m1, m2, bits, machine) = ELF_HEADER.unpack(gadget.read(ELF_HEADER.size))
+    if m1 != 0x7F or m2 != b"ELF":
+        raise ValueError("gadget is not an ELF file")
+
+    # ABI names from https://android.googlesource.com/platform/ndk.git/+/refs/heads/main/meta/abis.json,
+    # ELF machine values (and header) from /usr/include/elf.h.
+    if machine == 0x28 and bits == 1:
+        return "armeabi-v7a"
+    elif machine == 0xB7 and bits == 2:
+        return "arm64-v8a"
+    elif machine == 0x03 and bits == 1:
+        return "x86"
+    elif machine == 0x3E and bits == 2:
+        return "x86_64"
+    elif machine == 0xF3 and bits == 2:
+        return "riscv64"
+    else:
+        raise ValueError(f"unknown ELF e_machine 0x{machine:02x}")
 
 
 class BinaryXML:
