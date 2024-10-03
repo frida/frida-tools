@@ -15,7 +15,7 @@ export interface EventViewProps {
 
 export type EventActionHandler = (handlerId: HandlerId, eventIndex: number) => void;
 export type DisassembleHandler = (address: string) => void;
-export type SymbolicateHandler = (addresses: string[]) => Promise<string[]>;
+export type SymbolicateHandler = (addresses: bigint[]) => Promise<string[]>;
 
 const NON_BLOCKING_SPACE = "\u00A0";
 const INDENT = NON_BLOCKING_SPACE.repeat(3) + "|" + NON_BLOCKING_SPACE;
@@ -67,14 +67,14 @@ export default function EventView({
 
         async function symbolicate() {
             if (caller !== null && backtrace === null) {
-                const [symbol] = await onSymbolicate([caller]);
+                const [symbol] = await onSymbolicate([BigInt(caller)]);
                 if (!ignore) {
                     setSelectedCallerSymbol(symbol);
                 }
             }
 
             if (backtrace !== null) {
-                const symbols = await onSymbolicate(backtrace);
+                const symbols = await onSymbolicate(backtrace.map(BigInt));
                 if (!ignore) {
                     setSelectedBacktraceSymbols(symbols);
                 }

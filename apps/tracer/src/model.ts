@@ -36,7 +36,7 @@ export function useModel() {
     const [addingTargets, setAddingTargets] = useState(false);
     const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
 
-    const cachedSymbolsRef = useRef(new Map<string, string>());
+    const cachedSymbolsRef = useRef(new Map<bigint, string>());
 
     const request = useCallback(<T extends RequestType>(type: T, payload: RequestPayload[T]): Promise<ResponsePayload[T]> => {
         const rpcState = rpcStateRef.current;
@@ -173,7 +173,7 @@ export function useModel() {
         setSelectedHandlerId(ids[0]);
     }, [request]);
 
-    const symbolicate = useCallback(async (addresses: string[]): Promise<string[]> => {
+    const symbolicate = useCallback(async (addresses: bigint[]): Promise<string[]> => {
         const cache = cachedSymbolsRef.current;
 
         const result = addresses.map(address => cache.get(address) ?? null);
@@ -186,7 +186,9 @@ export function useModel() {
         }, [] as number[]);
         if (missingIndices.length !== 0) {
             const missingAddresses = missingIndices.map(i => addresses[i]);
-            const { names } = await request("symbols:resolve-addresses", { addresses: missingAddresses });
+            const { names } = await request("symbols:resolve-addresses", {
+                addresses: missingAddresses.map(addr => "0x" + addr.toString(16))
+            });
             names.forEach((name, i) => {
                 cache.set(missingAddresses[i], name);
                 result[missingIndices[i]] = name;
