@@ -89,6 +89,7 @@ export default function App() {
             onSelectTarget={setDisassemblyTarget}
             onSelectHandler={setSelectedHandlerId}
             onAddInstructionHook={addInstructionHook}
+            onSymbolicate={symbolicate}
         />
     );
 

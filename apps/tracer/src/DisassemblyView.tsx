@@ -10,6 +10,7 @@ export interface DisassemblyViewProps {
     onSelectTarget: SelectTargetRequestHandler;
     onSelectHandler: SelectHandlerRequestHandler;
     onAddInstructionHook: AddInstructionHookRequestHandler;
+    onSymbolicate: SymbolicateRequestHandler;
 }
 
 export type DisassemblyTarget = FunctionTarget | InstructionTarget;
@@ -28,11 +29,15 @@ export interface InstructionTarget {
 export type SelectTargetRequestHandler = (target: DisassemblyTarget) => void;
 export type SelectHandlerRequestHandler = (id: HandlerId) => void;
 export type AddInstructionHookRequestHandler = (address: bigint) => void;
+export type SymbolicateRequestHandler = (addresses: bigint[]) => Promise<string[]>;
 
-export default function DisassemblyView({ target, handlers, onSelectTarget, onSelectHandler, onAddInstructionHook }: DisassemblyViewProps) {
+const ADDRESS_PATTERN = /\b0x[0-9a-f]+\b/;
+const MINIMUM_PAGE_SIZE = 4096;
+
+export default function DisassemblyView({ target, handlers, onSelectTarget, onSelectHandler, onAddInstructionHook, onSymbolicate }: DisassemblyViewProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const [rawR2Output, setRawR2Output] = useState("");
-    const [r2Ops, setR2Ops] = useState(new Map<bigint, R2Operation>());
+    const [data, setData] = useState<DisassemblyData | null>(null);
+    const seenAddressesRef = useRef(new Set<bigint>());
     const [r2Output, setR2Output] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const highlightedAddressAnchorRef = useRef<HTMLAnchorElement | null>(null);
@@ -49,39 +54,41 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
         const t = target;
 
         async function start() {
-            const command = [
-                `s ${target!.address}`,
-            ]
-            if (t.type === "function") {
-                command.push(...["af-", "af"]);
-                if (t.name !== undefined) {
-                    command.push("afn base64:" + btoa(t.name));
-                }
-                command.push(...["pdf", "pdfj"]);
-            } else {
-                command.push(...["pd", "pdj"]);
-            }
-
-            let result = await executeR2Command(command.join(";"));
+            let result = await disassemble(t, executeR2Command);
             if (ignore) {
                 return;
             }
-            if (result.startsWith("{")) {
-                result = await executeR2Command("pd; pdj");
+
+            const addressesToResolve: bigint[] = [];
+            const seenAddresses = seenAddressesRef.current;
+            const { operations } = result;
+            for (const match of result.html.matchAll(new RegExp(ADDRESS_PATTERN, "g"))) {
+                const val = BigInt(match[0]);
+                if (val < MINIMUM_PAGE_SIZE || seenAddresses.has(val) || operations.has(val)) {
+                    continue;
+                }
+                addressesToResolve.push(val);
+                seenAddresses.add(val);
+            }
+
+            if (addressesToResolve.length !== 0) {
+                const names = await onSymbolicate(addressesToResolve);
+                const commands = names.reduce((result, name, i) => {
+                    if (!name.startsWith("0x")) {
+                        const mangledName = name.replace(/\b0x/g, "").replace(/[^\w]/g, "_");
+                        const addr = addressesToResolve[i];
+                        result.push(`f sym.${mangledName} @ 0x${addr.toString(16)}`);
+                    }
+                    return result;
+                }, [] as string[]);
+                await executeR2Command(commands.join(";"));
+                result = await disassemble(t, executeR2Command);
                 if (ignore) {
                     return;
                 }
             }
 
-            const lines = result.trimEnd().split("\n");
-
-            setRawR2Output(lines.slice(0, lines.length - 1).join("\n"));
-
-            const meta = JSON.parse(lines[lines.length - 1]);
-            const opItems: R2Operation[] = Array.isArray(meta) ? meta : meta.ops;
-            const opByAddress = new Map<bigint, R2Operation>(opItems.map(op => [BigInt(op.offset), op]));
-            setR2Ops(opByAddress);
-
+            setData(result);
             setIsLoading(false);
         }
 
@@ -90,25 +97,30 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
         return () => {
             ignore = true;
         };
-    }, [target]);
+    }, [target, executeR2Command]);
 
     useEffect(() => {
-        let lines: string[];
-        if (rawR2Output.length > 0) {
-            const handlerByAddress = handlers.reduce((result, handler) => {
-                const { address } = handler;
-                if (address === null) {
-                    return result;
-                }
-                return result.set(BigInt(address), handler);
-            }, new Map<bigint, Handler>());
+        if (data === null) {
+            setR2Output([]);
+            return;
+        }
+        const { html, operations } = data;
 
-            lines =
-                rawR2Output
+        let lines: string[];
+        const handlerByAddress = handlers.reduce((result, handler) => {
+            const { address } = handler;
+            if (address === null) {
+                return result;
+            }
+            return result.set(BigInt(address), handler);
+        }, new Map<bigint, Handler>());
+
+        lines =
+            html
                 .split("<br />")
                 .map(line => {
                     let address: bigint | null = null;
-                    line = line.replace(/\b0x[0-9a-f]+\b/, rawAddress => {
+                    line = line.replace(ADDRESS_PATTERN, rawAddress => {
                         address = BigInt(rawAddress);
                         const handler = handlerByAddress.get(address);
                         const attrs = (handler !== undefined)
@@ -118,7 +130,7 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
                     });
 
                     if (address !== null) {
-                        const op = r2Ops.get(address);
+                        const op = operations.get(address);
                         if (op !== undefined) {
                             const targetAddress = op.jump;
                             if (targetAddress !== undefined) {
@@ -132,12 +144,9 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
 
                     return line;
                 });
-        } else {
-            lines = [];
-        }
 
         setR2Output(lines);
-    }, [handlers, rawR2Output]);
+    }, [handlers, data]);
 
     const handleAddressMenuClose = useCallback(() => {
         hideContextMenu();
@@ -165,7 +174,7 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
                 text="Go to handler"
                 icon="arrow-up"
                 onClick={() => {
-                    const id: HandlerId = parseInt(highlightedAddressAnchorRef.current!.getAttribute("data-handler")!)
+                    const id: HandlerId = parseInt(highlightedAddressAnchorRef.current!.getAttribute("data-handler")!);
                     onSelectHandler(id);
                 }}
             />
@@ -247,4 +256,41 @@ interface R2Operation {
     jump?: string;
     fail?: string;
     reloc: boolean;
+}
+
+async function disassemble(
+    target: DisassemblyTarget,
+    executeR2Command: (command: string) => Promise<string>): Promise<DisassemblyData> {
+    const command = [
+        `s ${target!.address}`,
+    ];
+    if (target.type === "function") {
+        command.push(...["af-", "af"]);
+        if (target.name !== undefined) {
+            command.push("afn base64:" + btoa(target.name));
+        }
+        command.push(...["pdf", "pdfj"]);
+    } else {
+        command.push(...["pd", "pdj"]);
+    }
+
+    let result = await executeR2Command(command.join(";"));
+    if (result.startsWith("{")) {
+        result = await executeR2Command("pd; pdj");
+    }
+
+    const lines = result.trimEnd().split("\n");
+
+    const html = lines.slice(0, lines.length - 1).join("\n");
+
+    const meta = JSON.parse(lines[lines.length - 1]);
+    const opItems: R2Operation[] = Array.isArray(meta) ? meta : meta.ops;
+    const operations = new Map<bigint, R2Operation>(opItems.map(op => [BigInt(op.offset), op]));
+
+    return { html, operations };
+}
+
+interface DisassemblyData {
+    html: string;
+    operations: Map<bigint, R2Operation>;
 }
