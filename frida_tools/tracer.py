@@ -682,7 +682,7 @@ class Tracer:
                 i = 0
                 for member_name in scope["members"]:
                     if isinstance(member_name, list):
-                        name, display_name, address = member_name
+                        name, display_name = member_name
                     else:
                         name = member_name
                         display_name = member_name
