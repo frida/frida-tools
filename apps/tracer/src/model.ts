@@ -27,7 +27,7 @@ export function useModel() {
     const [draftedCode, setDraftedCode] = useState("");
     const [captureBacktraces, _setCaptureBacktraces] = useState(false);
 
-    const [selectedTabId, _setSelectedTabId] = useState("events");
+    const [selectedTab, _setSelectedTab] = useState<TabId>("events");
 
     const [events, setEvents] = useState<Event[]>([]);
     const [latestMatchingEventIndex, setLatestMatchingEventIndex] = useState<number | null>(null);
@@ -40,6 +40,18 @@ export function useModel() {
     const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
 
     const cachedSymbolsRef = useRef(new Map<bigint, string>());
+
+    const pushState = useCallback((updates: Partial<AppNavigationState>) => {
+        const state: AppNavigationState = {
+            handler: selectedHandlerId,
+            tab: selectedTab,
+            eventIndex: selectedEventIndex,
+            disassemblyTarget,
+            memoryLocation,
+            ...updates,
+        };
+        history.pushState(state, "");
+    }, [selectedHandlerId, selectedTab, selectedEventIndex, disassemblyTarget, memoryLocation]);
 
     const request = useCallback(<T extends RequestType>(type: T, payload: RequestPayload[T]): Promise<ResponsePayload[T]> => {
         const rpcState = rpcStateRef.current;
@@ -120,8 +132,8 @@ export function useModel() {
 
     const setSelectedHandlerId = useCallback((handler: HandlerId) => {
         _setSelectedHandlerId(handler);
-        pushState({ type: "handler", handler });
-    }, []);
+        pushState({ handler });
+    }, [pushState]);
 
     const setCaptureBacktraces = useCallback(async (enabled: boolean) => {
         _setCaptureBacktraces(enabled);
@@ -134,16 +146,16 @@ export function useModel() {
     }, [request, selectedHandler]);
 
     const disassemble = useCallback((target: DisassemblyTarget) => {
-        _setSelectedTabId("disassembly");
+        _setSelectedTab("disassembly");
         setDisassemblyTarget(target);
-        pushState({ type: "tab", tab: "disassembly", target });
-    }, []);
+        pushState({ tab: "disassembly", disassemblyTarget: target });
+    }, [pushState]);
 
     const showMemoryLocation = useCallback((location: bigint) => {
-        _setSelectedTabId("memory");
+        _setSelectedTab("memory");
         setMemoryLocation(location);
-        pushState({ type: "tab", tab: "memory", location });
-    }, []);
+        pushState({ tab: "memory", memoryLocation: location });
+    }, [pushState]);
 
     const startAddingTargets = useCallback(() => {
         setAddingTargets(true);
@@ -266,20 +278,10 @@ export function useModel() {
         }
     }, [lastJsonMessage]);
 
-    const setSelectedTabId = useCallback((tab: "events" | "disassembly" | "memory") => {
-        _setSelectedTabId(tab);
-        switch (tab) {
-            case "events":
-                pushState({ type: "tab", tab, eventIndex: selectedEventIndex });
-                break;
-            case "disassembly":
-                pushState({ type: "tab", tab, target: disassemblyTarget });
-                break;
-            case "memory":
-                pushState({ type: "tab", tab, location: memoryLocation });
-                break;
-        }
-    }, [selectedEventIndex, disassemblyTarget, memoryLocation]);
+    const setSelectedTabId = useCallback((tab: TabId) => {
+        _setSelectedTab(tab);
+        pushState({ tab });
+    }, [pushState]);
 
     useEffect(() => {
         if (selectedHandler !== null) {
@@ -296,7 +298,7 @@ export function useModel() {
     }, [selectedHandler, events]);
 
     const setSelectedEventIndex = useCallback((index: number | null) => {
-        _setSelectedTabId("events");
+        _setSelectedTab("events");
         _setSelectedEventIndex(index);
     }, []);
 
@@ -304,31 +306,17 @@ export function useModel() {
         function onPopState(event: PopStateEvent) {
             const state: AppNavigationState | null = event.state;
             if (state !== null) {
-                switch (state.type) {
-                    case "handler":
-                        _setSelectedHandlerId(state.handler);
-                        _setSelectedTabId("events");
-                        break;
-                    case "tab":
-                        switch (state.tab) {
-                            case "events":
-                                _setSelectedTabId("events");
-                                setSelectedEventIndex(state.eventIndex);
-                                break;
-                            case "disassembly":
-                                _setSelectedTabId("disassembly");
-                                setDisassemblyTarget(state.target);
-                                break;
-                            case "memory":
-                                _setSelectedTabId("memory");
-                                setMemoryLocation(state.location);
-                                break;
-                        }
-                        break;
-                }
+                _setSelectedHandlerId(state.handler);
+                _setSelectedTab(state.tab);
+                _setSelectedEventIndex(state.eventIndex);
+                setDisassemblyTarget(state.disassemblyTarget);
+                setMemoryLocation(state.memoryLocation);
             } else {
-                _setSelectedTabId("events");
                 _setSelectedHandlerId(null);
+                _setSelectedTab("events");
+                _setSelectedEventIndex(null);
+                setDisassemblyTarget(undefined);
+                setMemoryLocation(undefined);
             }
         }
 
@@ -358,7 +346,7 @@ export function useModel() {
         captureBacktraces,
         setCaptureBacktraces,
 
-        selectedTabId,
+        selectedTabId: selectedTab,
         setSelectedTabId,
 
         events,
@@ -415,6 +403,8 @@ export type ScopeId = string;
 interface HandlerConfig {
     capture_backtraces: boolean;
 }
+
+export type TabId = "events" | "disassembly" | "memory";
 
 export type StagedItem = [id: StagedItemId, scope: ScopeName, member: MemberName];
 export type StagedItemId = number;
@@ -570,31 +560,10 @@ interface RequestErrorMessage {
     };
 }
 
-type AppNavigationState = HandlerNavigationState | EventsNavigationState | DisassemblyNavigationState | MemoryNavigationState;
-
-interface HandlerNavigationState {
-    type: "handler";
-    handler: HandlerId;
-}
-
-interface EventsNavigationState {
-    type: "tab";
-    tab: "events";
+interface AppNavigationState {
+    handler: HandlerId | null;
+    tab: TabId;
     eventIndex: number | null;
-}
-
-interface DisassemblyNavigationState {
-    type: "tab";
-    tab: "disassembly";
-    target: DisassemblyTarget | undefined;
-}
-
-interface MemoryNavigationState {
-    type: "tab";
-    tab: "memory";
-    location: bigint | undefined;
-}
-
-function pushState(state: AppNavigationState) {
-    history.pushState(state, "");
+    disassemblyTarget: DisassemblyTarget | undefined;
+    memoryLocation: bigint | undefined;
 }
