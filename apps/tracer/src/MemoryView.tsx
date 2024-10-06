@@ -1,13 +1,17 @@
 import "./MemoryView.css";
-import { SegmentedControl, Spinner } from "@blueprintjs/core";
+import { Button, ControlGroup, InputGroup, SegmentedControl, Spinner } from "@blueprintjs/core";
 import { useR2 } from "@frida/react-use-r2";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface MemoryViewProps {
     address?: bigint;
+    onSelectAddress: SelectAddressHandler;
 }
 
-export default function MemoryView({ address }: MemoryViewProps) {
+export type SelectAddressHandler = (address: bigint) => void;
+
+export default function MemoryView({ address, onSelectAddress }: MemoryViewProps) {
+    const addressInputRef = useRef<HTMLInputElement>(null);
     const [format, setFormat] = useState("x");
     const [data, setData] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -38,6 +42,19 @@ export default function MemoryView({ address }: MemoryViewProps) {
         };
     }, [format, address, executeR2Command]);
 
+    useEffect(() => {
+        if (address === undefined) {
+            return;
+        }
+
+        addressInputRef.current!.value = `0x${address.toString(16)}`;
+    }, [address]);
+
+    const adjustAddress = useCallback((delta: number) => {
+        const newAddress = BigInt(addressInputRef.current!.value) + BigInt(delta);
+        onSelectAddress(newAddress);
+    }, [onSelectAddress]);
+
     if (isLoading) {
         return (
             <Spinner className="memory-view" />
@@ -46,26 +63,42 @@ export default function MemoryView({ address }: MemoryViewProps) {
 
     return (
         <div className="memory-view">
-            <SegmentedControl
-                small={true}
-                options={[
-                    {
-                        label: "Raw",
-                        value: "x",
-                    },
-                    {
-                        label: "64",
-                        value: "pxq"
-                    },
-                    {
-                        label: "32",
-                        value: "pxw"
-                    },
-                ]}
-                defaultValue="x"
-                onValueChange={setFormat}
-            />
-            <div dangerouslySetInnerHTML={{ __html: data }} />
+            <div className="memory-view-toolbar">
+                <ControlGroup>
+                    <Button icon="arrow-left" onClick={() => adjustAddress(-16)}></Button>
+                    <InputGroup
+                        inputRef={addressInputRef}
+                        onKeyDown={e => {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                onSelectAddress(BigInt(addressInputRef.current!.value));
+                            }
+                        }}
+                        placeholder="Memory address…"
+                    />
+                    <Button icon="arrow-right" onClick={() => adjustAddress(16)}></Button>
+                </ControlGroup>
+                <SegmentedControl
+                    small={true}
+                    options={[
+                        {
+                            label: "Raw",
+                            value: "x",
+                        },
+                        {
+                            label: "64",
+                            value: "pxq"
+                        },
+                        {
+                            label: "32",
+                            value: "pxw"
+                        },
+                    ]}
+                    defaultValue="x"
+                    onValueChange={setFormat}
+                />
+            </div>
+            <div className="memory-view-data" dangerouslySetInnerHTML={{ __html: data }} />
         </div>
     );
 }

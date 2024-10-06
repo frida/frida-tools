@@ -100,7 +100,10 @@ export default function App() {
     );
 
     const memoryView = (
-        <MemoryView address={memoryLocation} />
+        <MemoryView
+            address={memoryLocation}
+            onSelectAddress={showMemoryLocation}
+        />
     );
 
     return (
