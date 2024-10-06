@@ -18,6 +18,8 @@ sources = [
   'src' / 'HandlerEditor.tsx',
   'src' / 'HandlerList.css',
   'src' / 'HandlerList.tsx',
+  'src' / 'MemoryView.css',
+  'src' / 'MemoryView.tsx',
   'src' / 'index.css',
   'src' / 'main.tsx',
   'src' / 'model.ts',

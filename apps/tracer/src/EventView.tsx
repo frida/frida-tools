@@ -14,7 +14,7 @@ export interface EventViewProps {
 }
 
 export type EventActionHandler = (handlerId: HandlerId, eventIndex: number) => void;
-export type DisassembleHandler = (address: string) => void;
+export type DisassembleHandler = (address: bigint) => void;
 export type SymbolicateHandler = (addresses: bigint[]) => Promise<string[]>;
 
 const NON_BLOCKING_SPACE = "\u00A0";
@@ -106,7 +106,7 @@ export default function EventView({
                             <tr>
                                 <td>Caller</td>
                                 <td>
-                                    <Button onClick={() => onDisassemble(caller)}>{selectedCallerSymbol ?? caller}</Button>
+                                    <Button onClick={() => onDisassemble(BigInt(caller))}>{selectedCallerSymbol ?? caller}</Button>
                                 </td>
                             </tr>
                         ) : null
@@ -115,7 +115,8 @@ export default function EventView({
                             <tr>
                                 <td>Backtrace</td>
                                 <td>
-                                    {backtrace.map((address, i) => <Button key={address} alignText="left" onClick={() => onDisassemble(address)}>
+                                    {backtrace.map((address, i) =>
+                                        <Button key={address} alignText="left" onClick={() => onDisassemble(BigInt(address))}>
                                         {(selectedBacktraceSymbols !== null) ? selectedBacktraceSymbols[i] : address}
                                     </Button>)}
                                 </td>

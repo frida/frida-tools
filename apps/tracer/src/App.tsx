@@ -4,6 +4,7 @@ import DisassemblyView, { type DisassemblyTarget } from "./DisassemblyView.tsx";
 import EventView from "./EventView.tsx";
 import HandlerEditor from "./HandlerEditor.tsx";
 import HandlerList from "./HandlerList.tsx";
+import MemoryView from "./MemoryView.tsx";
 import { useModel } from "./model.js";
 import {
     BlueprintProvider,
@@ -55,6 +56,7 @@ export default function App() {
     const captureBacktracesSwitchRef = useRef<HTMLInputElement>(null);
     const [selectedTabId, setSelectedTabId] = useState("events");
     const [disassemblyTarget, setDisassemblyTarget] = useState<DisassemblyTarget>();
+    const [memoryLocation, setMemoryLocation] = useState<bigint | undefined>();
 
     const connectionError = lostConnection
         ? <Callout
@@ -88,9 +90,17 @@ export default function App() {
             handlers={handlers}
             onSelectTarget={setDisassemblyTarget}
             onSelectHandler={setSelectedHandlerId}
+            onSelectMemoryLocation={address => {
+                setSelectedTabId("memory");
+                setMemoryLocation(address);
+            }}
             onAddInstructionHook={addInstructionHook}
             onSymbolicate={symbolicate}
         />
+    );
+
+    const memoryView = (
+        <MemoryView address={memoryLocation} />
     );
 
     return (
@@ -139,7 +149,7 @@ export default function App() {
                                         setDisassemblyTarget({
                                             type: (selectedHandler!.flavor === "insn") ? "instruction" : "function",
                                             name: selectedHandler!.display_name,
-                                            address: selectedHandler!.address!
+                                            address: BigInt(selectedHandler!.address!)
                                         });
                                     }}
                                 >
@@ -167,6 +177,7 @@ export default function App() {
                     <Tabs className="bottom-tabs" selectedTabId={selectedTabId} onChange={tabId => setSelectedTabId(tabId as string)} animate={false}>
                         <Tab id="events" title="Events" panel={eventView} panelClassName="bottom-tab-panel" />
                         <Tab id="disassembly" title="Disassembly" panel={disassemblyView} panelClassName="bottom-tab-panel" />
+                        <Tab id="memory" title="Memory" panel={memoryView} panelClassName="bottom-tab-panel" />
                     </Tabs>
                 </Resplit.Pane>
             </Resplit.Root>

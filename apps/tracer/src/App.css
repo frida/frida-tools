@@ -88,3 +88,7 @@
 .disassembly-view {
     flex: 1;
 }
+
+.memory-view {
+    flex: 1;
+}

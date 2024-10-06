@@ -9,6 +9,7 @@ export interface DisassemblyViewProps {
     handlers: Handler[];
     onSelectTarget: SelectTargetRequestHandler;
     onSelectHandler: SelectHandlerRequestHandler;
+    onSelectMemoryLocation: SelectMemoryLocationRequestHandler;
     onAddInstructionHook: AddInstructionHookRequestHandler;
     onSymbolicate: SymbolicateRequestHandler;
 }
@@ -18,23 +19,25 @@ export type DisassemblyTarget = FunctionTarget | InstructionTarget;
 export interface FunctionTarget {
     type: "function";
     name?: string;
-    address: string;
+    address: bigint;
 }
 
 export interface InstructionTarget {
     type: "instruction";
-    address: string;
+    address: bigint;
 }
 
 export type SelectTargetRequestHandler = (target: DisassemblyTarget) => void;
 export type SelectHandlerRequestHandler = (id: HandlerId) => void;
+export type SelectMemoryLocationRequestHandler = (address: bigint) => void;
 export type AddInstructionHookRequestHandler = (address: bigint) => void;
 export type SymbolicateRequestHandler = (addresses: bigint[]) => Promise<string[]>;
 
-const ADDRESS_PATTERN = /\b0x[0-9a-f]+\b/;
+const HEXLITERAL_PATTERN = /\b0x[0-9a-f]+\b/g;
 const MINIMUM_PAGE_SIZE = 4096;
 
-export default function DisassemblyView({ target, handlers, onSelectTarget, onSelectHandler, onAddInstructionHook, onSymbolicate }: DisassemblyViewProps) {
+export default function DisassemblyView({ target, handlers, onSelectTarget, onSelectHandler, onSelectMemoryLocation, onAddInstructionHook,
+        onSymbolicate }: DisassemblyViewProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [data, setData] = useState<DisassemblyData | null>(null);
     const seenAddressesRef = useRef(new Set<bigint>());
@@ -62,7 +65,7 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
             const addressesToResolve: bigint[] = [];
             const seenAddresses = seenAddressesRef.current;
             const { operations } = result;
-            for (const match of result.html.matchAll(new RegExp(ADDRESS_PATTERN, "g"))) {
+            for (const match of result.html.matchAll(HEXLITERAL_PATTERN)) {
                 const val = BigInt(match[0]);
                 if (val < MINIMUM_PAGE_SIZE || seenAddresses.has(val) || operations.has(val)) {
                     continue;
@@ -120,13 +123,37 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
                 .split("<br />")
                 .map(line => {
                     let address: bigint | null = null;
-                    line = line.replace(ADDRESS_PATTERN, rawAddress => {
-                        address = BigInt(rawAddress);
-                        const handler = handlerByAddress.get(address);
-                        const attrs = (handler !== undefined)
-                            ? ` class="disassembly-address-has-handler" data-handler="${handler.id}"`
-                            : "";
-                        return `<a data-address="0x${address.toString(16)}" ${attrs}>${rawAddress}</a>`;
+                    let branchTarget: { address: string, label: string } | null = null;
+
+                    let n = 0;
+                    line = line.replace(HEXLITERAL_PATTERN, rawValue => {
+                        const value = BigInt(rawValue);
+                        n++;
+
+                        if (n === 1) {
+                            address = value;
+
+                            const op = operations.get(address);
+                            if (op !== undefined) {
+                                const jump = op.jump;
+                                if (jump !== undefined) {
+                                    branchTarget = {
+                                        address: jump,
+                                        label: op.disasm.split("&nbsp;")[1]
+                                    };
+                                }
+                            }
+
+                            const handler = handlerByAddress.get(value);
+                            const attrs = (handler !== undefined)
+                                ? ` class="disassembly-address-has-handler" data-handler="${handler.id}"`
+                                : "";
+                            return `<a data-context="address" data-address="0x${value.toString(16)}" ${attrs}>${rawValue}</a>`;
+                        } else if (branchTarget === null && value >= MINIMUM_PAGE_SIZE) {
+                            return `<a data-context="value" data-value="0x${value.toString(16)}">${rawValue}</a>`;
+                        }
+
+                        return rawValue;
                     });
 
                     if (address !== null) {
@@ -136,7 +163,7 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
                             if (targetAddress !== undefined) {
                                 const targetLabel = op.disasm.split("&nbsp;")[1];
                                 line = line.replace(targetLabel, _ => {
-                                    return `<a data-target="${targetAddress}" data-type="${op.type}">${targetLabel}</a>`;
+                                    return `<a data-context="branch" data-target="${targetAddress}" data-type="${op.type}">${targetLabel}</a>`;
                                 });
                             }
                         }
@@ -148,7 +175,7 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
         setR2Output(lines);
     }, [handlers, data]);
 
-    const handleAddressMenuClose = useCallback(() => {
+    const handleMenuClose = useCallback(() => {
         hideContextMenu();
 
         highlightedAddressAnchorRef.current!.classList.remove("disassembly-menu-open");
@@ -181,6 +208,30 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
         </Menu>
     ), [onSelectHandler]);
 
+    const unknownAddressMenu = useMemo(() => (
+        <Menu>
+            <MenuItem
+                icon="data-lineage"
+                text="View memory"
+                onClick={() => {
+                    const address = BigInt(highlightedAddressAnchorRef.current!.getAttribute("data-value")!);
+                    onSelectMemoryLocation(address);
+                }}
+            />
+            <MenuItem
+                icon="code"
+                text="Disassemble"
+                onClick={() => {
+                    const address = BigInt(highlightedAddressAnchorRef.current!.getAttribute("data-value")!);
+                    onSelectTarget({
+                        type: "instruction",
+                        address
+                    });
+                }}
+            />
+        </Menu>
+    ), [onSelectHandler]);
+
     const handleAddressClick = useCallback((event: React.MouseEvent) => {
         const target = event.target;
         if (!(target instanceof HTMLAnchorElement)) {
@@ -189,33 +240,43 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
 
         event.preventDefault();
 
-        const branchTarget = target.getAttribute("data-target");
-        if (branchTarget !== null) {
-            const anchor = containerRef.current!.querySelector(`a[data-address="${branchTarget}"]`);
-            if (anchor !== null) {
-                anchor.scrollIntoView();
-                return;
+        const context = target.getAttribute("data-context")!;
+        switch (context) {
+            case "address":
+            case "value": {
+                showContextMenu({
+                    content: (context === "address")
+                        ? (target.hasAttribute("data-handler") ? hookedAddressMenu : unhookedAddressMenu)
+                        : unknownAddressMenu,
+                    onClose: handleMenuClose,
+                    targetOffset: {
+                        left: event.clientX,
+                        top: event.clientY
+                    },
+                });
+
+                highlightedAddressAnchorRef.current = target;
+                target.classList.add("disassembly-menu-open");
+
+                break;
             }
+            case "branch": {
+                const branchTarget = target.getAttribute("data-target")!;
+                const anchor = containerRef.current!.querySelector(`a[data-address="${branchTarget}"]`);
+                if (anchor !== null) {
+                    anchor.scrollIntoView();
+                    return;
+                }
 
-            onSelectTarget({
-                type: (target.getAttribute("data-type") === "call") ? "function" : "instruction",
-                address: branchTarget
-            });
-            return;
+                onSelectTarget({
+                    type: (target.getAttribute("data-type") === "call") ? "function" : "instruction",
+                    address: BigInt(branchTarget)
+                });
+
+                break;
+            }
         }
-
-        showContextMenu({
-            content: target.hasAttribute("data-handler") ? hookedAddressMenu : unhookedAddressMenu,
-            onClose: handleAddressMenuClose,
-            targetOffset: {
-                left: event.clientX,
-                top: event.clientY
-            },
-        });
-
-        highlightedAddressAnchorRef.current = target;
-        target.classList.add("disassembly-menu-open");
-    }, [handleAddressMenuClose, unhookedAddressMenu]);
+    }, [handleMenuClose, unhookedAddressMenu]);
 
     if (isLoading) {
         return (
