@@ -51,7 +51,12 @@ export default function MemoryView({ address, onSelectAddress }: MemoryViewProps
     }, [address]);
 
     const adjustAddress = useCallback((delta: number) => {
-        const newAddress = BigInt(addressInputRef.current!.value) + BigInt(delta);
+        let newAddress: bigint;
+        try {
+            newAddress = BigInt(addressInputRef.current!.value) + BigInt(delta);
+        } catch (e) {
+            return;
+        }
         onSelectAddress(newAddress);
     }, [onSelectAddress]);
 
@@ -71,7 +76,7 @@ export default function MemoryView({ address, onSelectAddress }: MemoryViewProps
                         onKeyDown={e => {
                             if (e.key === "Enter") {
                                 e.preventDefault();
-                                onSelectAddress(BigInt(addressInputRef.current!.value));
+                                adjustAddress(0);
                             }
                         }}
                         placeholder="Memory address…"
