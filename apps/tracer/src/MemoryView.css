@@ -7,3 +7,13 @@
     color: #e4e4e4;
     user-select: text;
 }
+
+.memory-view .bp5-segmented-control {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+}
+
+.memory-view .bp5-segmented-control .bp5-button {
+    font-size: 10px;
+}
