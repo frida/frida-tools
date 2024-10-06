@@ -1,6 +1,6 @@
 import "./App.css";
 import AddTargetsDialog from "./AddTargetsDialog.tsx";
-import DisassemblyView, { type DisassemblyTarget } from "./DisassemblyView.tsx";
+import DisassemblyView from "./DisassemblyView.tsx";
 import EventView from "./EventView.tsx";
 import HandlerEditor from "./HandlerEditor.tsx";
 import HandlerList from "./HandlerList.tsx";
@@ -15,7 +15,7 @@ import {
     Tabs,
     Tab,
 } from "@blueprintjs/core";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { Resplit } from "react-resplit";
 
 export default function App() {
@@ -37,10 +37,19 @@ export default function App() {
         captureBacktraces,
         setCaptureBacktraces,
 
+        selectedTabId,
+        setSelectedTabId,
+
         events,
         latestMatchingEventIndex,
         selectedEventIndex,
         setSelectedEventIndex,
+
+        disassemblyTarget,
+        disassemble,
+
+        memoryLocation,
+        showMemoryLocation,
 
         addingTargets,
         startAddingTargets,
@@ -54,9 +63,6 @@ export default function App() {
         symbolicate,
     } = useModel();
     const captureBacktracesSwitchRef = useRef<HTMLInputElement>(null);
-    const [selectedTabId, setSelectedTabId] = useState("events");
-    const [disassemblyTarget, setDisassemblyTarget] = useState<DisassemblyTarget>();
-    const [memoryLocation, setMemoryLocation] = useState<bigint | undefined>();
 
     const connectionError = lostConnection
         ? <Callout
@@ -76,10 +82,7 @@ export default function App() {
             onDeactivate={() => {
                 setSelectedEventIndex(null);
             }}
-            onDisassemble={address => {
-                setSelectedTabId("disassembly");
-                setDisassemblyTarget({ type: "instruction", address });
-            }}
+            onDisassemble={disassemble}
             onSymbolicate={symbolicate}
         />
     );
@@ -88,12 +91,9 @@ export default function App() {
         <DisassemblyView
             target={disassemblyTarget}
             handlers={handlers}
-            onSelectTarget={setDisassemblyTarget}
+            onSelectTarget={disassemble}
             onSelectHandler={setSelectedHandlerId}
-            onSelectMemoryLocation={address => {
-                setSelectedTabId("memory");
-                setMemoryLocation(address);
-            }}
+            onSelectMemoryLocation={showMemoryLocation}
             onAddInstructionHook={addInstructionHook}
             onSymbolicate={symbolicate}
         />
@@ -116,7 +116,7 @@ export default function App() {
                             onHandlerSelect={setSelectedHandlerId}
                         />
                         <ButtonGroup className="target-actions" vertical={true} minimal={true} alignText="left">
-                        <Button intent="success" icon="add" onClick={startAddingTargets}>Add</Button>
+                            <Button intent="success" icon="add" onClick={startAddingTargets}>Add</Button>
                             {(spawnedProgram !== null) ? <Button intent="danger" icon="reset" onClick={respawn}>Respawn</Button> : null}
                         </ButtonGroup>
                     </section>
@@ -134,10 +134,7 @@ export default function App() {
                                 <Button
                                     icon="arrow-down"
                                     disabled={latestMatchingEventIndex === null}
-                                    onClick={() => {
-                                        setSelectedTabId("events");
-                                        setSelectedEventIndex(latestMatchingEventIndex);
-                                    }}
+                                    onClick={() => setSelectedEventIndex(latestMatchingEventIndex)}
                                 >
                                     Latest Event
                                 </Button>
@@ -145,8 +142,7 @@ export default function App() {
                                     icon="code"
                                     disabled={lostConnection || selectedHandler === null || selectedHandler.address === null}
                                     onClick={() => {
-                                        setSelectedTabId("disassembly");
-                                        setDisassemblyTarget({
+                                        disassemble({
                                             type: (selectedHandler!.flavor === "insn") ? "instruction" : "function",
                                             name: selectedHandler!.display_name,
                                             address: BigInt(selectedHandler!.address!)
@@ -174,7 +170,7 @@ export default function App() {
                 </Resplit.Pane>
                 <Resplit.Splitter className="app-splitter" order={1} size="5px" />
                 <Resplit.Pane className="bottom-area" order={2} initialSize="0.5fr">
-                    <Tabs className="bottom-tabs" selectedTabId={selectedTabId} onChange={tabId => setSelectedTabId(tabId as string)} animate={false}>
+                    <Tabs className="bottom-tabs" selectedTabId={selectedTabId} onChange={tabId => setSelectedTabId(tabId as any)} animate={false}>
                         <Tab id="events" title="Events" panel={eventView} panelClassName="bottom-tab-panel" />
                         <Tab id="disassembly" title="Disassembly" panel={disassemblyView} panelClassName="bottom-tab-panel" />
                         <Tab id="memory" title="Memory" panel={memoryView} panelClassName="bottom-tab-panel" />

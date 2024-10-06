@@ -1,10 +1,7 @@
 import { useR2, type Platform, type Architecture } from "@frida/react-use-r2";
-//import r2WasmUrl from "@frida/react-use-r2/dist/r2.wasm?url";
 import { OverlayToaster } from "@blueprintjs/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
-
-//console.log("r2WasmUrl:", r2WasmUrl);
 
 const SOCKET_URL = (import.meta.env.MODE === "development")
     ? "ws://localhost:1337"
@@ -24,14 +21,20 @@ export function useModel() {
 
     const [handlers, setHandlers] = useState<Handler[]>([]);
     const [selectedScope, setSelectedScope] = useState<ScopeId>("");
-    const [selectedHandlerId, setSelectedHandlerId] = useState<HandlerId | null>(null);
+    const [selectedHandlerId, _setSelectedHandlerId] = useState<HandlerId | null>(null);
     const [selectedHandler, setSelectedHandler] = useState<Handler | null>(null);
     const [handlerCode, setHandlerCode] = useState("");
     const [draftedCode, setDraftedCode] = useState("");
     const [captureBacktraces, _setCaptureBacktraces] = useState(false);
+
+    const [selectedTabId, _setSelectedTabId] = useState("events");
+
     const [events, setEvents] = useState<Event[]>([]);
     const [latestMatchingEventIndex, setLatestMatchingEventIndex] = useState<number | null>(null);
-    const [selectedEventIndex, setSelectedEventIndex] = useState<number | null>(null);
+    const [selectedEventIndex, _setSelectedEventIndex] = useState<number | null>(null);
+
+    const [disassemblyTarget, setDisassemblyTarget] = useState<DisassemblyTarget>();
+    const [memoryLocation, setMemoryLocation] = useState<bigint | undefined>();
 
     const [addingTargets, setAddingTargets] = useState(false);
     const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
@@ -78,6 +81,11 @@ export function useModel() {
     useEffect(() => {
         const id = selectedHandlerId;
         if (id === null) {
+            setSelectedScope("");
+            setSelectedHandler(null);
+            setHandlerCode("");
+            setDraftedCode("");
+            _setCaptureBacktraces(false);
             return;
         }
 
@@ -110,6 +118,11 @@ export function useModel() {
         await request("handler:save", { id: selectedHandler!.id, code });
     }, [request, selectedHandler]);
 
+    const setSelectedHandlerId = useCallback((handler: HandlerId) => {
+        _setSelectedHandlerId(handler);
+        pushState({ type: "handler", handler });
+    }, []);
+
     const setCaptureBacktraces = useCallback(async (enabled: boolean) => {
         _setCaptureBacktraces(enabled);
         await request("handler:configure", {
@@ -119,6 +132,18 @@ export function useModel() {
             }
         });
     }, [request, selectedHandler]);
+
+    const disassemble = useCallback((target: DisassemblyTarget) => {
+        _setSelectedTabId("disassembly");
+        setDisassemblyTarget(target);
+        pushState({ type: "tab", tab: "disassembly", target });
+    }, []);
+
+    const showMemoryLocation = useCallback((location: bigint) => {
+        _setSelectedTabId("memory");
+        setMemoryLocation(location);
+        pushState({ type: "tab", tab: "memory", location });
+    }, []);
 
     const startAddingTargets = useCallback(() => {
         setAddingTargets(true);
@@ -241,6 +266,21 @@ export function useModel() {
         }
     }, [lastJsonMessage]);
 
+    const setSelectedTabId = useCallback((tab: "events" | "disassembly" | "memory") => {
+        _setSelectedTabId(tab);
+        switch (tab) {
+            case "events":
+                pushState({ type: "tab", tab, eventIndex: selectedEventIndex });
+                break;
+            case "disassembly":
+                pushState({ type: "tab", tab, target: disassemblyTarget });
+                break;
+            case "memory":
+                pushState({ type: "tab", tab, location: memoryLocation });
+                break;
+        }
+    }, [selectedEventIndex, disassemblyTarget, memoryLocation]);
+
     useEffect(() => {
         if (selectedHandler !== null) {
             const selectedHandlerId = selectedHandler.id;
@@ -254,6 +294,50 @@ export function useModel() {
         }
         setLatestMatchingEventIndex(null);
     }, [selectedHandler, events]);
+
+    const setSelectedEventIndex = useCallback((index: number | null) => {
+        _setSelectedTabId("events");
+        _setSelectedEventIndex(index);
+    }, []);
+
+    useEffect(() => {
+        function onPopState(event: PopStateEvent) {
+            const state: AppNavigationState | null = event.state;
+            if (state !== null) {
+                switch (state.type) {
+                    case "handler":
+                        _setSelectedHandlerId(state.handler);
+                        _setSelectedTabId("events");
+                        break;
+                    case "tab":
+                        switch (state.tab) {
+                            case "events":
+                                _setSelectedTabId("events");
+                                setSelectedEventIndex(state.eventIndex);
+                                break;
+                            case "disassembly":
+                                _setSelectedTabId("disassembly");
+                                setDisassemblyTarget(state.target);
+                                break;
+                            case "memory":
+                                _setSelectedTabId("memory");
+                                setMemoryLocation(state.location);
+                                break;
+                        }
+                        break;
+                }
+            } else {
+                _setSelectedTabId("events");
+                _setSelectedHandlerId(null);
+            }
+        }
+
+        addEventListener("popstate", onPopState);
+
+        return () => {
+            removeEventListener("popstate", onPopState);
+        };
+    });
 
     return {
         lostConnection,
@@ -274,10 +358,19 @@ export function useModel() {
         captureBacktraces,
         setCaptureBacktraces,
 
+        selectedTabId,
+        setSelectedTabId,
+
         events,
         latestMatchingEventIndex,
         selectedEventIndex,
         setSelectedEventIndex,
+
+        disassemblyTarget,
+        disassemble,
+
+        memoryLocation,
+        showMemoryLocation,
 
         addingTargets,
         startAddingTargets,
@@ -354,6 +447,19 @@ export interface NativeModule {
     name: string;
     path: string;
     size: number;
+}
+
+export type DisassemblyTarget = FunctionTarget | InstructionTarget;
+
+export interface FunctionTarget {
+    type: "function";
+    name?: string;
+    address: bigint;
+}
+
+export interface InstructionTarget {
+    type: "instruction";
+    address: bigint;
 }
 
 interface RpcState {
@@ -462,4 +568,33 @@ interface RequestErrorMessage {
         message: string;
         stack: string;
     };
+}
+
+type AppNavigationState = HandlerNavigationState | EventsNavigationState | DisassemblyNavigationState | MemoryNavigationState;
+
+interface HandlerNavigationState {
+    type: "handler";
+    handler: HandlerId;
+}
+
+interface EventsNavigationState {
+    type: "tab";
+    tab: "events";
+    eventIndex: number | null;
+}
+
+interface DisassemblyNavigationState {
+    type: "tab";
+    tab: "disassembly";
+    target: DisassemblyTarget | undefined;
+}
+
+interface MemoryNavigationState {
+    type: "tab";
+    tab: "memory";
+    location: bigint | undefined;
+}
+
+function pushState(state: AppNavigationState) {
+    history.pushState(state, "");
 }

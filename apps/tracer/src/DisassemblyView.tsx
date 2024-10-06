@@ -1,5 +1,5 @@
 import "./DisassemblyView.css";
-import { Handler, HandlerId } from "./model.js";
+import { DisassemblyTarget, Handler, HandlerId } from "./model.js";
 import { useR2 } from "@frida/react-use-r2";
 import { hideContextMenu, Menu, MenuItem, showContextMenu, Spinner } from "@blueprintjs/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,19 +12,6 @@ export interface DisassemblyViewProps {
     onSelectMemoryLocation: SelectMemoryLocationRequestHandler;
     onAddInstructionHook: AddInstructionHookRequestHandler;
     onSymbolicate: SymbolicateRequestHandler;
-}
-
-export type DisassemblyTarget = FunctionTarget | InstructionTarget;
-
-export interface FunctionTarget {
-    type: "function";
-    name?: string;
-    address: bigint;
-}
-
-export interface InstructionTarget {
-    type: "instruction";
-    address: bigint;
 }
 
 export type SelectTargetRequestHandler = (target: DisassemblyTarget) => void;

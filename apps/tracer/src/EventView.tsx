@@ -1,7 +1,7 @@
 import "./EventView.css";
-import { Event, HandlerId } from "./model.js";
+import { DisassemblyTarget, Event, HandlerId } from "./model.js";
 import { Button, Card } from "@blueprintjs/core";
-import { ReactElement, useEffect, useRef, useState } from "react";
+import { ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import { useStayAtBottom } from "react-stay-at-bottom";
 
 export interface EventViewProps {
@@ -14,7 +14,7 @@ export interface EventViewProps {
 }
 
 export type EventActionHandler = (handlerId: HandlerId, eventIndex: number) => void;
-export type DisassembleHandler = (address: bigint) => void;
+export type DisassembleHandler = (target: DisassemblyTarget) => void;
 export type SymbolicateHandler = (addresses: bigint[]) => Promise<string[]>;
 
 const NON_BLOCKING_SPACE = "\u00A0";
@@ -86,7 +86,11 @@ export default function EventView({
         return () => {
             ignore = true;
         };
-    }, [events, selectedIndex, onSymbolicate])
+    }, [events, selectedIndex, onSymbolicate]);
+
+    const handleDisassemblyRequest = useCallback((rawAddress: string) => {
+        onDisassemble({ type: "instruction", address: BigInt(rawAddress) });
+    }, [onDisassemble]);
 
     let selectedEventDetails: ReactElement | undefined;
     if (selectedIndex !== null) {
@@ -106,7 +110,7 @@ export default function EventView({
                             <tr>
                                 <td>Caller</td>
                                 <td>
-                                    <Button onClick={() => onDisassemble(BigInt(caller))}>{selectedCallerSymbol ?? caller}</Button>
+                                    <Button onClick={() => handleDisassemblyRequest(caller)}>{selectedCallerSymbol ?? caller}</Button>
                                 </td>
                             </tr>
                         ) : null
@@ -116,7 +120,7 @@ export default function EventView({
                                 <td>Backtrace</td>
                                 <td>
                                     {backtrace.map((address, i) =>
-                                        <Button key={address} alignText="left" onClick={() => onDisassemble(BigInt(address))}>
+                                        <Button key={address} alignText="left" onClick={() => handleDisassemblyRequest(address)}>
                                         {(selectedBacktraceSymbols !== null) ? selectedBacktraceSymbols[i] : address}
                                     </Button>)}
                                 </td>
