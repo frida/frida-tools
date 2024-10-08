@@ -184,6 +184,7 @@ complete --command frida-create --no-files --require-parameter --short-option=t 
 add_base_arguments frida-apk
 complete --command frida-apk --force-files --short-option=o --long-option=output --description="output path"
 complete --command frida-apk --force-files --short-option=g --long-option=gadget --description="inject the specified gadget library"
+complete --command frida-apk --force-files --short-option=c --long-option=gadget-config --description="set the given key=value gadget interaction config"
 
 
 ######## frida-compile ########
