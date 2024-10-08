@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import struct
 from enum import IntEnum
 from io import BufferedReader
-from typing import BinaryIO, List
+from typing import BinaryIO, Dict, List
 from zipfile import ZipFile
 
 GADGET_NAME = "libfridagadget.so"
@@ -13,6 +14,11 @@ GADGET_NAME = "libfridagadget.so"
 WRAP_SCRIPT = f"""#!/bin/sh
 LD_PRELOAD="$(dirname "$0")/{GADGET_NAME}" "$@"
 """
+
+GADGET_INTERACTION_CONFIG = {
+    "type": "listen",
+    "on_load": "wait",
+}
 
 
 def main() -> None:
@@ -31,6 +37,22 @@ def main() -> None:
                 help="inject the specified gadget library",
                 metavar="GADGET",
             )
+
+            def key_val_type(arg: str) -> tuple[str, str]:
+                split = arg.split("=", 1)
+                if len(split) == 1:
+                    raise argparse.ArgumentTypeError("config entry must be of form key=value")
+                return (split[0], split[1])
+
+            parser.add_argument(
+                "-c",
+                "--gadget-config",
+                type=key_val_type,
+                action="append",
+                help="set the given key=value gadget interaction config",
+                metavar="GADGET_CONFIG",
+            )
+
             parser.add_argument("apk", help="apk file")
 
         def _needs_device(self) -> bool:
@@ -40,6 +62,10 @@ def main() -> None:
             self._output_path = options.output
             self._path = options.apk
             self._gadget = options.gadget
+            self._gadget_config = options.gadget_config
+
+            if self._gadget_config and self._gadget is None:
+                parser.error("cannot configure gadget without injecting gadget")
 
             if not self._path.endswith(".apk"):
                 parser.error("path must end in .apk")
@@ -53,7 +79,10 @@ def main() -> None:
                 if self._gadget is not None:
                     gadget_arch = get_gadget_arch(self._gadget)
                     lib_dir = f"lib/{gadget_arch}/"
-                    inject(self._gadget.name, lib_dir, self._output_path)
+
+                    config = {"interaction": {**GADGET_INTERACTION_CONFIG, **dict(self._gadget_config or [])}}
+
+                    inject(self._gadget.name, lib_dir, config, self._output_path)
             except Exception as e:
                 self._update_status(f"Error: {e}")
                 self._exit(1)
@@ -114,9 +143,11 @@ def debug(path: str, output_path: str) -> None:
                     oz.writestr(info.filename, f.read(), info.compress_type)
 
 
-def inject(gadget_so: str, lib_dir: str, output_apk: str) -> None:
+def inject(gadget_so: str, lib_dir: str, config: Dict[str, Dict[str, str]], output_apk: str) -> None:
+    config_name = GADGET_NAME.removesuffix(".so") + ".config.so"
     with ZipFile(output_apk, "a") as oz:
         oz.writestr(lib_dir + "wrap.sh", WRAP_SCRIPT)
+        oz.writestr(lib_dir + config_name, json.dumps(config))
         oz.write(gadget_so, lib_dir + GADGET_NAME)
 
 
