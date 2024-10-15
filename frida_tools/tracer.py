@@ -1139,7 +1139,22 @@ class FileRepository(Repository):
 
     def _load_handler(self, file: Path) -> None:
         handler = file.read_text(encoding="utf-8")
+        if "defineHandler" not in handler:
+            handler = self._migrate_handler(handler)
+            file.write_text(handler, encoding="utf-8")
         return handler
+
+    @staticmethod
+    def _migrate_handler(handler: str) -> str:
+        try:
+            start = handler.index("{")
+            end = handler.rindex("}")
+        except ValueError:
+            return handler
+        preamble = handler[:start]
+        definition = handler[start : end + 1]
+        postamble = handler[end + 1 :]
+        return "".join([preamble, "defineHandler(", definition, ");", postamble])
 
     def update_handler(self, target: TraceTarget, handler: str) -> None:
         _, _, handler_file = self._handler_by_id.get(target.identifier)
