@@ -1,6 +1,7 @@
 import "./EventView.css";
 import { DisassemblyTarget, Event, HandlerId } from "./model.js";
 import { Button, Card } from "@blueprintjs/core";
+import Ansi from "@curvenote/ansi-to-react";
 import { ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import { useStayAtBottom } from "react-stay-at-bottom";
 
@@ -176,7 +177,7 @@ export default function EventView({
                                     alignText="left"
                                     onClick={() => onActivate(targetId, i)}
                                 >
-                                    {message}
+                                    <Ansi>{message}</Ansi>
                                 </Button>
                             </div>
                             {isSelected ? selectedEventDetails : null}

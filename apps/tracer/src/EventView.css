@@ -12,27 +12,21 @@
     margin-left: 104px;
 }
 
-.event-item {
-    display: grid;
-    grid-template-columns: min-content;
-    white-space: nowrap;
-}
-
-.event-summary {
-    grid-row: 1;
-    grid-column: 1;
+.event-summary .bp5-button {
+    padding-top: 7px;
+    white-space: pre;
 }
 
 .event-details {
-    grid-row: 2;
-    grid-column: 1;
-    padding-right: 24px !important;
+    display: inline-block;
+    margin: 3px 0 0 86px;
 }
 
 .event-timestamp {
-    padding: 0 10px;
+    display: inline-block;
+    padding: 7px;
     color: #555;
-    vertical-align: middle;
+    vertical-align: top;
     text-align: right;
 }
 
@@ -43,18 +37,6 @@
 
 .event-message:focus {
     outline: 0;
-}
-
-.event-selected .event-summary {
-    background-color: #ef6456;
-}
-
-.event-selected .event-timestamp {
-    color: white !important;
-}
-
-.event-selected .event-message {
-    color: white !important;
 }
 
 .event-item .bp5-card {
@@ -79,6 +61,16 @@
 
 .event-details .bp5-button {
     font-size: 10px;
+}
+
+.event-selected {
+    background: linear-gradient(to right, #ef6456, #1e1e1e);
+    background-size: 90px;
+    background-repeat: no-repeat;
+}
+
+.event-selected .event-timestamp {
+    color: white;
 }
 
 .event-dismiss {
