@@ -30,6 +30,12 @@
     text-align: right;
 }
 
+.event-indent {
+    display: inline-block;
+    padding-top: 7px;
+    vertical-align: top;
+}
+
 .event-message {
     font-size: 12px;
     font-weight: bold;
