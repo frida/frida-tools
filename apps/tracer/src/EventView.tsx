@@ -4,6 +4,7 @@ import { Button, Card } from "@blueprintjs/core";
 import Ansi from "@curvenote/ansi-to-react";
 import { ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import { useStayAtBottom } from "react-stay-at-bottom";
+import { ViewportList } from "react-viewport-list";
 
 export interface EventViewProps {
     events: Event[];
@@ -31,14 +32,27 @@ export default function EventView({
 }: EventViewProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const selectedRef = useRef<HTMLDivElement>(null);
+    const [items, setItems] = useState<(EventItem | ThreadIdMarkerItem)[]>([]);
     const [selectedCallerSymbol, setSelectedCallerSymbol] = useState<string | null>("");
     const [selectedBacktraceSymbols, setSelectedBacktraceSymbols] = useState<string[] | null>(null);
-    let lastTid: number | null = null;
 
     useStayAtBottom(containerRef, {
         initialStay: true,
         autoStay: true
     });
+
+    useEffect(() => {
+        let lastTid: number | null = null;
+        setItems(events.reduce((result, event, i) => {
+            const [_targetId, _timestamp, threadId, _depth, _caller, _backtrace, _message, style] = event;
+            if (threadId !== lastTid) {
+                result.push([i, threadId, style]);
+                lastTid = threadId;
+            }
+            result.push([i, event]);
+            return result;
+        }, [] as (EventItem | ThreadIdMarkerItem)[]));
+    }, [events]);
 
     useEffect(() => {
         const item = selectedRef.current;
@@ -137,8 +151,27 @@ export default function EventView({
 
     return (
         <div ref={containerRef} className="event-view">
-            {
-                events.reduce((result, [targetId, timestamp, threadId, depth, _caller, _backtrace, message, style], i) => {
+            <ViewportList items={items}>
+                {(item) => {
+                    if (item.length === 3) {
+                        const [index, threadId, style] = item;
+                        const colorClass = "ansi-" + style.join("-");
+                        return (
+                            <div key={`{index}-heading`} className={"event-heading " + colorClass}>
+                                /* TID 0x{threadId.toString(16)} */
+                            </div>
+                        );
+                    }
+
+                    const [index, event] = item;
+                    const [targetId, timestamp, _threadId, depth, _caller, _backtrace, message, style] = event;
+
+                    const isSelected = index === selectedIndex;
+                    const eventClasses = ["event-item"];
+                    if (isSelected) {
+                        eventClasses.push("event-selected");
+                    }
+
                     let timestampStr = timestamp.toString();
                     const timestampPaddingNeeded = Math.max(6 - timestampStr.length, 0);
                     for (let i = 0; i !== timestampPaddingNeeded; i++) {
@@ -147,24 +180,9 @@ export default function EventView({
 
                     const colorClass = "ansi-" + style.join("-");
 
-                    if (threadId !== lastTid) {
-                        result.push(
-                            <div key={i + "-heading"} className={"event-heading " + colorClass}>
-                                /* TID 0x{threadId.toString(16)} */
-                            </div>
-                        );
-                        lastTid = threadId;
-                    }
-
-                    const isSelected = i === selectedIndex;
-                    const eventClasses = ["event-item"];
-                    if (isSelected) {
-                        eventClasses.push("event-selected");
-                    }
-
-                    result.push(
+                    return (
                         <div
-                            key={i}
+                            key={index}
                             ref={isSelected ? selectedRef : undefined}
                             className={eventClasses.join(" ")}
                         >
@@ -175,7 +193,7 @@ export default function EventView({
                                     className={"event-message " + colorClass}
                                     minimal={true}
                                     alignText="left"
-                                    onClick={() => onActivate(targetId, i)}
+                                    onClick={() => onActivate(targetId, index)}
                                 >
                                     <Ansi>{message}</Ansi>
                                 </Button>
@@ -183,10 +201,11 @@ export default function EventView({
                             {isSelected ? selectedEventDetails : null}
                         </div>
                     );
-
-                    return result;
-                }, [] as JSX.Element[])
-            }
+                }}
+            </ViewportList>
         </div>
     );
 }
+
+type EventItem = [index: number, event: Event];
+type ThreadIdMarkerItem = [index: number, threadId: number, style: string[]];
