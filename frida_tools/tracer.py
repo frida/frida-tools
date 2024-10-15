@@ -1208,22 +1208,22 @@ class UI:
     def on_script_created(self, script: frida.core.Script) -> None:
         pass
 
-    def on_trace_progress(self, status) -> None:
+    def on_trace_progress(self, status: str) -> None:
         pass
 
-    def on_trace_warning(self, message):
+    def on_trace_warning(self, message: str):
         pass
 
-    def on_trace_error(self, message) -> None:
+    def on_trace_error(self, message: str) -> None:
         pass
 
     def on_trace_events(self, events) -> None:
         pass
 
-    def on_trace_handler_create(self, target, handler, source) -> None:
+    def on_trace_handler_create(self, target: TraceTarget, handler: str, source: Path) -> None:
         pass
 
-    def on_trace_handler_load(self, target, handler, source) -> None:
+    def on_trace_handler_load(self, target: TraceTarget, handler: str, source: Path) -> None:
         pass
 
 
