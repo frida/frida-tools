@@ -157,7 +157,7 @@ export default function EventView({
                         const [index, threadId, style] = item;
                         const colorClass = "ansi-" + style.join("-");
                         return (
-                            <div key={`{index}-heading`} className={"event-heading " + colorClass}>
+                            <div key={`${index}-heading`} className={"event-heading " + colorClass}>
                                 /* TID 0x{threadId.toString(16)} */
                             </div>
                         );
