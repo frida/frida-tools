@@ -79,6 +79,9 @@
     margin-top: 0;
     flex: 1;
     overflow: hidden;
+    font-family: monospace;
+    background-color: #1e1e1e;
+    color: #e4e4e4;
 }
 
 .event-view {

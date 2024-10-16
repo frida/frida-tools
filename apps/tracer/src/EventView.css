@@ -1,10 +1,6 @@
-.event-view {
+.event-list {
     padding: 5px;
-    overflow: auto;
-    font-family: monospace;
     font-size: 12px;
-    background-color: #1e1e1e;
-    color: #e4e4e4;
     user-select: text;
 }
 

@@ -3,8 +3,8 @@ import { DisassemblyTarget, Event, HandlerId } from "./model.js";
 import { Button, Card } from "@blueprintjs/core";
 import Ansi from "@curvenote/ansi-to-react";
 import { ReactElement, useCallback, useEffect, useRef, useState } from "react";
-import { useStayAtBottom } from "react-stay-at-bottom";
-import { ViewportList } from "react-viewport-list";
+import AutoSizer from "react-virtualized-auto-sizer";
+import { VariableSizeList } from "react-window";
 
 export interface EventViewProps {
     events: Event[];
@@ -30,16 +30,12 @@ export default function EventView({
     onDisassemble,
     onSymbolicate,
 }: EventViewProps) {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const selectedRef = useRef<HTMLDivElement>(null);
-    const [items, setItems] = useState<(EventItem | ThreadIdMarkerItem)[]>([]);
+    const listRef = useRef<VariableSizeList>(null);
+    const listOuterRef = useRef<HTMLElement>(null);
+    const [items, setItems] = useState<Item[]>([]);
     const [selectedCallerSymbol, setSelectedCallerSymbol] = useState<string | null>("");
     const [selectedBacktraceSymbols, setSelectedBacktraceSymbols] = useState<string[] | null>(null);
-
-    useStayAtBottom(containerRef, {
-        initialStay: true,
-        autoStay: true
-    });
+    const autoscroll = useRef({ enabled: true });
 
     useEffect(() => {
         let lastTid: number | null = null;
@@ -51,25 +47,21 @@ export default function EventView({
             }
             result.push([i, event]);
             return result;
-        }, [] as (EventItem | ThreadIdMarkerItem)[]));
+        }, [] as Item[]));
     }, [events]);
-
-    useEffect(() => {
-        const item = selectedRef.current;
-        if (item === null) {
-            return;
-        }
-        const itemRect = item.getBoundingClientRect();
-        const containerRect = containerRef.current!.getBoundingClientRect();
-        if (itemRect.top >= containerRect.top && itemRect.bottom <= containerRect.bottom) {
-            return;
-        }
-        item.scrollIntoView({ block: "center" });
-    }, [selectedRef, selectedIndex]);
 
     useEffect(() => {
         setSelectedCallerSymbol(null);
         setSelectedBacktraceSymbols(null);
+
+        const list = listRef.current;
+        if (list !== null) {
+            list.resetAfterIndex(0, true);
+            if (selectedIndex !== null) {
+                const itemIndex = items.findIndex(([i,]) => i === selectedIndex);
+                list.scrollToItem(itemIndex);
+            }
+        }
     }, [selectedIndex]);
 
     useEffect(() => {
@@ -107,105 +99,146 @@ export default function EventView({
         onDisassemble({ type: "instruction", address: BigInt(rawAddress) });
     }, [onDisassemble]);
 
-    let selectedEventDetails: ReactElement | undefined;
-    if (selectedIndex !== null) {
-        const [targetId, _timestamp, threadId, _depth, caller, backtrace, _message, _style] = events[selectedIndex];
-
-        selectedEventDetails = (
-            <Card className="event-details" interactive={true} compact={true}>
-                <table>
-                    <tbody>
-                        <tr>
-                            <td>Thread ID</td>
-                            <td>0x{threadId.toString(16)}</td>
-                            <td>
-                            </td>
-                        </tr>
-                        {(caller !== null && backtrace === null) ? (
-                            <tr>
-                                <td>Caller</td>
-                                <td>
-                                    <Button onClick={() => handleDisassemblyRequest(caller)}>{selectedCallerSymbol ?? caller}</Button>
-                                </td>
-                            </tr>
-                        ) : null
-                        }
-                        {(backtrace !== null) ? (
-                            <tr>
-                                <td>Backtrace</td>
-                                <td>
-                                    {backtrace.map((address, i) =>
-                                        <Button key={address} alignText="left" onClick={() => handleDisassemblyRequest(address)}>
-                                        {(selectedBacktraceSymbols !== null) ? selectedBacktraceSymbols[i] : address}
-                                    </Button>)}
-                                </td>
-                            </tr>
-                        ) : null
-                        }
-                    </tbody>
-                </table>
-                <Button className="event-dismiss" intent="primary" onClick={() => onDeactivate(targetId, selectedIndex)}>Dismiss</Button>
-            </Card>
-        );
-    }
-
     return (
-        <div ref={containerRef} className="event-view">
-            <ViewportList items={items}>
-                {(item) => {
-                    if (item.length === 3) {
-                        const [index, threadId, style] = item;
-                        const colorClass = "ansi-" + style.join("-");
+        <AutoSizer className="event-view">
+            {({ width, height }) => (
+                <VariableSizeList<Item[]>
+                    ref={listRef}
+                    outerRef={listOuterRef}
+                    className="event-list"
+                    style={{ scrollbarColor: "#e4e4e4 #555" }}
+                    width={width}
+                    height={height}
+                    itemCount={items.length}
+                    itemSize={i => {
+                        const item = items[i];
+                        if (item.length === 3) {
+                            return 15.43;
+                        }
+
+                        const [eventIndex, event] = item;
+                        const [_targetId, _timestamp, _threadId, _depth, _caller, backtrace, message, _style] = event;
+                        const numLines = message.split("\n").length;
+                        let size = 20 + (numLines * 10);
+                        if (numLines > 1) {
+                            size += 5;
+                        }
+                        if (eventIndex === selectedIndex) {
+                            size += 150;
+                            if (backtrace !== null) {
+                                size += (backtrace.length - 1) * 34;
+                            }
+                        }
+                        return size;
+                    }}
+                    itemData={items}
+                    onItemsRendered={() => {
+                        if (autoscroll.current.enabled) {
+                            listRef.current!.scrollToItem(items.length - 1);
+                        }
+                    }}
+                    onScroll={() => {
+                        const container = listOuterRef.current!;
+                        autoscroll.current.enabled = container.scrollTop >= (container.scrollHeight - container.offsetHeight - 20);
+                    }}
+                >
+                    {({ data, index: itemIndex, style }) => {
+                        const item = data[itemIndex];
+
+                        if (item.length === 3) {
+                            const [, threadId, textStyle] = item;
+                            const colorClass = "ansi-" + textStyle.join("-");
+                            return (
+                                <div className={"event-heading " + colorClass} style={style}>
+                                    /* TID 0x{threadId.toString(16)} */
+                                </div>
+                            );
+                        }
+
+                        const [eventIndex, event] = item;
+                        const [targetId, timestamp, threadId, depth, caller, backtrace, message, textStyle] = event;
+
+                        const isSelected = eventIndex === selectedIndex;
+                        let selectedEventDetails: ReactElement | undefined;
+                        if (isSelected) {                    
+                            selectedEventDetails = (
+                                <Card className="event-details" interactive={true} compact={true}>
+                                    <table>
+                                        <tbody>
+                                            <tr>
+                                                <td>Thread ID</td>
+                                                <td>0x{threadId.toString(16)}</td>
+                                                <td>
+                                                </td>
+                                            </tr>
+                                            {(caller !== null && backtrace === null) ? (
+                                                <tr>
+                                                    <td>Caller</td>
+                                                    <td>
+                                                        <Button onClick={() => handleDisassemblyRequest(caller)}>{selectedCallerSymbol ?? caller}</Button>
+                                                    </td>
+                                                </tr>
+                                            ) : null
+                                            }
+                                            {(backtrace !== null) ? (
+                                                <tr>
+                                                    <td>Backtrace</td>
+                                                    <td>
+                                                        {backtrace.map((address, i) =>
+                                                            <Button key={address} alignText="left" onClick={() => handleDisassemblyRequest(address)}>
+                                                            {(selectedBacktraceSymbols !== null) ? selectedBacktraceSymbols[i] : address}
+                                                        </Button>)}
+                                                    </td>
+                                                </tr>
+                                            ) : null
+                                            }
+                                        </tbody>
+                                    </table>
+                                    <Button className="event-dismiss" intent="primary" onClick={() => onDeactivate(targetId, eventIndex)}>Dismiss</Button>
+                                </Card>
+                            );
+                        }
+                    
+                        const eventClasses = ["event-item"];
+                        if (isSelected) {
+                            eventClasses.push("event-selected");
+                        }
+
+                        let timestampStr = timestamp.toString();
+                        const timestampPaddingNeeded = Math.max(6 - timestampStr.length, 0);
+                        for (let i = 0; i !== timestampPaddingNeeded; i++) {
+                            timestampStr = NON_BLOCKING_SPACE + timestampStr;
+                        }
+
+                        const colorClass = "ansi-" + textStyle.join("-");
+
                         return (
-                            <div key={`${index}-heading`} className={"event-heading " + colorClass}>
-                                /* TID 0x{threadId.toString(16)} */
+                            <div
+                                className={eventClasses.join(" ")}
+                                style={style}
+                            >
+                                <div className="event-summary">
+                                    <span className="event-timestamp">{timestampStr} ms</span>
+                                    <span className={"event-indent " + colorClass}>{INDENT.repeat(depth)}</span>
+                                    <Button
+                                        className={"event-message " + colorClass}
+                                        minimal={true}
+                                        alignText="left"
+                                        onClick={() => onActivate(targetId, eventIndex)}
+                                    >
+                                        <Ansi>{message}</Ansi>
+                                    </Button>
+                                </div>
+                                {isSelected ? selectedEventDetails : null}
                             </div>
                         );
-                    }
-
-                    const [index, event] = item;
-                    const [targetId, timestamp, _threadId, depth, _caller, _backtrace, message, style] = event;
-
-                    const isSelected = index === selectedIndex;
-                    const eventClasses = ["event-item"];
-                    if (isSelected) {
-                        eventClasses.push("event-selected");
-                    }
-
-                    let timestampStr = timestamp.toString();
-                    const timestampPaddingNeeded = Math.max(6 - timestampStr.length, 0);
-                    for (let i = 0; i !== timestampPaddingNeeded; i++) {
-                        timestampStr = NON_BLOCKING_SPACE + timestampStr;
-                    }
-
-                    const colorClass = "ansi-" + style.join("-");
-
-                    return (
-                        <div
-                            key={index}
-                            ref={isSelected ? selectedRef : undefined}
-                            className={eventClasses.join(" ")}
-                        >
-                            <div className="event-summary">
-                                <span className="event-timestamp">{timestampStr} ms</span>
-                                <span className={"event-indent " + colorClass}>{INDENT.repeat(depth)}</span>
-                                <Button
-                                    className={"event-message " + colorClass}
-                                    minimal={true}
-                                    alignText="left"
-                                    onClick={() => onActivate(targetId, index)}
-                                >
-                                    <Ansi>{message}</Ansi>
-                                </Button>
-                            </div>
-                            {isSelected ? selectedEventDetails : null}
-                        </div>
-                    );
-                }}
-            </ViewportList>
-        </div>
+                    }}
+                </VariableSizeList>
+            )}
+        </AutoSizer>
     );
 }
 
+type Item = EventItem | ThreadIdMarkerItem;
 type EventItem = [index: number, event: Event];
 type ThreadIdMarkerItem = [index: number, threadId: number, style: string[]];

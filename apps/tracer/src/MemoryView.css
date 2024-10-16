@@ -1,9 +1,6 @@
 .memory-view {
     overflow: auto;
-    font-family: monospace;
     font-size: 10px;
-    background-color: #1e1e1e;
-    color: #e4e4e4;
     user-select: text;
 }
 
