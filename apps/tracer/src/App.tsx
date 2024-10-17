@@ -15,7 +15,6 @@ import {
     Tabs,
     Tab,
 } from "@blueprintjs/core";
-import { useRef } from "react";
 import { Resplit } from "react-resplit";
 
 export default function App() {
@@ -34,6 +33,8 @@ export default function App() {
         draftedCode,
         setDraftedCode,
         deployCode,
+        handlerMuted,
+        setHandlerMuted,
         captureBacktraces,
         setCaptureBacktraces,
 
@@ -62,7 +63,6 @@ export default function App() {
 
         symbolicate,
     } = useModel();
-    const captureBacktracesSwitchRef = useRef<HTMLInputElement>(null);
 
     const connectionError = lostConnection
         ? <Callout
@@ -155,13 +155,23 @@ export default function App() {
                                     Disassemble
                                 </Button>
                             </ButtonGroup>
-                            <Switch
-                                inputRef={captureBacktracesSwitchRef}
-                                checked={captureBacktraces}
-                                onChange={() => setCaptureBacktraces(captureBacktracesSwitchRef.current!.checked)}
-                            >
-                                Capture Backtraces
-                            </Switch>
+                            <div>
+                                <Switch
+                                    className="handler-muted"
+                                    inline={true}
+                                    checked={handlerMuted}
+                                    onChange={e => setHandlerMuted(e.target.checked)}
+                                >
+                                    Muted
+                                </Switch>
+                                <Switch
+                                    inline={true}
+                                    checked={captureBacktraces}
+                                    onChange={e => setCaptureBacktraces(e.target.checked)}
+                                >
+                                    Capture Backtraces
+                                </Switch>
+                            </div>
                         </section>
                         <HandlerEditor
                             handlerId={selectedHandler?.id ?? null}

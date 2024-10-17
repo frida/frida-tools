@@ -28,12 +28,13 @@ export default function HandlerList({ handlers, selectedScope, onScopeSelect, se
             icon: isExpanded ? "folder-open" : "folder-close",
             childNodes: handlers
                 .filter(h => h.scope === scope)
-                .map(({ id, display_name }) => {
+                .map(({ id, display_name, config }) => {
                     return {
                         id,
                         label: display_name,
                         isSelected: id === selectedHandler,
                         icon: "code-block",
+                        className: config.muted ? "handler-node-muted" : "",
                     };
                 }),
         };

@@ -287,7 +287,7 @@ def main() -> None:
             self._print(f'{target}: Loaded handler at "{source}"')
 
         def _register_handler(self, target: TraceTarget, source: str) -> None:
-            config = {"capture_backtraces": False}
+            config = {"muted": False, "capture_backtraces": False}
             self._handlers[target.identifier] = (target, source, config)
 
         def _get_style(self, thread_id):
@@ -397,7 +397,7 @@ def main() -> None:
                     "type": "tracer:sync",
                     "spawned_program": app._spawned_argv[0] if app._spawned_argv is not None else None,
                     "process": app._tracer.process,
-                    "handlers": [target.to_json() for target, _, _ in app._handlers.values()],
+                    "handlers": [self._handler_entry_to_json(entry) for entry in app._handlers.values()],
                 }
             )
 
@@ -462,7 +462,9 @@ def main() -> None:
             await self.post(
                 {
                     "type": "handlers:add",
-                    "handlers": [self.app._handlers[target_id][0].to_json() for target_id in target_ids],
+                    "handlers": [
+                        self._handler_entry_to_json(self.app._handlers[target_id]) for target_id in target_ids
+                    ],
                 }
             )
 
@@ -475,6 +477,11 @@ def main() -> None:
         async def _on_symbols_resolve_addresses(self, payload: dict) -> None:
             names = self.app._tracer.resolve_addresses(payload["addresses"])
             return {"names": names}
+
+        @staticmethod
+        def _handler_entry_to_json(entry: tuple[str, str, str]) -> dict:
+            target, _source, config = entry
+            return {**target.to_json(), "config": config}
 
     app = TracerApplication()
     app.run()

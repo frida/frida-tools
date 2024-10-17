@@ -49,11 +49,14 @@
     display: flex;
     justify-content: space-between;
     flex: 0;
-    padding-right: 10px;
 }
 
 .editor-toolbar .bp5-switch {
     padding-top: 10px;
+}
+
+.handler-muted input:checked ~ .bp5-control-indicator {
+    background: #cd4246 !important;
 }
 
 .monaco-editor {

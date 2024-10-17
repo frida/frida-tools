@@ -528,9 +528,14 @@ class Agent {
 
     private invokeNativeHandler(id: TraceTargetId, callback: TraceEnterHandler | TraceLeaveHandler | TraceProbeHandler,
             config: HandlerConfig, context: InvocationContext, param: any, cutPoint: CutPoint) {
-        const timestamp = Date.now() - this.started;
         const threadId = context.threadId;
         const depth = this.updateDepth(threadId, cutPoint);
+
+        if (config.muted) {
+            return;
+        }
+
+        const timestamp = Date.now() - this.started;
         const caller = context.returnAddress.toString();
         const backtrace = config.capture_backtraces ? Thread.backtrace(context.context).map(p => p.toString()) : null;
 
@@ -543,9 +548,14 @@ class Agent {
 
     private invokeJavaHandler(id: TraceTargetId, callback: TraceEnterHandler | TraceLeaveHandler, config: HandlerConfig,
             instance: Java.Wrapper, param: any, cutPoint: CutPoint) {
-        const timestamp = Date.now() - this.started;
         const threadId = Process.getCurrentThreadId();
         const depth = this.updateDepth(threadId, cutPoint);
+
+        if (config.muted) {
+            return;
+        }
+
+        const timestamp = Date.now() - this.started;
 
         const log = (...message: string[]) => {
             this.emit([id, timestamp, threadId, depth, null, null, message.join(" ")]);
@@ -901,6 +911,7 @@ async function getHandlers(request: HandlerRequest): Promise<HandlerResponse> {
 
 function makeDefaultHandlerConfig(): HandlerConfig {
     return {
+        muted: false,
         capture_backtraces: false,
     };
 }
@@ -1115,6 +1126,7 @@ interface HandlerResponse {
 }
 type HandlerScript = string;
 interface HandlerConfig {
+    muted: boolean;
     capture_backtraces: boolean;
 }
 

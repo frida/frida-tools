@@ -25,6 +25,7 @@ export function useModel() {
     const [selectedHandler, setSelectedHandler] = useState<Handler | null>(null);
     const [handlerCode, setHandlerCode] = useState("");
     const [draftedCode, setDraftedCode] = useState("");
+    const [handlerMuted, _setHandlerMuted] = useState(false);
     const [captureBacktraces, _setCaptureBacktraces] = useState(false);
 
     const [selectedTab, _setSelectedTab] = useState<TabId>("events");
@@ -95,8 +96,7 @@ export function useModel() {
         if (id === null) {
             setSelectedScope("");
             setSelectedHandler(null);
-            setHandlerCode("");
-            setDraftedCode("");
+            _setHandlerMuted(false);
             _setCaptureBacktraces(false);
             return;
         }
@@ -104,25 +104,36 @@ export function useModel() {
         const handler = handlers.find(h => h.id === id)!;
         setSelectedScope(handler.scope);
         setSelectedHandler(handler);
-        _setCaptureBacktraces(false);
+        const { config } = handler;
+        _setHandlerMuted(config.muted);
+        _setCaptureBacktraces(config.capture_backtraces);
+    }, [selectedHandlerId, handlers, request]);
+
+    useEffect(() => {
+        setHandlerCode("");
+        setDraftedCode("");
+
+        const id = selectedHandlerId;
+        if (id === null) {
+            return;
+        }
 
         let ignore = false;
 
-        async function loadCodeAndConfig() {
-            const { code, config } = await request("handler:load", { id: id! });
+        async function loadCode() {
+            const { code } = await request("handler:load", { id: id! });
             if (!ignore) {
                 setHandlerCode(code);
                 setDraftedCode(code);
-                _setCaptureBacktraces(config.capture_backtraces);
             }
         }
 
-        loadCodeAndConfig();
+        loadCode();
 
         return () => {
             ignore = true;
         };
-    }, [selectedHandlerId, handlers, request]);
+    }, [selectedHandlerId, request]);
 
     const deployCode = useCallback(async (code: string) => {
         setHandlerCode(code);
@@ -135,13 +146,21 @@ export function useModel() {
         pushState({ handler });
     }, [pushState]);
 
+    const setHandlerMuted = useCallback(async (muted: boolean) => {
+        setHandlers(updateHandlerConfig(selectedHandlerId!, { muted }, handlers));
+        _setHandlerMuted(muted);
+        await request("handler:configure", {
+            id: selectedHandlerId!,
+            parameters: { muted }
+        });
+    }, [request, selectedHandler]);
+
     const setCaptureBacktraces = useCallback(async (enabled: boolean) => {
+        setHandlers(updateHandlerConfig(selectedHandlerId!, { capture_backtraces: enabled }, handlers));
         _setCaptureBacktraces(enabled);
         await request("handler:configure", {
             id: selectedHandler!.id,
-            parameters: {
-                capture_backtraces: enabled
-            }
+            parameters: { capture_backtraces: enabled }
         });
     }, [request, selectedHandler]);
 
@@ -343,6 +362,8 @@ export function useModel() {
         draftedCode,
         setDraftedCode,
         deployCode,
+        handlerMuted,
+        setHandlerMuted,
         captureBacktraces,
         setCaptureBacktraces,
 
@@ -373,6 +394,21 @@ export function useModel() {
     };
 }
 
+function updateHandlerConfig(id: HandlerId, updates: Partial<HandlerConfig>, handlers: Handler[]): Handler[] {
+    return handlers.map(h => {
+        if (h.id === id) {
+            return {
+                ...h,
+                config: {
+                    ...h.config,
+                    ...updates
+                }
+            };
+        }
+        return h;
+    });
+}
+
 type TraceSpec = TraceSpecItem[];
 type TraceSpecItem = [TraceSpecOperation, TraceSpecScope, TraceSpecPattern];
 type TraceSpecOperation = "include" | "exclude";
@@ -395,12 +431,14 @@ export interface Handler {
     scope: ScopeId;
     display_name: string;
     address: string | null;
+    config: HandlerConfig;
 }
 export type HandlerId = number;
 export type TargetFlavor = "insn" | "c" | "objc" | "swift" | "java";
 export type ScopeId = string;
 
 interface HandlerConfig {
+    muted: boolean;
     capture_backtraces: boolean;
 }
 
