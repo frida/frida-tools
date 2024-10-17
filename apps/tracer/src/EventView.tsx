@@ -106,7 +106,6 @@ export default function EventView({
                     ref={listRef}
                     outerRef={listOuterRef}
                     className="event-list"
-                    style={{ scrollbarColor: "#e4e4e4 #555" }}
                     width={width}
                     height={height}
                     itemCount={items.length}

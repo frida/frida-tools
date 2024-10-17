@@ -1,6 +1,7 @@
 .event-list {
     padding: 5px;
     font-size: 12px;
+    scrollbar-color: #e4e4e4 #555;
 }
 
 .event-heading {
