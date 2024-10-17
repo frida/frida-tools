@@ -98,6 +98,10 @@ export default function MemoryView({ address, onSelectAddress }: MemoryViewProps
                             label: "32",
                             value: "pxw"
                         },
+                        {
+                            label: "Periscope",
+                            value: "pxr 4K"
+                        },
                     ]}
                     defaultValue="x"
                     onValueChange={setFormat}
