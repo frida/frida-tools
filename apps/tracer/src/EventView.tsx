@@ -134,7 +134,7 @@ export default function EventView({
                     itemData={items}
                     onItemsRendered={() => {
                         if (autoscroll.current.enabled) {
-                            listRef.current!.scrollToItem(items.length - 1);
+                            listRef.current?.scrollToItem(items.length - 1);
                         }
                     }}
                     onScroll={() => {
