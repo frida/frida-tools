@@ -1,16 +1,17 @@
 .event-list {
     padding: 5px;
     font-size: 12px;
-    user-select: text;
 }
 
 .event-heading {
     margin-left: 89px;
+    user-select: text;
 }
 
 .event-summary .bp5-button {
     padding-top: 7px;
     white-space: pre;
+    user-select: text;
 }
 
 .event-details {
@@ -59,6 +60,7 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    user-select: text;
 }
 
 .event-details .bp5-button {

@@ -1,7 +1,6 @@
 .memory-view {
     overflow: auto;
     font-size: 10px;
-    user-select: text;
 }
 
 .memory-view-toolbar {
@@ -13,6 +12,7 @@
 
 .memory-view-data {
     padding: 5px 7px;
+    user-select: text;
 }
 
 .memory-view .bp5-control-group .bp5-input {
