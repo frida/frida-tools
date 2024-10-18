@@ -197,7 +197,6 @@ class StartElement:
             idx = int.from_bytes(chunk_data[attr_offset + 4 : attr_offset + 8], "little")
             res = resource_map.get_resource(idx)
             if res >= ResourceMap.DEBUGGING_RESOURCE:
-                # If there's already a debugging resource, replace it.
                 replace = res == ResourceMap.DEBUGGING_RESOURCE
                 break
 
