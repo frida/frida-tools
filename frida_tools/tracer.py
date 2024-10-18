@@ -5,7 +5,6 @@ import asyncio
 import binascii
 import codecs
 import email.utils
-import errno
 import gzip
 import http
 import mimetypes
@@ -43,7 +42,7 @@ def main() -> None:
         def __init__(self) -> None:
             super().__init__(await_ctrl_c)
             self._handlers = OrderedDict()
-            self._ui_port = 1337
+            self._ui_port = 0
             self._ui_zip = ZipFile(Path(__file__).parent / "tracer_ui.zip", "r")
             self._ui_socket_handlers: Set[UISocketHandler] = set()
             self._ui_worker = None
@@ -306,21 +305,14 @@ def main() -> None:
 
         async def _handle_ui_requests(self):
             self._asyncio_loop = asyncio.get_running_loop()
-            while True:
-                try:
-                    async with websockets.asyncio.server.serve(
-                        self._handle_websocket_connection,
-                        "localhost",
-                        self._ui_port,
-                        process_request=self._handle_asset_request,
-                    ):
-                        await asyncio.get_running_loop().create_future()
-                        return
-                except OSError as e:
-                    if e.errno == errno.EADDRINUSE:
-                        self._ui_port += 1
-                    else:
-                        raise
+            async with websockets.asyncio.server.serve(
+                self._handle_websocket_connection,
+                "localhost",
+                process_request=self._handle_asset_request,
+            ) as server:
+                self._ui_port = server.sockets[0].getsockname()[1]
+                await asyncio.get_running_loop().create_future()
+                return
 
         async def _handle_websocket_connection(self, websocket: websockets.asyncio.server.ServerConnection):
             if self._tracer is None:
@@ -349,6 +341,17 @@ def main() -> None:
             self, connection: websockets.asyncio.server.ServerConnection, request: websockets.asyncio.server.Request
         ):
             if request.headers.get("Connection") == "Upgrade":
+                origin = request.headers.get("Origin")
+                if origin != f"http://localhost:{self._ui_port}":
+                    self._print(
+                        Fore.RED
+                        + Style.BRIGHT
+                        + "Warning"
+                        + Style.RESET_ALL
+                        + f": Cross-origin request from {origin} denied"
+                    )
+                    return connection.respond(http.HTTPStatus.FORBIDDEN, "Cross-origin request denied\n")
+
                 return
 
             raw_path = request.path.split("?", maxsplit=1)[0]
