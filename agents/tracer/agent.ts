@@ -134,7 +134,7 @@ class Agent {
 
     readMemory(address: string, size: number): ArrayBuffer | null {
         try {
-            return ptr(address).readByteArray(size);
+            return ptr(address).readVolatile(size);
         } catch (e) {
             return null;
         }
