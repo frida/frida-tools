@@ -193,7 +193,7 @@ class StartElement:
         attr_offset = None
         replace = False
         for insert_pos in range(self.attribute_count + 1):
-            attr_offset = 0x24 + struct.calcsize(self.ATTRIBUTE_FORMAT) * insert_pos
+            attr_offset = 0x24 + insert_pos * struct.calcsize(self.ATTRIBUTE_FORMAT)
             idx = int.from_bytes(chunk_data[attr_offset + 4 : attr_offset + 8], "little")
             res = resource_map.get_resource(idx)
             if res >= ResourceMap.DEBUGGING_RESOURCE:
