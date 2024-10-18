@@ -1,12 +1,23 @@
 .event-list {
-    padding: 5px;
     font-size: 12px;
     scrollbar-color: #e4e4e4 #555;
 }
 
+.event-list code {
+    font-size: 12px;
+}
+
+.event-item {
+    overflow: hidden;
+}
+
 .event-heading {
-    margin-left: 89px;
+    margin-left: 90px;
     user-select: text;
+}
+
+.event-spacer {
+    height: 5px;
 }
 
 .event-summary .bp5-button {

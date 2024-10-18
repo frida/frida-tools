@@ -35,11 +35,11 @@ export default function EventView({
     const [items, setItems] = useState<Item[]>([]);
     const [selectedCallerSymbol, setSelectedCallerSymbol] = useState<string | null>("");
     const [selectedBacktraceSymbols, setSelectedBacktraceSymbols] = useState<string[] | null>(null);
-    const autoscroll = useRef({ enabled: true });
+    const autoscroll = useRef<AutoscrollState>({ enabled: true, pending: [] });
 
     useEffect(() => {
         let lastTid: number | null = null;
-        setItems(events.reduce((result, event, i) => {
+        const newItems = events.reduce((result, event, i) => {
             const [_targetId, _timestamp, threadId, _depth, _caller, _backtrace, _message, style] = event;
             if (threadId !== lastTid) {
                 result.push([i, threadId, style]);
@@ -47,8 +47,51 @@ export default function EventView({
             }
             result.push([i, event]);
             return result;
-        }, [] as Item[]));
+        }, [[] as SpacerItem] as Item[]);
+        setItems(newItems);
+
+        let ignore = false;
+
+        if (autoscroll.current.enabled) {
+            autoscroll.current.pending.push(() => {
+                if (!ignore) {
+                    listRef.current?.scrollToItem(newItems.length - 1, "end");
+                }
+            });
+        }
+
+        return () => {
+            ignore = true;
+        };
     }, [events]);
+
+    const itemSize = useCallback((i: number) => {
+        const item = items[i];
+
+        if (item.length === 0) {
+            return 5;
+        }
+
+        if (item.length === 3) {
+            return 15.43;
+        }
+
+        const [eventIndex, event] = item;
+        const [_targetId, _timestamp, _threadId, _depth, _caller, backtrace, message, _style] = event;
+        const numLines = message.split("\n").length;
+        let size = 30;
+        if (numLines > 1) {
+            size += (numLines - 1) * 14;
+            size -= 7;
+        }
+        if (eventIndex === selectedIndex) {
+            size += 150;
+            if (backtrace !== null) {
+                size += (backtrace.length - 1) * 34;
+            }
+        }
+        return size;
+    }, [items, selectedIndex]);
 
     useEffect(() => {
         setSelectedCallerSymbol(null);
@@ -109,46 +152,38 @@ export default function EventView({
                     width={width}
                     height={height}
                     itemCount={items.length}
-                    itemSize={i => {
-                        const item = items[i];
-                        if (item.length === 3) {
-                            return 15.43;
-                        }
-
-                        const [eventIndex, event] = item;
-                        const [_targetId, _timestamp, _threadId, _depth, _caller, backtrace, message, _style] = event;
-                        const numLines = message.split("\n").length;
-                        let size = 20 + (numLines * 10);
-                        if (numLines > 1) {
-                            size += 5;
-                        }
-                        if (eventIndex === selectedIndex) {
-                            size += 150;
-                            if (backtrace !== null) {
-                                size += (backtrace.length - 1) * 34;
-                            }
-                        }
-                        return size;
-                    }}
+                    itemSize={itemSize}
                     itemData={items}
                     onItemsRendered={() => {
-                        if (autoscroll.current.enabled) {
-                            listRef.current?.scrollToItem(items.length - 1);
+                        let work: AutoscrollWork | undefined;
+                        while ((work = autoscroll.current.pending.shift()) !== undefined) {
+                            work();
                         }
                     }}
-                    onScroll={() => {
-                        const container = listOuterRef.current!;
-                        autoscroll.current.enabled = container.scrollTop >= (container.scrollHeight - container.offsetHeight - 20);
+                    onScroll={props => {
+                        if (!props.scrollUpdateWasRequested) {
+                            const container = listOuterRef.current!;
+                            autoscroll.current.enabled = container.scrollTop >= (container.scrollHeight - container.offsetHeight - 20);
+                        }
                     }}
                 >
                     {({ data, index: itemIndex, style }) => {
                         const item = data[itemIndex];
 
+                        if (item.length === 0) {
+                            return (
+                                <div className="event-spacer" style={style} />
+                            );
+                        }
+
                         if (item.length === 3) {
                             const [, threadId, textStyle] = item;
                             const colorClass = "ansi-" + textStyle.join("-");
                             return (
-                                <div className={"event-heading " + colorClass} style={style}>
+                                <div
+                                    className={"event-heading " + colorClass}
+                                    style={{ height: itemSize(itemIndex), ...style }}
+                                >
                                     /* TID 0x{threadId.toString(16)} */
                                 </div>
                             );
@@ -214,7 +249,7 @@ export default function EventView({
                         return (
                             <div
                                 className={eventClasses.join(" ")}
-                                style={style}
+                                style={{ height: itemSize(itemIndex), ...style }}
                             >
                                 <div className="event-summary">
                                     <span className="event-timestamp">{timestampStr} ms</span>
@@ -238,6 +273,14 @@ export default function EventView({
     );
 }
 
-type Item = EventItem | ThreadIdMarkerItem;
+type Item = EventItem | ThreadIdMarkerItem | SpacerItem;
 type EventItem = [index: number, event: Event];
 type ThreadIdMarkerItem = [index: number, threadId: number, style: string[]];
+type SpacerItem = [];
+
+interface AutoscrollState {
+    enabled: boolean;
+    pending: AutoscrollWork[];
+}
+
+type AutoscrollWork = () => void;
