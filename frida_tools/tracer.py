@@ -340,6 +340,16 @@ def main() -> None:
             self, connection: websockets.asyncio.server.ServerConnection, request: websockets.asyncio.server.Request
         ):
             if request.headers.get("Connection") == "Upgrade":
+                origin = request.headers.get("Origin")
+                if origin != f"http://localhost:{self._ui_port}":
+                    self._print(
+                        Fore.RED
+                        + Style.BRIGHT
+                        + "Warning"
+                        + Style.RESET_ALL
+                        + f": Cross-origin request from {origin} denied"
+                    )
+                    return connection.respond(http.HTTPStatus.FORBIDDEN, "Cross-origin request denied\n")
                 return
 
             raw_path = request.path.split("?", maxsplit=1)[0]
