@@ -2,6 +2,7 @@ import "./EventView.css";
 import { DisassemblyTarget, Event, HandlerId } from "./model.js";
 import { Button, Card } from "@blueprintjs/core";
 import Ansi from "@curvenote/ansi-to-react";
+import prettyMilliseconds from "pretty-ms";
 import { ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
 import { VariableSizeList } from "react-window";
@@ -38,14 +39,25 @@ export default function EventView({
     const autoscroll = useRef<AutoscrollState>({ enabled: true, pending: [] });
 
     useEffect(() => {
+        let lastTimestamp: number | null = null;
         let lastTid: number | null = null;
         const newItems = events.reduce((result, event, i) => {
-            const [_targetId, _timestamp, threadId, _depth, _caller, _backtrace, _message, style] = event;
+            const ev = event.slice() as Event;
+            const [_targetId, timestamp, threadId, _depth, _caller, _backtrace, _message, style] = ev;
+
+            if (lastTimestamp !== null) {
+                ev[1] = timestamp - lastTimestamp;
+            } else {
+                ev[1] = 0;
+            }
+            lastTimestamp = timestamp;
+
             if (threadId !== lastTid) {
                 result.push([i, threadId, style]);
                 lastTid = threadId;
             }
-            result.push([i, event]);
+
+            result.push([i, ev]);
             return result;
         }, [[] as SpacerItem] as Item[]);
         setItems(newItems);
@@ -238,11 +250,7 @@ export default function EventView({
                             eventClasses.push("event-selected");
                         }
 
-                        let timestampStr = timestamp.toString();
-                        const timestampPaddingNeeded = Math.max(6 - timestampStr.length, 0);
-                        for (let i = 0; i !== timestampPaddingNeeded; i++) {
-                            timestampStr = NON_BLOCKING_SPACE + timestampStr;
-                        }
+                        const timestampStr = (timestamp !== 0) ? `+${prettyMilliseconds(timestamp)}` : "";
 
                         const colorClass = "ansi-" + textStyle.join("-");
 
@@ -252,7 +260,7 @@ export default function EventView({
                                 style={{ height: itemSize(itemIndex), ...style }}
                             >
                                 <div className="event-summary">
-                                    <span className="event-timestamp">{timestampStr} ms</span>
+                                    <span className="event-timestamp">{timestampStr}</span>
                                     <span className={"event-indent " + colorClass}>{INDENT.repeat(depth)}</span>
                                     <Button
                                         className={"event-message " + colorClass}
