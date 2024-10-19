@@ -339,17 +339,18 @@ def main() -> None:
         def _handle_asset_request(
             self, connection: websockets.asyncio.server.ServerConnection, request: websockets.asyncio.server.Request
         ):
+            origin = request.headers.get("Origin")
+            if origin is not None and origin not in self._compute_allowed_ui_origins():
+                self._print(
+                    Fore.RED
+                    + Style.BRIGHT
+                    + "Warning"
+                    + Style.RESET_ALL
+                    + f": Cross-origin request from {origin} denied"
+                )
+                return connection.respond(http.HTTPStatus.FORBIDDEN, "Cross-origin request denied\n")
+
             if request.headers.get("Connection") == "Upgrade":
-                origin = request.headers.get("Origin")
-                if origin not in self._compute_allowed_ui_origins():
-                    self._print(
-                        Fore.RED
-                        + Style.BRIGHT
-                        + "Warning"
-                        + Style.RESET_ALL
-                        + f": Cross-origin request from {origin} denied"
-                    )
-                    return connection.respond(http.HTTPStatus.FORBIDDEN, "Cross-origin request denied\n")
                 return
 
             raw_path = request.path.split("?", maxsplit=1)[0]
