@@ -341,7 +341,7 @@ def main() -> None:
         ):
             if request.headers.get("Connection") == "Upgrade":
                 origin = request.headers.get("Origin")
-                if origin != f"http://localhost:{self._ui_port}":
+                if origin not in self._compute_allowed_ui_origins():
                     self._print(
                         Fore.RED
                         + Style.BRIGHT
@@ -384,6 +384,9 @@ def main() -> None:
             connection.protocol.handshake_exc = websockets.exceptions.InvalidStatus(response)
 
             return response
+
+        def _compute_allowed_ui_origins(self):
+            return [f"http://localhost:{port}" for port in (self._ui_port, self._ui_port + 1)]
 
     class UISocketHandler:
         def __init__(self, app: TracerApplication, socket: websockets.asyncio.server.ServerConnection) -> None:

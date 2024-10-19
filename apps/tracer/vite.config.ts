@@ -5,6 +5,9 @@ import react from "@vitejs/plugin-react";
 
 const R2_WASM_PATH = path.join(import.meta.dirname, "node_modules", "@frida", "react-use-r2", "dist", "r2.wasm");
 
+const tracerPortStr = process.env.FRIDA_TRACE_PORT;
+const tracerPort = (tracerPortStr !== undefined) ? parseInt(tracerPortStr) : 5172;
+
 const r2WasmPlugin: Plugin = {
     name: "r2-wasm-plugin",
     configureServer(server) {
@@ -33,5 +36,8 @@ export default defineConfig({
                 assetFileNames: "assets/[name].[ext]"
             }
         }
+    },
+    server: {
+        port: tracerPort + 1,
     },
 });

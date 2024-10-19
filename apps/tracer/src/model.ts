@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 
 const SOCKET_URL = (import.meta.env.MODE === "development")
-    ? "ws://localhost:1337"
+    ? inferDevModeHost()
     : `ws://${window.location.host}`;
 
 export function useModel() {
@@ -604,4 +604,11 @@ interface AppNavigationState {
     eventIndex: number | null;
     disassemblyTarget: DisassemblyTarget | undefined;
     memoryLocation: bigint | undefined;
+}
+
+function inferDevModeHost(): string {
+    const tokens = window.location.host.split(":");
+    const host = tokens[0];
+    const port = parseInt(tokens[1]) - 1;
+    return `ws://${host}:${port}`;
 }
