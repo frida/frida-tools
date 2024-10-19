@@ -350,8 +350,11 @@ def main() -> None:
                 )
                 return connection.respond(http.HTTPStatus.FORBIDDEN, "Cross-origin request denied\n")
 
-            if request.headers.get("Connection") == "Upgrade":
-                return
+            connhdr = request.headers.get("Connection")
+            if connhdr is not None:
+                directives = [d.strip().lower() for d in connhdr.split(",")]
+                if "upgrade" in directives:
+                    return
 
             raw_path = request.path.split("?", maxsplit=1)[0]
 
