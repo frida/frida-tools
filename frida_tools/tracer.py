@@ -42,7 +42,6 @@ def main() -> None:
         def __init__(self) -> None:
             super().__init__(await_ctrl_c)
             self._handlers = OrderedDict()
-            self._ui_port = 0
             self._ui_zip = ZipFile(Path(__file__).parent / "tracer_ui.zip", "r")
             self._ui_socket_handlers: Set[UISocketHandler] = set()
             self._ui_worker = None
@@ -151,6 +150,7 @@ def main() -> None:
                 metavar="PARAMETERS_JSON",
             )
             parser.add_argument("-o", "--output", help="dump messages to file", metavar="OUTPUT")
+            parser.add_argument("--ui-port", help="the TCP port to serve the UI on")
             self._profile_builder = pb
 
         def _usage(self) -> str:
@@ -164,6 +164,7 @@ def main() -> None:
             self._decorate: bool = options.decorate
             self._output: Optional[OutputFile] = None
             self._output_path: str = options.output
+            self._ui_port: Optional[int] = options.ui_port
 
             self._init_scripts = []
             for path in options.init_session:
@@ -308,6 +309,7 @@ def main() -> None:
             async with websockets.asyncio.server.serve(
                 self._handle_websocket_connection,
                 "localhost",
+                self._ui_port,
                 process_request=self._handle_asset_request,
             ) as server:
                 self._ui_port = server.sockets[0].getsockname()[1]
