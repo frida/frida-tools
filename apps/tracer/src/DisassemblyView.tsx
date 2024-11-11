@@ -1,7 +1,8 @@
 import "./DisassemblyView.css";
 import { DisassemblyTarget, Handler, HandlerId } from "./model.js";
-import { useR2 } from "@frida/react-use-r2";
+import { CommandOptions, useR2 } from "@frida/react-use-r2";
 import { hideContextMenu, Menu, MenuItem, showContextMenu, Spinner } from "@blueprintjs/core";
+import { graphviz } from "d3-graphviz";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export interface DisassemblyViewProps {
@@ -30,8 +31,33 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
     const seenAddressesRef = useRef(new Set<bigint>());
     const [r2Output, setR2Output] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [layout, setLayout] = useState<"linear" | "graph">("linear");
     const highlightedAddressAnchorRef = useRef<HTMLAnchorElement | null>(null);
     const { executeR2Command } = useR2();
+
+    useEffect(() => {
+        /*
+        const container = containerRef.current;
+        console.log("container:", container);
+        if (container === null) {
+            return;
+        }
+        */
+        const container = document;
+
+        function onKeyDown(event: KeyboardEvent) {
+            if (event.code === "Space") {
+                setLayout((layout === "linear") ? "graph" : "linear");
+                event.preventDefault();
+            }
+        }
+
+        container.addEventListener("keydown", onKeyDown);
+
+        return () => {
+            container.removeEventListener("keydown", onKeyDown);
+        };
+    }, [layout]);
 
     useEffect(() => {
         if (target === undefined) {
@@ -94,7 +120,20 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
             setR2Output([]);
             return;
         }
-        const { html, operations } = data;
+        const { html, dot, operations } = data;
+
+        const existingGraph = containerRef.current?.querySelector("svg") ?? null;
+        if (existingGraph !== null) {
+            existingGraph.style.display = (layout === "graph") ? "" : "none";
+        }
+
+        if (layout === "graph") {
+            setR2Output([]);
+            if (dot !== "") {
+                graphviz(containerRef.current!).renderDot(dot);
+            }
+            return;
+        }
 
         let lines: string[];
         const handlerByAddress = handlers.reduce((result, handler) => {
@@ -160,7 +199,7 @@ export default function DisassemblyView({ target, handlers, onSelectTarget, onSe
                 });
 
         setR2Output(lines);
-    }, [handlers, data]);
+    }, [handlers, data, layout]);
 
     const handleMenuClose = useCallback(() => {
         hideContextMenu();
@@ -308,7 +347,7 @@ interface R2Operation {
 
 async function disassemble(
     target: DisassemblyTarget,
-    executeR2Command: (command: string) => Promise<string>): Promise<DisassemblyData> {
+    executeR2Command: (command: string, options?: CommandOptions) => Promise<string>): Promise<DisassemblyData> {
     const command = [
         `s ${target!.address}`,
     ];
@@ -331,14 +370,17 @@ async function disassemble(
 
     const html = lines.slice(0, lines.length - 1).join("\n");
 
+    const dot = await executeR2Command("agfd", { output: "plain" });
+
     const meta = JSON.parse(lines[lines.length - 1]);
     const opItems: R2Operation[] = Array.isArray(meta) ? meta : meta.ops;
     const operations = new Map<bigint, R2Operation>(opItems.map(op => [BigInt(op.offset), op]));
 
-    return { html, operations };
+    return { html, dot, operations };
 }
 
 interface DisassemblyData {
     html: string;
+    dot: string;
     operations: Map<bigint, R2Operation>;
 }
