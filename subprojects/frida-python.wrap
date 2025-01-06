@@ -1,4 +1,4 @@
 [wrap-git]
 url = https://github.com/frida/frida-python.git
-revision = e8eff270ceaa0cc5a7beb91592891762016e9d00
+revision = 2ae7df42d0bbf241793d37cadf27d1465646e652
 
