@@ -73,7 +73,7 @@ def main() -> None:
                 self._list_processes()
 
         def _list_processes(self) -> None:
-            if (self._output_format == "text" and self._terminal_type == "iterm2") or (False == self._exclude_icon_render):
+            if (self._output_format == "text" and self._terminal_type == "iterm2") or (not self._exclude_icon_render):
                 scope = "full"
             else:
                 scope = "minimal"
