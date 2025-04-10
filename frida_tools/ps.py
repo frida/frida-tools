@@ -45,6 +45,14 @@ def main() -> None:
                 const="json",
                 default="text",
             )
+            parser.add_argument(
+                "-e",
+                "--exclude-icon",
+                help="exclude icon in output results",
+                action="store_true",
+                dest="exclude_icon_render",
+                default=False,
+            )
 
         def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
             if options.include_all_applications and not options.list_only_applications:
@@ -52,6 +60,7 @@ def main() -> None:
             self._list_only_applications = options.list_only_applications
             self._include_all_applications = options.include_all_applications
             self._output_format = options.output_format
+            self._exclude_icon_render = options.exclude_icon_render
             self._terminal_type, self._icon_size = self._detect_terminal()
 
         def _usage(self) -> str:
@@ -64,7 +73,7 @@ def main() -> None:
                 self._list_processes()
 
         def _list_processes(self) -> None:
-            if self._output_format == "text" and self._terminal_type == "iterm2":
+            if (self._output_format == "text" and self._terminal_type == "iterm2") or (not self._exclude_icon_render):
                 scope = "full"
             else:
                 scope = "minimal"
