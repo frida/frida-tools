@@ -85,7 +85,7 @@ class CompilerApplication(ConsoleApplication):
 
     def _print_compiler_starting(self) -> None:
         if self._mode == "watch":
-            sys.stdout.write("\x1Bc")
+            sys.stdout.write("\x1bc")
         self._print(format_compiling(self._module, os.getcwd()))
 
     def _on_compiler_finished(self) -> None:
