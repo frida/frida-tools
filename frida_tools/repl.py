@@ -209,6 +209,7 @@ class REPLApplication(ConsoleApplication):
         ConsoleApplication._log(self, level, text)
         if self._logfile is not None:
             self._logfile.write(text + "\n")
+            self._logfile.flush()
 
     def _usage(self) -> str:
         return "%(prog)s [options] target"
