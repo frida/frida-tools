@@ -121,7 +121,7 @@ def main() -> None:
             self._exit(0)
 
         def _list_applications(self) -> None:
-            if self._output_format == "text" and self._terminal_type == "iterm2":
+            if not self._exclude_icons and self._output_format == "text" and self._terminal_type == "iterm2":
                 scope = "full"
             else:
                 scope = "minimal"
