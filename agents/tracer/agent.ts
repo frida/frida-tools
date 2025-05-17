@@ -21,7 +21,7 @@ class Agent {
     private cachedSwiftResolver: ApiResolver | null = null;
 
     init(stage: Stage, parameters: TraceParameters, initScripts: InitScript[], spec: TraceSpec) {
-        const g = globalThis as any as TraceScriptGlobals;
+        const g = globalThis as unknown as TraceScriptGlobals;
         g.stage = stage;
         g.parameters = parameters;
         g.state = this.traceState;
