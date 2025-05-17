@@ -417,7 +417,7 @@ function resolveUserID(uid: number): string {
         name = uid.toString();
     } else {
         if (getpwduidR === null) {
-            getpwduidR = new SystemFunction(Module.getExportByName(null, "getpwuid_r"),
+            getpwduidR = new SystemFunction(Module.getGlobalExportByName("getpwuid_r"),
                 "int",
                 ["uint", "pointer", "pointer", "size_t", "pointer"]);
         }
@@ -465,7 +465,7 @@ function resolveGroupID(gid: number): string {
         name = gid.toString();
     } else {
         if (getgrgidR === null) {
-            getgrgidR = new SystemFunction(Module.getExportByName(null, "getgrgid_r"),
+            getgrgidR = new SystemFunction(Module.getGlobalExportByName("getgrgid_r"),
                 "int",
                 ["uint", "pointer", "pointer", "size_t", "pointer"]);
         }

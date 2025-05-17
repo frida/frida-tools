@@ -1,3 +1,5 @@
+import Java from "frida-java-bridge";
+
 const MAX_HANDLERS_PER_REQUEST = 1000;
 
 class Agent {
@@ -17,18 +19,14 @@ class Agent {
     private cachedSwiftResolver: ApiResolver | null = null;
 
     init(stage: Stage, parameters: TraceParameters, initScripts: InitScript[], spec: TraceSpec) {
-        const g = global as any as TraceScriptGlobals;
+        const g = globalThis as any as TraceScriptGlobals;
         g.stage = stage;
         g.parameters = parameters;
         g.state = this.traceState;
         g.defineHandler = h => h;
 
         for (const script of initScripts) {
-            try {
-                (1, eval)(script.source);
-            } catch (e: any) {
-                throw new Error(`unable to load ${script.filename}: ${e.stack}`);
-            }
+            Script.evaluate(script.filename, script.source);
         }
 
         this.start(spec).catch(e => {
@@ -649,7 +647,7 @@ class Agent {
 
     private includeRelativeFunction(pattern: string, plan: TracePlan) {
         const e = parseRelativeFunctionPattern(pattern);
-        const address = Module.getBaseAddress(e.module).add(e.offset);
+        const address = Process.getModuleByName(e.module).base.add(e.offset);
         plan.native.set(address.toString(), ["c", e.module, `sub_${e.offset.toString(16)}`]);
     }
 

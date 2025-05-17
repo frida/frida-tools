@@ -22,7 +22,7 @@ class Agent {
     session: TraceSession | null = null;
     buffer: TraceBuffer | null = null;
     reader: TraceBufferReader | null = null;
-    drainTimer: NodeJS.Timer | null = null;
+    drainTimer: NodeJS.Timeout | null = null;
 
     createBuffer(): string {
         this.buffer = TraceBuffer.create();
@@ -146,16 +146,16 @@ function parseCodeLocation(location: CodeLocation | null): NativePointer {
             return address;
         }
         case "module-export":
-            return Module.getExportByName(params[0], params[1]);
+            return Process.getModuleByName(params[0]).getExportByName(params[1]);
         case "module-offset":
-            return Module.getBaseAddress(params[0]).add(params[1]);
+            return Process.getModuleByName(params[0]).base.add(params[1]);
         case "symbol": {
             const name = params;
             const { address } = DebugSymbol.fromName(name);
             if (!address.isNull()) {
                 return address;
             }
-            return Module.getExportByName(null, name);
+            return Module.getGlobalExportByName(name);
         }
     }
 }

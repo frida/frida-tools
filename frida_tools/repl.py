@@ -11,6 +11,7 @@ import string
 import sys
 import threading
 import time
+from pathlib import Path
 from timeit import default_timer as timer
 from typing import Any, AnyStr, Callable, Dict, Iterable, List, Mapping, MutableMapping, Optional, Tuple, TypeVar, Union
 from urllib.request import build_opener
@@ -712,7 +713,8 @@ class REPLApplication(ConsoleApplication):
     def _create_repl_script(self) -> str:
         raw_fragments = []
 
-        raw_fragments.append(self._make_repl_runtime())
+        data_dir = Path(__file__).parent
+        raw_fragments.append((data_dir / "repl_agent.js").read_text(encoding="utf-8"))
 
         if self._codeshare_script is not None:
             raw_fragments.append(
@@ -770,97 +772,6 @@ class REPLApplication(ConsoleApplication):
         cwd = os.getcwd()
         for diag in diagnostics:
             self._print(format_diagnostic(diag, cwd))
-
-    def _make_repl_runtime(self) -> str:
-        return """\
-global.cm = null;
-global.cs = {};
-
-class REPL {
-#quickCommands;
-constructor() {
-    this.#quickCommands = new Map();
-}
-registerQuickCommand(name, handler) {
-    this.#quickCommands.set(name, handler);
-}
-unregisterQuickCommand(name) {
-    this.#quickCommands.delete(name);
-}
-_invokeQuickCommand(tokens) {
-    const name = tokens[0];
-    const handler = this.#quickCommands.get(name);
-    if (handler !== undefined) {
-        const { minArity, onInvoke } = handler;
-        if (tokens.length - 1 < minArity) {
-            throw Error(`${name} needs at least ${minArity} arg${(minArity === 1) ? '' : 's'}`);
-        }
-        return onInvoke(...tokens.slice(1));
-    } else {
-        throw Error(`Unknown command ${name}`);
-    }
-}
-}
-const repl = new REPL();
-global.REPL = repl;
-
-const rpcExports = {
-fridaEvaluateExpression(expression) {
-    return evaluate(() => (1, eval)(expression));
-},
-fridaEvaluateQuickCommand(tokens) {
-    return evaluate(() => repl._invokeQuickCommand(tokens));
-},
-fridaLoadCmodule(code, toolchain) {
-    const cs = global.cs;
-
-    if (cs._frida_log === undefined)
-        cs._frida_log = new NativeCallback(onLog, 'void', ['pointer']);
-
-    if (code === null) {
-        recv('frida:cmodule-payload', (message, data) => {
-            code = data;
-        });
-    }
-
-    global.cm = new CModule(code, cs, { toolchain });
-},
-};
-
-function evaluate(func) {
-try {
-    const result = func();
-    if (result instanceof ArrayBuffer) {
-        return result;
-    } else {
-        const type = (result === null) ? 'null' : typeof result;
-        return [type, result];
-    }
-} catch (e) {
-    return ['error', {
-        name: e.name,
-        message: e.message,
-        stack: e.stack
-    }];
-}
-}
-
-Object.defineProperty(rpc, 'exports', {
-    get() {
-        return rpcExports;
-    },
-    set(value) {
-        for (const [k, v] of Object.entries(value)) {
-            rpcExports[k] = v;
-        }
-    }
-});
-
-function onLog(messagePtr) {
-    const message = messagePtr.readUtf8String();
-    console.log(message);
-}
-"""
 
     def _load_cmodule_code(self) -> Union[str, bytes, None]:
         if self._user_cmodule is None:
