@@ -13,5 +13,10 @@
         "@types/frida-gum": "^19.0.0",
         "@types/node": "^18.11.9",
         "frida-compile": "^16.4.2"
+    },
+    "dependencies": {
+        "frida-java-bridge": "^7.0.1",
+        "frida-objc-bridge": "^8.0.4",
+        "frida-swift-bridge": "^3.0.1"
     }
 }

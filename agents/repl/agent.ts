@@ -1,3 +1,7 @@
+import Java from "frida-java-bridge";
+import ObjC from "frida-objc-bridge";
+import Swift from "frida-swift-bridge";
+
 class REPL {
     #quickCommands = new Map();
 
@@ -27,16 +31,25 @@ class REPL {
 const repl = new REPL();
 
 const replScriptGlobals = globalThis as unknown as ReplScriptGlobals;
+
+replScriptGlobals.REPL = repl;
 replScriptGlobals.cm = null;
 replScriptGlobals.cs = {};
-replScriptGlobals.REPL = repl;
+
+replScriptGlobals.ObjC = ObjC;
+replScriptGlobals.Swift = Swift;
+replScriptGlobals.Java = Java;
 
 interface ReplScriptGlobals {
+    REPL: REPL;
     cm: CModule | null;
     cs: {
         [name: string]: NativePointerValue;
     };
-    REPL: REPL;
+
+    ObjC: typeof ObjC;
+    Swift: typeof Swift;
+    Java: typeof Java;
 }
 
 interface QuickCommandHandler {
