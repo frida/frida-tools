@@ -6,7 +6,7 @@
     "main": "agent.ts",
     "type": "module",
     "scripts": {
-        "build": "frida-compile agent.ts -c -o ../../frida_tools/itracer_agent.js",
+        "build": "frida-compile agent.ts -S -c -o ../../frida_tools/itracer_agent.js",
         "watch": "frida-compile agent.ts -w -o ../../frida_tools/itracer_agent.js"
     },
     "devDependencies": {

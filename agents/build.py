@@ -44,7 +44,7 @@ def build(npm: Path, inputs: list[Path], output_js: Path, priv_dir: Path):
     )
 
     frida_compile = priv_dir / "node_modules" / ".bin" / f"frida-compile{script_suffix()}"
-    subprocess.run([frida_compile, entrypoint, "-c", "-o", output_js], cwd=priv_dir, check=True)
+    subprocess.run([frida_compile, entrypoint, "-S", "-c", "-o", output_js], cwd=priv_dir, check=True)
 
 
 def script_suffix() -> str:
