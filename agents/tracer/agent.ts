@@ -1,4 +1,6 @@
 import Java from "frida-java-bridge";
+import ObjC from "frida-objc-bridge";
+import Swift from "frida-swift-bridge";
 
 const MAX_HANDLERS_PER_REQUEST = 1000;
 
@@ -24,6 +26,10 @@ class Agent {
         g.parameters = parameters;
         g.state = this.traceState;
         g.defineHandler = h => h;
+
+        g.ObjC = ObjC;
+        g.Swift = Swift;
+        g.Java = Java;
 
         for (const script of initScripts) {
             Script.evaluate(script.filename, script.source);
@@ -1007,6 +1013,10 @@ interface TraceScriptGlobals {
     parameters: TraceParameters;
     state: TraceState;
     defineHandler: (handler: TraceScriptHandler) => TraceScriptHandler;
+
+    ObjC: typeof ObjC;
+    Swift: typeof Swift;
+    Java: typeof Java;
 }
 
 interface TraceScriptHandler {
