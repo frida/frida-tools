@@ -11,8 +11,9 @@ import signal
 import sys
 import threading
 import time
+from pathlib import Path
 from types import FrameType
-from typing import Any, Callable, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Callable, List, Mapping, Optional, Tuple, TypeVar, Union
 
 if platform.system() == "Windows":
     import msvcrt
@@ -868,6 +869,29 @@ class ConsoleApplication:
         if not os.path.exists(state_dir):
             os.makedirs(state_dir)
         return state_dir
+
+    def try_handle_bridge_request(self, message: Mapping[Any, Any], script: frida.core.Script) -> bool:
+        if message["type"] != "send":
+            return False
+
+        payload = message.get("payload")
+        if not isinstance(payload, dict):
+            return False
+
+        t = payload.get("type")
+        if t != "frida:load-bridge":
+            return False
+
+        stem = payload["name"].lower()
+        bridge = next(p for p in (Path(__file__).parent / "bridges").glob("*.js") if p.stem == stem)
+
+        script.post({
+            "type": "frida:bridge-loaded",
+            "filename": bridge.name,
+            "source": bridge.read_text(encoding="utf-8"),
+        })
+
+        return True
 
 
 def compute_real_args(parser: argparse.ArgumentParser, args: Optional[List[str]] = None) -> List[str]:

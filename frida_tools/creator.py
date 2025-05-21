@@ -82,7 +82,7 @@ class CreatorApplication(ConsoleApplication):
   "devDependencies": {{
     "@types/frida-gum": "^18.3.1",
     "@types/node": "^18.14.0",
-    "frida-compile": "^16.1.8"
+    "frida-compile": "^17.0.0"
   }}
 }}
 """

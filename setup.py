@@ -99,9 +99,11 @@ def detect_version() -> str:
 
 def fetch_built_assets() -> List[str]:
     assets = []
+
     if in_source_package:
         pkgdir = SOURCE_ROOT / "frida_tools"
         assets += [f.name for f in pkgdir.glob("*_agent.js")]
+        assets += [f.relative_to(pkgdir).as_posix() for f in (pkgdir / "bridges").glob("*.js")]
         assets += [f.name for f in pkgdir.glob("*.zip")]
     else:
         agents_builddir = SOURCE_ROOT / "build" / "agents"
@@ -111,6 +113,15 @@ def fetch_built_assets() -> List[str]:
                     for f in child.glob("*_agent.js"):
                         shutil.copy(f, SOURCE_ROOT / "frida_tools")
                         assets.append(f.name)
+
+        bridges_builddir = SOURCE_ROOT / "build" / "bridges"
+        if bridges_builddir.exists():
+            bridges_dir = SOURCE_ROOT / "frida_tools" / "bridges"
+            bridges_dir.mkdir(exist_ok=True)
+            for f in bridges_builddir.glob("*.js"):
+                shutil.copy(f, bridges_dir)
+                assets.append((Path("bridges") / f.name).as_posix())
+
         apps_builddir = SOURCE_ROOT / "build" / "apps"
         if apps_builddir.exists():
             for child in apps_builddir.iterdir():
@@ -118,6 +129,7 @@ def fetch_built_assets() -> List[str]:
                     for f in child.glob("*.zip"):
                         shutil.copy(f, SOURCE_ROOT / "frida_tools")
                         assets.append(f.name)
+
     return assets
 
 

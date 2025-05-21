@@ -1,7 +1,3 @@
-import Java from "frida-java-bridge";
-import ObjC from "frida-objc-bridge";
-import Swift from "frida-swift-bridge";
-
 class REPL {
     #quickCommands = new Map();
 
@@ -30,26 +26,44 @@ class REPL {
 
 const repl = new REPL();
 
-const replScriptGlobals = globalThis as unknown as ReplScriptGlobals;
+globalThis.REPL = repl;
+globalThis.cm = null;
+globalThis.cs = {};
 
-replScriptGlobals.REPL = repl;
-replScriptGlobals.cm = null;
-replScriptGlobals.cs = {};
+registerLazyBridgeGetter("ObjC");
+registerLazyBridgeGetter("Swift");
+registerLazyBridgeGetter("Java");
 
-replScriptGlobals.ObjC = ObjC;
-replScriptGlobals.Swift = Swift;
-replScriptGlobals.Java = Java;
+function registerLazyBridgeGetter(name: string) {
+    Object.defineProperty(globalThis, name, {
+        enumerable: true,
+        configurable: true,
+        get() {
+            return lazyLoadBridge(name);
+        }
+    });
+}
 
-interface ReplScriptGlobals {
-    REPL: REPL;
-    cm: CModule | null;
-    cs: {
+function lazyLoadBridge(name: string): unknown {
+    send({ type: "frida:load-bridge", name });
+    let bridge: unknown;
+    recv("frida:bridge-loaded", message => {
+        bridge = Script.evaluate(`/frida/bridges/${message.filename}`,
+            "(function () { " + [
+                message.source,
+                `Object.defineProperty(globalThis, '${name}', { value: bridge });`,
+                `return bridge;`
+            ].join("\n") + " })();");
+    }).wait();
+    return bridge;
+}
+
+declare global {
+    var REPL: REPL;
+    var cm: CModule | null;
+    var cs: {
         [name: string]: NativePointerValue;
     };
-
-    ObjC: typeof ObjC;
-    Swift: typeof Swift;
-    Java: typeof Java;
 }
 
 interface QuickCommandHandler {
@@ -65,7 +79,7 @@ const rpcExports: RpcExports = {
         return evaluate(() => repl._invokeQuickCommand(tokens));
     },
     fridaLoadCmodule(code: string | null, toolchain: CModuleToolchain) {
-        const cs = replScriptGlobals.cs;
+        const cs = globalThis.cs;
 
         if (cs._frida_log === undefined)
             cs._frida_log = new NativeCallback(onLog, "void", ["pointer"]);
@@ -77,7 +91,7 @@ const rpcExports: RpcExports = {
             });
         }
 
-        replScriptGlobals.cm = new CModule(codeToLoad!, cs, { toolchain });
+        globalThis.cm = new CModule(codeToLoad!, cs, { toolchain });
     },
 };
 
