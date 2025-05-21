@@ -619,7 +619,9 @@ class Tracer:
 
         ui.on_trace_progress("initializing")
         data_dir = Path(__file__).parent
-        source = (data_dir / "tracer_agent.js").read_text(encoding="utf-8")
+        source = (
+            (data_dir / "tracer_agent.js").read_text(encoding="utf-8").replace("/agent.js", "/frida/tracer/agent.js", 1)
+        )
         script = session.create_script(name="tracer", source=source, runtime=runtime)
 
         self._script = script
