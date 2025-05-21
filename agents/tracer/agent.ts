@@ -1,6 +1,4 @@
-import Java from "frida-java-bridge";
-import ObjC from "frida-objc-bridge";
-import Swift from "frida-swift-bridge";
+import type _Java from "frida-java-bridge";
 
 const MAX_HANDLERS_PER_REQUEST = 1000;
 
@@ -21,15 +19,14 @@ class Agent {
     private cachedSwiftResolver: ApiResolver | null = null;
 
     init(stage: Stage, parameters: TraceParameters, initScripts: InitScript[], spec: TraceSpec) {
-        const g = globalThis as unknown as TraceScriptGlobals;
-        g.stage = stage;
-        g.parameters = parameters;
-        g.state = this.traceState;
-        g.defineHandler = h => h;
+        globalThis.stage = stage;
+        globalThis.parameters = parameters;
+        globalThis.state = this.traceState;
+        globalThis.defineHandler = h => h;
 
-        g.ObjC = ObjC;
-        g.Swift = Swift;
-        g.Java = Java;
+        registerLazyBridgeGetter("ObjC");
+        registerLazyBridgeGetter("Swift");
+        registerLazyBridgeGetter("Java");
 
         for (const script of initScripts) {
             Script.evaluate(script.filename, script.source);
@@ -124,7 +121,7 @@ class Agent {
         let javaIds: TraceTargetId[] = [];
         if (plan.java.length !== 0) {
             javaIds = await new Promise<TraceTargetId[]>((resolve, reject) => {
-                Java.perform(() => {
+                globalThis.Java.perform(() => {
                     this.traceJavaTargets(plan.java, onError).then(resolve, reject);
                 });
             });
@@ -298,6 +295,8 @@ class Agent {
         let javaStartRequest: Promise<void>;
         let javaStartDeferred = true;
         if (javaEntries.length > 0) {
+            const Java = globalThis.Java;
+
             if (!Java.available) {
                 throw new Error("Java runtime is not available");
             }
@@ -455,6 +454,8 @@ class Agent {
         const { scripts }: HandlerResponse = await getHandlers(request);
 
         return new Promise<TraceTargetId[]>(resolve => {
+            const Java = globalThis.Java;
+
             Java.perform(() => {
                 const ids: TraceTargetId[] = [];
                 let offset = 0;
@@ -470,7 +471,7 @@ class Agent {
                             const handler = this.parseFunctionHandler(scripts[offset], id, fullName, onError);
                             this.handlers.set(id, handler);
 
-                            const dispatcher: Java.MethodDispatcher = C[bareName];
+                            const dispatcher = C[bareName];
                             for (const method of dispatcher.overloads) {
                                 method.implementation = this.makeJavaMethodWrapper(id, method, handler);
                             }
@@ -510,7 +511,7 @@ class Agent {
         };
     }
 
-    private makeJavaMethodWrapper(id: TraceTargetId, method: Java.Method, handler: TraceFunctionHandler): Java.MethodImplementation {
+    private makeJavaMethodWrapper(id: TraceTargetId, method: _Java.Method, handler: TraceFunctionHandler): _Java.MethodImplementation {
         const agent = this;
 
         return function (...args: any[]) {
@@ -518,7 +519,7 @@ class Agent {
         };
     }
 
-    private handleJavaInvocation(id: TraceTargetId, method: Java.Method, handler: TraceFunctionHandler, instance: Java.Wrapper, args: any[]): any {
+    private handleJavaInvocation(id: TraceTargetId, method: _Java.Method, handler: TraceFunctionHandler, instance: _Java.Wrapper, args: any[]): any {
         const [onEnter, onLeave, config] = handler;
 
         this.invokeJavaHandler(id, onEnter, config, instance, args, ">");
@@ -551,7 +552,7 @@ class Agent {
     }
 
     private invokeJavaHandler(id: TraceTargetId, callback: TraceEnterHandler | TraceLeaveHandler, config: HandlerConfig,
-            instance: Java.Wrapper, param: any, cutPoint: CutPoint) {
+            instance: _Java.Wrapper, param: any, cutPoint: CutPoint) {
         const threadId = Process.getCurrentThreadId();
         const depth = this.updateDepth(threadId, cutPoint);
 
@@ -756,7 +757,7 @@ class Agent {
     private excludeJavaMethod(pattern: string, plan: TracePlan) {
         const existingGroups = plan.java;
 
-        const groups = Java.enumerateMethods(pattern);
+        const groups = globalThis.Java.enumerateMethods(pattern);
         for (const group of groups) {
             const { loader } = group;
 
@@ -977,7 +978,7 @@ function parseRelativeFunctionPattern(pattern: string) {
     };
 }
 
-function javaTargetGroupFromMatchGroup(group: Java.EnumerateMethodsMatchGroup): JavaTargetGroup {
+function javaTargetGroupFromMatchGroup(group: _Java.EnumerateMethodsMatchGroup): JavaTargetGroup {
     return {
         loader: group.loader,
         classes: new Map<JavaClassName, JavaTargetClass>(
@@ -985,7 +986,7 @@ function javaTargetGroupFromMatchGroup(group: Java.EnumerateMethodsMatchGroup): 
     };
 }
 
-function javaTargetClassFromMatchClass(klass: Java.EnumerateMethodsMatchClass): JavaTargetClass {
+function javaTargetClassFromMatchClass(klass: _Java.EnumerateMethodsMatchClass): JavaTargetClass {
     return {
         methods: new Map<JavaMethodName, JavaMethodNameOrSignature>(
             klass.methods.map(fullName => [javaBareMethodNameFromMethodName(fullName), fullName]))
@@ -1008,15 +1009,37 @@ function find<T>(array: T[], predicate: (candidate: T) => boolean): T | undefine
 function noop() {
 }
 
-interface TraceScriptGlobals {
-    stage: Stage;
-    parameters: TraceParameters;
-    state: TraceState;
-    defineHandler: (handler: TraceScriptHandler) => TraceScriptHandler;
+function registerLazyBridgeGetter(name: string) {
+    Object.defineProperty(globalThis, name, {
+        enumerable: true,
+        configurable: true,
+        get() {
+            return lazyLoadBridge(name);
+        }
+    });
+}
 
-    ObjC: typeof ObjC;
-    Swift: typeof Swift;
-    Java: typeof Java;
+function lazyLoadBridge(name: string): unknown {
+    send({ type: "frida:load-bridge", name });
+    let bridge: unknown;
+    recv("frida:bridge-loaded", message => {
+        bridge = Script.evaluate(`/frida/bridges/${message.filename}`,
+            "(function () { " + [
+                message.source,
+                `Object.defineProperty(globalThis, '${name}', { value: bridge });`,
+                `return bridge;`
+            ].join("\n") + " })();");
+    }).wait();
+    return bridge;
+}
+
+declare global {
+    var stage: Stage;
+    var parameters: TraceParameters;
+    var state: TraceState;
+    var defineHandler: (handler: TraceScriptHandler) => TraceScriptHandler;
+
+    var Java: typeof _Java;
 }
 
 interface TraceScriptHandler {
@@ -1094,7 +1117,7 @@ type NativeItem = [name: MemberName, address: NativePointer];
 type NativeId = string;
 
 interface JavaTargetGroup {
-    loader: Java.Wrapper | null;
+    loader: _Java.Wrapper | null;
     classes: Map<string, JavaTargetClass>;
 }
 interface JavaTargetClass {

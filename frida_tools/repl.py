@@ -293,6 +293,8 @@ class REPLApplication(ConsoleApplication):
         self._script = script
 
         def on_message(message: Mapping[Any, Any], data: Any) -> None:
+            if self.try_handle_bridge_request(message, self._script):
+                return
             self._reactor.schedule(lambda: self._process_message(message, data))
 
         script.on("message", on_message)

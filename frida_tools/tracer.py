@@ -15,7 +15,7 @@ import threading
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Generator, List, Optional, Set
+from typing import Any, Callable, Generator, List, Mapping, Optional, Set
 from zipfile import ZipFile
 
 import frida
@@ -589,7 +589,7 @@ class Tracer:
         self._repository = repository
         self._profile = profile
         self._script: Optional[frida.core.Script] = None
-        self._schedule_on_message = None
+        self._message_handler = None
         self._agent = None
         self._init_scripts = init_scripts
         self._log_handler = log_handler
@@ -610,9 +610,12 @@ class Tracer:
 
         self._repository.on_update(on_update)
 
-        self._schedule_on_message = lambda message, data: self._reactor.schedule(
-            lambda: self._on_message(message, data, ui)
-        )
+        def on_message(message: Mapping[Any, Any], data: Any) -> None:
+            if ui.try_handle_bridge_request(message, self._script):
+                return
+            self._reactor.schedule(lambda: self._on_message(message, data, ui))
+
+        self._message_handler = on_message
 
         ui.on_trace_progress("initializing")
         data_dir = Path(__file__).parent
@@ -621,7 +624,7 @@ class Tracer:
 
         self._script = script
         script.set_log_handler(self._log_handler)
-        script.on("message", self._schedule_on_message)
+        script.on("message", self._message_handler)
         ui.on_script_created(script)
         script.load()
 
@@ -634,7 +637,7 @@ class Tracer:
         self._repository.close()
 
         if self._script is not None:
-            self._script.off("message", self._schedule_on_message)
+            self._script.off("message", self._message_handler)
             try:
                 self._script.unload()
             except:
@@ -1256,6 +1259,9 @@ class UI:
         pass
 
     def on_trace_handler_load(self, target: TraceTarget, handler: str, source: Path) -> None:
+        pass
+
+    def try_handle_bridge_request(self, message: Mapping[Any, Any], script: frida.core.Script) -> bool:
         pass
 
 

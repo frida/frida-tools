@@ -6,11 +6,13 @@
 /apps/*/dist/
 /apps/*/node_modules/
 /apps/*/yarn.lock
+/bridges/node_modules/
 /build/
 /deps/
 /dist/
-/frida_tools/*_agent.js
 /frida_tools/*.zip
+/frida_tools/*_agent.js
+/frida_tools/bridges/
 /subprojects/frida-core.wrap
 /subprojects/frida-core/
 /subprojects/frida-gum.wrap
