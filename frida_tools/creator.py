@@ -80,9 +80,9 @@ class CreatorApplication(ConsoleApplication):
     "watch": "frida-compile agent/index.ts -o _agent.js -w"
   }},
   "devDependencies": {{
-    "@types/frida-gum": "^18.3.1",
+    "@types/frida-gum": "^19.0.0",
     "@types/node": "^18.14.0",
-    "frida-compile": "^17.0.0"
+    "frida-compile": "^18.0.0"
   }}
 }}
 """
@@ -98,10 +98,12 @@ class CreatorApplication(ConsoleApplication):
     "noEmit": true,
     "strict": true,
     "esModuleInterop": true,
-    "moduleResolution": "node16"
+    "moduleResolution": "node",
+    "module": "esnext"
   },
   "exclude": ["_agent.js"]
 }
+
 """
 
         assets[
@@ -123,7 +125,7 @@ Process.getModuleByName("libSystem.B.dylib")
         log(`export ${index}: ${exp.name}`);
     });
 
-Interceptor.attach(Module.getExportByName(null, "open"), {
+Interceptor.attach(Module.findGlobalExportByName("open")!, {
     onEnter(args) {
         const path = args[0].readUtf8String();
         log(`open() path="${path}"`);
@@ -139,7 +141,7 @@ export function log(message: string): void {
 }
 """
 
-        assets[".gitignore"] = "/node_modules/\n"
+        assets[".gitignore"] = "/node_modules/\n_agent.js\n"
 
         message = """\
 Run `npm install` to bootstrap, then:
