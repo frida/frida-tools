@@ -150,7 +150,9 @@ def main() -> None:
                 metavar="PARAMETERS_JSON",
             )
             parser.add_argument("-o", "--output", help="dump messages to file", metavar="OUTPUT")
-            parser.add_argument("--ui-host", help="the host to serve the UI on (default localhost)", default="localhost")
+            parser.add_argument(
+                "--ui-host", help="the host to serve the UI on (default localhost)", default="localhost"
+            )
             parser.add_argument("--ui-port", help="the TCP port to serve the UI on")
             self._profile_builder = pb
 
