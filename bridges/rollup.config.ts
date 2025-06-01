@@ -20,6 +20,20 @@ export default defineConfig(BRIDGES.map(name => {
             strict: false,
         },
         plugins: [
+             ({
+                name: "disable-treeshake",
+                transform (code, id) {
+                    if (/node_modules\/frida-objc-bridge/.test(id)) {
+                        return {
+                            code,
+                            map: null,
+                            moduleSideEffects: "no-treeshake",
+                        };
+                    }
+
+                    return null;
+                },
+            }),
             typescript(),
             polyfills(),
             resolve(),
