@@ -27,7 +27,7 @@ class CompilerApplication(ConsoleApplication):
         parser.add_argument("-o", "--output", help="write output to <file>")
         parser.add_argument("-w", "--watch", help="watch for changes and recompile", action="store_true")
         parser.add_argument("-S", "--no-source-maps", help="omit source-maps", action="store_true")
-        parser.add_argument("-c", "--compress", help="compress using terser", action="store_true")
+        parser.add_argument("-c", "--compress", help="minify code", action="store_true")
         parser.add_argument("-v", "--verbose", help="be verbose", action="store_true")
 
     def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
