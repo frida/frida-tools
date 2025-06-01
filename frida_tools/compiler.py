@@ -29,6 +29,7 @@ class CompilerApplication(ConsoleApplication):
         parser.add_argument("-S", "--no-source-maps", help="omit source-maps", action="store_true")
         parser.add_argument("-c", "--compress", help="minify code", action="store_true")
         parser.add_argument("-v", "--verbose", help="be verbose", action="store_true")
+        parser.add_argument("-F", "--output-format", help="desired output format", choices=["unescaped", "hex-bytes", "c-string"], default="unescaped")
 
     def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
         self._module = os.path.abspath(options.module)
@@ -37,6 +38,7 @@ class CompilerApplication(ConsoleApplication):
         self._verbose = self._mode == "watch" or options.verbose
         self._compiler_options = {
             "project_root": os.getcwd(),
+            "output_format": options.output_format,
             "source_maps": "omitted" if options.no_source_maps else "included",
             "compression": "terser" if options.compress else "none",
         }
