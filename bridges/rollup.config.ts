@@ -27,7 +27,7 @@ export default defineConfig(BRIDGES.map(name => {
                         return {
                             code,
                             map: null,
-                            moduleSideEffects: 'no-treeshake',
+                            moduleSideEffects: "no-treeshake",
                         };
                     }
 
