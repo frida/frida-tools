@@ -394,7 +394,7 @@ def main() -> None:
             return response
 
         def _compute_allowed_ui_origins(self):
-            return [f"http:/{self._ui_host}:{port}" for port in (self._ui_port, self._ui_port + 1)]
+            return [f"http://{self._ui_host}:{port}" for port in (self._ui_port, self._ui_port + 1)]
 
     class UISocketHandler:
         def __init__(self, app: TracerApplication, socket: websockets.asyncio.server.ServerConnection) -> None:
