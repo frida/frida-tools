@@ -21,7 +21,7 @@ export default defineConfig(BRIDGES.map(name => {
         },
         plugins: [
              ({
-                name: 'disable-treeshake',
+                name: "disable-treeshake",
                 transform (code, id) {
                     if (/node_modules\/frida-objc-bridge/.test(id)) {
                         return {
