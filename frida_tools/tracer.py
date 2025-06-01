@@ -150,6 +150,7 @@ def main() -> None:
                 metavar="PARAMETERS_JSON",
             )
             parser.add_argument("-o", "--output", help="dump messages to file", metavar="OUTPUT")
+            parser.add_argument("--ui-host", help="the host to serve the UI on (default localhost)", default="localhost")
             parser.add_argument("--ui-port", help="the TCP port to serve the UI on")
             self._profile_builder = pb
 
@@ -164,6 +165,7 @@ def main() -> None:
             self._decorate: bool = options.decorate
             self._output: Optional[OutputFile] = None
             self._output_path: str = options.output
+            self._ui_host: Optional[str] = options.ui_host
             self._ui_port: Optional[int] = options.ui_port
 
             self._init_scripts = []
@@ -308,7 +310,7 @@ def main() -> None:
             self._asyncio_loop = asyncio.get_running_loop()
             async with websockets.asyncio.server.serve(
                 self._handle_websocket_connection,
-                "localhost",
+                self._ui_host,
                 self._ui_port,
                 process_request=self._handle_asset_request,
             ) as server:
@@ -392,7 +394,7 @@ def main() -> None:
             return response
 
         def _compute_allowed_ui_origins(self):
-            return [f"http://localhost:{port}" for port in (self._ui_port, self._ui_port + 1)]
+            return [f"http://{self._ui_host}:{port}" for port in (self._ui_port, self._ui_port + 1)]
 
     class UISocketHandler:
         def __init__(self, app: TracerApplication, socket: websockets.asyncio.server.ServerConnection) -> None:
