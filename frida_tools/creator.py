@@ -98,7 +98,7 @@ class CreatorApplication(ConsoleApplication):
     "strict": true,
     "noEmit": true
   },
-  "exclude": ["_agent.js"]
+  "include": ["agent/**/*.ts"]
 }
 
 """
