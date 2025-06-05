@@ -1,0 +1,86 @@
+name: Build And Publish Python Distribution 📦
+
+on: push
+  # push:
+  #   branches:
+  #     - main
+  #   tags:
+  #     - 'v[0-9]+.[0-9]+.[0-9]+'
+  # pull_request:
+
+jobs:
+  build:
+    name: Build distribution 📦
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Download dependecies
+        run: |
+          sudo apt-get update
+          sudo apt-get install python3-dev
+
+      - name: Build frida dependecies
+        run: |
+          sudo ln -s /usr/include /usr/lib/include # This is needed because of https://github.com/frida/frida/issues/2972
+          make
+
+      - name: Build the package
+        run: uv build
+
+      - name: Upload build artifact`
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish-to-testpypi:
+    name: Publish to TestPyPI 🐍
+    needs:
+      - build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/frida-tools
+
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish distribution 📦 to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  publish-to-pypi:
+    name: >-
+      Publish to PyPI 🐍
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/frida-tools
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish distribution 📦 to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
