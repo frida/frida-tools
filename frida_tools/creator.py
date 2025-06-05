@@ -82,8 +82,7 @@ class CreatorApplication(ConsoleApplication):
   }},
   "devDependencies": {{
     "@types/frida-gum": "^19.0.0",
-    "@types/node": "^18.14.0",
-    "frida-compile": "^18.0.0"
+    "@types/node": "^18.14.0"
   }}
 }}
 """
