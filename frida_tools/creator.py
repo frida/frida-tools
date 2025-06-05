@@ -73,8 +73,8 @@ class CreatorApplication(ConsoleApplication):
   "version": "1.0.0",
   "description": "Frida agent written in TypeScript",
   "private": true,
-  "type": "module",
   "main": "agent/index.ts",
+  "type": "module",
   "scripts": {{
     "prepare": "npm run build",
     "build": "frida-compile agent/index.ts -o _agent.js -c",
@@ -93,14 +93,11 @@ class CreatorApplication(ConsoleApplication):
         ] = """\
 {
   "compilerOptions": {
-    "target": "es2022",
-    "lib": ["es2022"],
-    "allowJs": true,
-    "noEmit": true,
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "Node16",
     "strict": true,
-    "esModuleInterop": true,
-    "moduleResolution": "Node16",
-    "module": "Node16"
+    "noEmit": true
   },
   "exclude": ["_agent.js"]
 }
