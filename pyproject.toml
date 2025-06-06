@@ -1,3 +1,80 @@
+[project]
+name = "frida-tools"
+dynamic = ['version']
+description = "Frida CLI tools"
+authors = [{ name = "Frida Developers", email = "oleavr@frida.re" }]
+urls = { homepage = "https://frida.re", repository = "https://github.com/frida/frida-tools" }
+# license = "wxWindows Library Licence, Version 3.1"
+keywords = [
+    "frida",
+    "debugger",
+    "dynamic",
+    "instrumentation",
+    "inject",
+    "javascript",
+    "windows",
+    "macos",
+    "linux",
+    "ios",
+    "iphone",
+    "ipad",
+    "android",
+    "qnx",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Environment :: MacOS X",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved",
+    "Natural Language :: English",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: JavaScript",
+    "Topic :: Software Development :: Debuggers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+requires-python = ">=3.7"
+dependencies = [
+    "colorama >= 0.2.7, < 1.0.0",
+    "frida >= 17.2.8, < 18.0.0",
+    "prompt-toolkit >= 2.0.0, < 4.0.0",
+    "pygments >= 2.0.2, < 3.0.0",
+    "websockets >= 13.0.0, < 14.0.0",
+]
+
+[project.scripts]
+frida = "frida_tools.repl:main"
+frida-ls-devices = "frida_tools.lsd:main"
+frida-ps = "frida_tools.ps:main"
+frida-kill = "frida_tools.kill:main"
+frida-ls = "frida_tools.ls:main"
+frida-rm = "frida_tools.rm:main"
+frida-pull = "frida_tools.pull:main"
+frida-push = "frida_tools.push:main"
+frida-discover = "frida_tools.discoverer:main"
+frida-trace = "frida_tools.tracer:main"
+frida-itrace = "frida_tools.itracer:main"
+frida-join = "frida_tools.join:main"
+frida-create = "frida_tools.creator:main"
+frida-compile = "frida_tools.compiler:main"
+frida-apk = "frida_tools.apk:main"
+frida-pm = "frida_tools.pm:main"
+
+[build-system]
+build-backend = 'mesonpy'
+requires = ['meson-python']
+
+
 [tool.black]
 line-length = 120
 
