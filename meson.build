@@ -1,11 +1,12 @@
 project('frida-tools', 'c',
-  version: run_command(find_program('python3'), files('setup.py'), '-V',
-    capture: true,
-    check: true).stdout().strip(),
+  # version: run_command(find_program('python3'), files('setup.py'), '-V',
+  #   capture: true,
+  #   check: true).stdout().strip(),
+  version: '14.1.2',
   meson_version: '>=1.1.0',
 )
 
-subproject('frida-python')
+# subproject('frida-python')
 
 python = import('python').find_installation()
 
