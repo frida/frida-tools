@@ -16,8 +16,6 @@ meson.add_dist_script(
   meson.project_version(),
 )
 
-# subproject('frida-python')
-
 python = import('python').find_installation()
 
 node = find_program('node', version: '>=18.0.0', native: true, required: false)
