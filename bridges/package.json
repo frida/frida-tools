@@ -18,6 +18,6 @@
     "dependencies": {
         "frida-java-bridge": "^7.0.3",
         "frida-objc-bridge": "^8.0.5",
-        "frida-swift-bridge": "^3.0.1"
+        "frida-swift-bridge": "^3.0.2"
     }
 }
