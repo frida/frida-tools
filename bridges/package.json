@@ -16,7 +16,7 @@
         "typescript": "^5.8.3"
     },
     "dependencies": {
-        "frida-java-bridge": "^7.0.1",
+        "frida-java-bridge": "^7.0.3",
         "frida-objc-bridge": "^8.0.4",
         "frida-swift-bridge": "^3.0.1"
     }
