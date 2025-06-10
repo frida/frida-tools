@@ -4,7 +4,7 @@ dynamic = ['version']
 description = "Frida CLI tools"
 authors = [{ name = "Frida Developers", email = "oleavr@frida.re" }]
 urls = { homepage = "https://frida.re", repository = "https://github.com/frida/frida-tools" }
-# license = "wxWindows Library Licence, Version 3.1"
+license = "wxWindows"
 keywords = [
     "frida",
     "debugger",
@@ -28,7 +28,6 @@ classifiers = [
     "Environment :: Win32 (MS Windows)",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved",
     "Natural Language :: English",
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: Microsoft :: Windows",
