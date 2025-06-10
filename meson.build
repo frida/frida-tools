@@ -1,9 +1,19 @@
-project('frida-tools', 'c',
-  # version: run_command(find_program('python3'), files('setup.py'), '-V',
-  #   capture: true,
-  #   check: true).stdout().strip(),
-  version: '14.1.2',
+project(
+  'frida-tools',
+  'c',
+  version: run_command(
+    find_program('python3'),
+    meson.current_source_dir() / 'releng' / 'frida_version.py',
+    capture: true,
+    check: true,
+  ).stdout().strip(),
   meson_version: '>=1.1.0',
+)
+
+meson.add_dist_script(
+  find_program('python'),
+  meson.current_source_dir() / 'set_dist_version.py',
+  meson.project_version(),
 )
 
 # subproject('frida-python')
