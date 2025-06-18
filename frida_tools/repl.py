@@ -959,6 +959,7 @@ class CompilerContext:
             return compiler.build(self._user_script, project_root=self._project_root)
 
         if self._bundle is None:
+            success = True
             ready = threading.Event()
 
             def on_compiler_output(bundle) -> None:
@@ -969,9 +970,19 @@ class CompilerContext:
                 else:
                     self._on_bundle_updated()
 
+            def on_compiler_diagnostics(self, diagnostics) -> None:
+                nonlocal success
+                success = False
+                ready.set()
+
             compiler.on("output", on_compiler_output)
+            compiler.on("diagnostics", on_compiler_diagnostics)
             compiler.watch(self._user_script, project_root=self._project_root)
             ready.wait()
+            compiler.off("diagnostics", on_compiler_diagnostics)
+            if not success:
+                compiler.off("output", on_compiler_output)
+                raise ValueError("compilation failed")
 
         return self._bundle
 
