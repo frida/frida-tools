@@ -2,6 +2,8 @@ from typing import Any, Dict, Union
 
 from colorama import Fore, Style
 
+THEME_COLOR = "#ef6456"
+
 STYLE_FILE = Fore.CYAN + Style.BRIGHT
 STYLE_LOCATION = Fore.LIGHTYELLOW_EX
 STYLE_ERROR = Fore.RED + Style.BRIGHT
