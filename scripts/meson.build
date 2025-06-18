@@ -9,6 +9,7 @@ scripts = [
   ['frida-kill', 'kill'],
   ['frida-ls', 'ls'],
   ['frida-ls-devices', 'lsd'],
+  ['frida-pm', 'pm'],
   ['frida-ps', 'ps'],
   ['frida-pull', 'pull'],
   ['frida-push', 'push'],

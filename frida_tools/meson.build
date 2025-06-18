@@ -12,6 +12,7 @@ sources = [
   'ls.py',
   'lsd.py',
   'model.py',
+  'pm.py',
   'ps.py',
   'pull.py',
   'push.py',

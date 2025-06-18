@@ -73,6 +73,7 @@ def main():
                 "frida-join = frida_tools.join:main",
                 "frida-create = frida_tools.creator:main",
                 "frida-compile = frida_tools.compiler:main",
+                "frida-pm = frida_tools.pm:main",
                 "frida-apk = frida_tools.apk:main",
             ]
         },
