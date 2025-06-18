@@ -191,17 +191,15 @@ class PackageManagerApplication(ConsoleApplication):
             RESET = Style.RESET_ALL
             longest = 0
 
-            def render(state: str, progress: float, detail: Optional[str]) -> None:
-                if detail is not None:
+            def render(phase: str, fraction: float, details: Optional[str]) -> None:
+                if details is not None:
                     return
 
-                pct = int(progress * 100)
-                fill = int(progress * BAR_LEN)
+                pct = int(fraction * 100)
+                fill = int(fraction * BAR_LEN)
                 bar = "█" * fill + " " * (BAR_LEN - fill)
 
-                msg = state.replace("-", " ")
-                if detail:
-                    msg += f": {detail}"
+                msg = phase.replace("-", " ")
 
                 colored = f"\r{FG}[{bar}]{RESET} {pct:3d}% {msg}"
 
