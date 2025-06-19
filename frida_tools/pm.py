@@ -38,6 +38,14 @@ class PackageManagerApplication(ConsoleApplication):
         return "%(prog)s [options] <command> [...]"
 
     def _add_options(self, parser: argparse.ArgumentParser) -> None:
+        default_registry = frida.PackageManager().registry
+        parser.add_argument(
+            "--registry",
+            metavar="HOST",
+            default=None,
+            help=f"Package registry to use (default: {default_registry})",
+        )
+
         sub = parser.add_subparsers(dest="command", metavar="<command>", required=True)
 
         search_p = sub.add_parser("search", help="Search for packages")
@@ -72,7 +80,11 @@ class PackageManagerApplication(ConsoleApplication):
         args: List[str],
     ) -> None:
         self._opts = options
-        self._extra = args
+
+        pm = frida.PackageManager()
+        if options.registry is not None:
+            pm.registry = options.registry
+        self._pm = pm
 
     def _needs_device(self) -> bool:
         return False
@@ -89,8 +101,6 @@ class PackageManagerApplication(ConsoleApplication):
             self._exit(1)
 
     def _cmd_search(self) -> None:
-        pm = frida.PackageManager()
-
         interactive = self._have_terminal and not self._plain_terminal
         show_spinner = (not self._opts.json) and interactive
 
@@ -100,7 +110,7 @@ class PackageManagerApplication(ConsoleApplication):
             stop_event, spinner_thread = start_spinner(THEME_COLOR)
 
         try:
-            res = pm.search(
+            res = self._pm.search(
                 self._opts.query,
                 offset=self._opts.offset,
                 limit=self._opts.limit,
@@ -177,7 +187,7 @@ class PackageManagerApplication(ConsoleApplication):
             print("… " + " and ".join(parts) + ". Use --limit and --offset to navigate through results.")
 
     def _cmd_install(self) -> None:
-        pm = frida.PackageManager()
+        pm = self._pm
 
         interactive = self._have_terminal and not self._plain_terminal
         if self._opts.quiet or not interactive:
