@@ -28,6 +28,8 @@ VERSION_ATTR = f'fg="{VERSION_COLOR}"'
 
 ANSI_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
 
+SPINNER_DELAY = 0.25
+
 
 def main() -> None:
     PackageManagerApplication().run()
@@ -190,6 +192,7 @@ class PackageManagerApplication(ConsoleApplication):
         pm = self._pm
 
         interactive = self._have_terminal and not self._plain_terminal
+
         if self._opts.quiet or not interactive:
             result = pm.install(
                 project_root=self._opts.project_root,
@@ -199,33 +202,54 @@ class PackageManagerApplication(ConsoleApplication):
             BAR_LEN = 30
             FG = ansi_fg(THEME_COLOR)
             RESET = Style.RESET_ALL
-            longest = 0
+            start_time = time.time()
+
+            bar_visible = False
+            longest_vis = 0
+            last_snapshot = None
+            lock = threading.Lock()
+            done = threading.Event()
 
             def render(phase: str, fraction: float, details: Optional[str]) -> None:
+                nonlocal bar_visible, longest_vis, last_snapshot
+
                 if details is not None:
                     return
 
-                pct = int(fraction * 100)
-                fill = int(fraction * BAR_LEN)
-                bar = "█" * fill + " " * (BAR_LEN - fill)
+                with lock:
+                    last_snapshot = (phase, fraction, details)
 
-                msg = phase.replace("-", " ")
+                    if not bar_visible and time.time() - start_time < SPINNER_DELAY:
+                        return
+                    bar_visible = True
 
-                colored = f"\r{FG}[{bar}]{RESET} {pct:3d}% {msg}"
+                    pct = int(fraction * 100)
+                    fill = int(fraction * BAR_LEN)
+                    bar = "█" * fill + " " * (BAR_LEN - fill)
+                    msg = phase.replace("-", " ")
 
-                visible_len = len(ANSI_PATTERN.sub("", colored)) - 1
+                    line = f"\r{FG}[{bar}]{RESET} {pct:3d}% {msg}"
+                    vis = len(ANSI_PATTERN.sub("", line)) - 1
 
-                nonlocal longest
-                if visible_len < longest:
-                    pad = " " * (longest - visible_len)
-                else:
-                    pad = ""
-                    longest = visible_len
+                    pad = " " * max(0, longest_vis - vis)
+                    longest_vis = max(longest_vis, vis)
 
-                sys.stderr.write(colored + pad)
-                sys.stderr.flush()
+                    sys.stderr.write(line + pad)
+                    sys.stderr.flush()
+
+                    if phase == "complete":
+                        done.set()
+
+            def watchdog() -> None:
+                time.sleep(SPINNER_DELAY)
+                with lock:
+                    snap = None if bar_visible else last_snapshot
+                if snap is not None:
+                    render(*snap)
 
             pm.on("install-progress", render)
+            threading.Thread(target=watchdog, daemon=True).start()
+
             try:
                 result = pm.install(
                     project_root=self._opts.project_root,
@@ -233,13 +257,26 @@ class PackageManagerApplication(ConsoleApplication):
                 )
             finally:
                 pm.off("install-progress", render)
-                sys.stderr.write("\n")
+                done.wait(0.05)
+                if bar_visible:
+                    sys.stderr.write("\r" + " " * 80 + "\r")
+                    sys.stderr.flush()
 
-        if not self._opts.quiet:
+        if self._opts.quiet:
+            return
+
+        if result.packages:
             for pkg in result.packages:
                 print(f"✓ {pkg.name}@{pkg.version}")
+            n = len(result.packages)
+            package_or_packages = plural(n, "package")
+            print(f"\n{n} {package_or_packages} installed into {os.path.abspath(self._opts.project_root)}")
+        else:
+            print("✔ up to date")
 
-            print(f"\n{len(result.packages)} package(s) installed " f"into {os.path.abspath(self._opts.project_root)}")
+
+def plural(n: int, word: str) -> str:
+    return word if n == 1 else f"{word}s"
 
 
 def start_spinner(theme_hex: str) -> tuple[threading.Event, threading.Thread]:
