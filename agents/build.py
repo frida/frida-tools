@@ -4,9 +4,10 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import List
 
 
-def main(argv: list[str]):
+def main(argv: List[str]):
     npm = argv[1]
     paths = [Path(p).resolve() for p in argv[2:]]
     inputs = paths[:-2]
@@ -24,7 +25,7 @@ def main(argv: list[str]):
         sys.exit(1)
 
 
-def build(npm: Path, inputs: list[Path], output_js: Path, priv_dir: Path):
+def build(npm: Path, inputs: List[Path], output_js: Path, priv_dir: Path):
     pkg_file = next((f for f in inputs if f.name == "package.json"))
     pkg_parent = pkg_file.parent
     entrypoint = inputs[0].relative_to(pkg_parent)
