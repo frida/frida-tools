@@ -73,6 +73,26 @@ class PackageManagerApplication(ConsoleApplication):
             metavar="DIR",
             help="directory that will receive node_modules (default: CWD)",
         )
+        role_group = install_p.add_mutually_exclusive_group()
+        role_group.add_argument(
+            "-P",
+            "--save-prod",
+            action="store_const",
+            const="runtime",
+            dest="role",
+            help="save as production dependencies (default)",
+        )
+        role_group.add_argument(
+            "-D",
+            "--save-dev",
+            action="store_const",
+            const="development",
+            dest="role",
+            help="save as development dependencies",
+        )
+        role_group.add_argument(
+            "--save-optional", action="store_const", const="optional", dest="role", help="save as optional dependencies"
+        )
         install_p.add_argument("--quiet", action="store_true", help="suppress the progress bar")
 
     def _initialize(
@@ -196,6 +216,7 @@ class PackageManagerApplication(ConsoleApplication):
         if self._opts.quiet or not interactive:
             result = pm.install(
                 project_root=self._opts.project_root,
+                role=self._opts.role,
                 specs=self._opts.specs,
             )
         else:
@@ -253,6 +274,7 @@ class PackageManagerApplication(ConsoleApplication):
             try:
                 result = pm.install(
                     project_root=self._opts.project_root,
+                    role=self._opts.role,
                     specs=self._opts.specs,
                 )
             finally:
