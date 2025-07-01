@@ -93,6 +93,13 @@ class PackageManagerApplication(ConsoleApplication):
         role_group.add_argument(
             "--save-optional", action="store_const", const="optional", dest="role", help="save as optional dependencies"
         )
+        install_p.add_argument(
+            "--omit",
+            help="dependency types to skip",
+            choices=["dev", "optional", "peer"],
+            dest="omits",
+            action="append",
+        )
         install_p.add_argument("--quiet", action="store_true", help="suppress the progress bar")
 
     def _initialize(
@@ -210,6 +217,7 @@ class PackageManagerApplication(ConsoleApplication):
 
     def _cmd_install(self) -> None:
         pm = self._pm
+        normalized_omits = self._normalize_omits(self._opts.omits)
 
         interactive = self._have_terminal and not self._plain_terminal
 
@@ -218,6 +226,7 @@ class PackageManagerApplication(ConsoleApplication):
                 project_root=self._opts.project_root,
                 role=self._opts.role,
                 specs=self._opts.specs,
+                omits=normalized_omits,
             )
         else:
             BAR_LEN = 30
@@ -276,6 +285,7 @@ class PackageManagerApplication(ConsoleApplication):
                     project_root=self._opts.project_root,
                     role=self._opts.role,
                     specs=self._opts.specs,
+                    omits=normalized_omits,
                 )
             finally:
                 pm.off("install-progress", render)
@@ -295,6 +305,17 @@ class PackageManagerApplication(ConsoleApplication):
             print(f"\n{n} {package_or_packages} installed into {os.path.abspath(self._opts.project_root)}")
         else:
             print("✔ up to date")
+
+    def _normalize_omits(self, omits: Optional[List[str]]) -> Optional[List[str]]:
+        if not omits:
+            return omits
+        normalized = []
+        for omit in omits:
+            if omit == "dev":
+                normalized.append("development")
+            else:
+                normalized.append(omit)
+        return normalized
 
 
 def plural(n: int, word: str) -> str:
