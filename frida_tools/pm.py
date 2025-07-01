@@ -45,35 +45,35 @@ class PackageManagerApplication(ConsoleApplication):
             "--registry",
             metavar="HOST",
             default=None,
-            help=f"Package registry to use (default: {default_registry})",
+            help=f"package registry to use (default: {default_registry})",
         )
 
         sub = parser.add_subparsers(dest="command", metavar="<command>", required=True)
 
-        search_p = sub.add_parser("search", help="Search for packages")
-        search_p.add_argument("query", nargs="?", default="", help="Search string, e.g. 'trace'")
-        search_p.add_argument("--offset", type=int, metavar="N", help="Result offset")
-        search_p.add_argument("--limit", type=int, metavar="N", help="Max results")
+        search_p = sub.add_parser("search", help="search for packages")
+        search_p.add_argument("query", nargs="?", default="", help="search string, e.g. 'trace'")
+        search_p.add_argument("--offset", type=int, metavar="N", help="result offset")
+        search_p.add_argument("--limit", type=int, metavar="N", help="max results")
         search_p.add_argument(
             "--json",
             action="store_true",
-            help="Emit raw JSON instead of a table",
+            help="emit raw JSON instead of a table",
         )
 
-        install_p = sub.add_parser("install", help="Install one or more packages")
+        install_p = sub.add_parser("install", help="install one or more packages")
         install_p.add_argument(
             "specs",
             nargs="*",
             metavar="SPEC",
-            help="Package spec, e.g. 'frida-objc-bridge@^8.0.5' or 'frida-il2cpp-bridge'",
+            help="package spec, e.g. 'frida-objc-bridge@^8.0.5' or 'frida-il2cpp-bridge'",
         )
         install_p.add_argument(
             "--project-root",
             default=os.getcwd(),
             metavar="DIR",
-            help="Directory that will receive node_modules (default: CWD)",
+            help="directory that will receive node_modules (default: CWD)",
         )
-        install_p.add_argument("--quiet", action="store_true", help="Suppress the progress bar")
+        install_p.add_argument("--quiet", action="store_true", help="suppress the progress bar")
 
     def _initialize(
         self,
