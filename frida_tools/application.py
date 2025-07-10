@@ -388,13 +388,17 @@ class ConsoleApplication:
         parser.add_argument("args", help="extra arguments and/or target", nargs="*")
 
     def run(self) -> None:
-        mgr = frida.get_device_manager()
+        if self._needs_device():
+            mgr = frida.get_device_manager()
 
-        on_devices_changed = lambda: self._reactor.schedule(self._try_start)
-        mgr.on("changed", on_devices_changed)
+            on_devices_changed = lambda: self._reactor.schedule(self._try_start)
+            mgr.on("changed", on_devices_changed)
 
-        self._reactor.schedule(self._try_start)
-        self._reactor.schedule(self._show_message_if_no_device, delay=1)
+            self._reactor.schedule(self._try_start)
+            self._reactor.schedule(self._show_message_if_no_device, delay=1)
+        else:
+            mgr = None
+            self._reactor.schedule(self._transition_to_started)
 
         signal.signal(signal.SIGTERM, self._on_sigterm)
 
@@ -418,7 +422,8 @@ class ConsoleApplication:
             self._device.off("output", self._schedule_on_output)
             self._device.off("lost", self._schedule_on_device_lost)
 
-        mgr.off("changed", on_devices_changed)
+        if mgr is not None:
+            mgr.off("changed", on_devices_changed)
 
         frida.shutdown()
         sys.exit(self._exit_status)
@@ -615,6 +620,9 @@ class ConsoleApplication:
                     self._update_status(f"Failed to attach: {e}")
                 self._exit(1)
                 return
+        self._transition_to_started()
+
+    def _transition_to_started(self) -> None:
         self._start()
         self._started = True
 
