@@ -2,6 +2,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import List
 
 
 def main(argv):
@@ -18,7 +19,7 @@ def main(argv):
         sys.exit(1)
 
 
-def compile_bridges(inputs: list[Path], output_dir: Path, priv_dir: Path, npm: Path):
+def compile_bridges(inputs: List[Path], output_dir: Path, priv_dir: Path, npm: Path):
     pkg_file = next((f for f in inputs if f.name == "package.json"))
     pkg_parent = pkg_file.parent
 
