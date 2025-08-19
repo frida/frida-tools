@@ -19,15 +19,9 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
 
-      - name: Download dependecies
+      - name: Fetch frida dependecies
         run: |
-          sudo apt-get update
-          sudo apt-get install python3-dev
-
-      - name: Build frida dependecies
-        run: |
-          sudo ln -s /usr/include /usr/lib/include # This is needed because of https://github.com/frida/frida/issues/2972
-          make
+          make git-submodules
 
       - name: Build the package
         run: uv build

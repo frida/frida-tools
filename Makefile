@@ -1,6 +1,6 @@
 PYTHON ?= $(shell which python3 >/dev/null && echo python3 || echo python)
 
-all $(MAKECMDGOALS):
+all $(filter-out git-submodules,$(MAKECMDGOALS))::
 	@$(PYTHON) \
 		-c "import sys; sys.path.insert(0, sys.argv[1]); from releng.meson_make import main; main()" \
 		"$(shell pwd)" \
