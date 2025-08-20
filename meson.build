@@ -3,7 +3,7 @@ project(
   'c',
   version: run_command(
     find_program('python3'),
-    meson.current_source_dir() / 'releng' / 'frida_version.py',
+    meson.global_source_root() / 'releng' / 'frida_version.py',
     capture: true,
     check: true,
   ).stdout().strip(),
