@@ -13,7 +13,6 @@
 /frida_tools/*.zip
 /frida_tools/*_agent.js
 /frida_tools/bridges/
-/frida_tools/treesitter.so
 /subprojects/frida-core.wrap
 /subprojects/frida-core/
 /subprojects/frida-gum.wrap
