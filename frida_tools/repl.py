@@ -29,7 +29,8 @@ from prompt_toolkit.shortcuts import prompt
 from prompt_toolkit.styles import Style as PromptToolkitStyle
 from pygments.lexers.javascript import JavascriptLexer
 from pygments.token import Token
-from tree_sitter import Language, Parser
+import tree_sitter_javascript
+from tree_sitter import Language, Parser, Query, QueryCursor
 
 from frida_tools import _repl_magic
 from frida_tools.application import ConsoleApplication
@@ -39,11 +40,13 @@ from frida_tools.reactor import Reactor
 T = TypeVar("T")
 
 try:
-    JS_LANGUAGE = Language(str(pathlib.Path(__file__).parent / "treesitter.so"), "javascript")
-    ERROR_QUERY = JS_LANGUAGE.query("(_ (ERROR) @error)")
-except Exception:
+    JS_LANGUAGE = Language(tree_sitter_javascript.language())
+    ERROR_QUERY = Query(JS_LANGUAGE, "(_ (ERROR) @error)")
+    MISSING_QUERY = Query(JS_LANGUAGE, "(_ (MISSING) @missing)")
+except Exception as err:
     JS_LANGUAGE = None
     ERROR_QUERY = None
+    MISSING_QUERY = None
 
 
 class REPLApplication(ConsoleApplication):
@@ -65,9 +68,8 @@ class REPLApplication(ConsoleApplication):
         super().__init__(self._process_input, self._on_stop)
 
         try:
-            self._parser = Parser()
-            self._parser.set_language(JS_LANGUAGE)
-        except Exception:
+            self._parser = Parser(JS_LANGUAGE)
+        except Exception as err:
             self._parser = None
 
         if self._have_terminal and not self._plain_terminal:
@@ -381,16 +383,13 @@ class REPLApplication(ConsoleApplication):
         @Condition
         def inner() -> bool:
             assert self._cli is not None
-            if self._parser is None or ERROR_QUERY is None:
+            if self._parser is None or ERROR_QUERY is None or MISSING_QUERY is None:
                 return False
 
             tree = self._parser.parse(self._cli.default_buffer.document.text.encode())
-            query_results = ERROR_QUERY.captures(tree.root_node)
-            # It would have been nice to be able to query a MISSING node properly but as of when this code was written
-            # it was just not possible. There is an open issue for it in tree-sitter/tree-sitter#606 so maybe one day we
-            # could fix it. I hope it doesn't break some code that contain the work MISSING or something but I checked it
-            # a bit and it seems to be fine.
-            return len(query_results) or "MISSING" in tree.root_node.sexp()
+            error_query_results = QueryCursor(ERROR_QUERY).captures(tree.root_node)
+            missing_query_results = QueryCursor(MISSING_QUERY).captures(tree.root_node)
+            return len(error_query_results) or len(missing_query_results)
 
         return inner
 
