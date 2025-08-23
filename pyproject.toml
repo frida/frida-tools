@@ -44,14 +44,14 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "colorama >= 0.2.7, < 1.0.0",
     "frida >= 17.2.8, < 18.0.0",
     "prompt-toolkit >= 2.0.0, < 4.0.0",
     "pygments >= 2.0.2, < 3.0.0",
-    "tree-sitter>=0.21.3",
-    "tree-sitter-javascript>=0.21.4",
+    "tree-sitter==0.25.1",
+    "tree-sitter-javascript==0.23.1",
     "websockets >= 13.0.0, < 14.0.0",
 ]
 
