@@ -3,7 +3,6 @@ import codecs
 import hashlib
 import json
 import os
-import pathlib
 import platform
 import re
 import shlex
@@ -43,7 +42,7 @@ try:
     JS_LANGUAGE = Language(tree_sitter_javascript.language())
     ERROR_QUERY = Query(JS_LANGUAGE, "(_ (ERROR) @error)")
     MISSING_QUERY = Query(JS_LANGUAGE, "(_ (MISSING) @missing)")
-except Exception as err:
+except Exception:
     JS_LANGUAGE = None
     ERROR_QUERY = None
     MISSING_QUERY = None
@@ -69,7 +68,7 @@ class REPLApplication(ConsoleApplication):
 
         try:
             self._parser = Parser(JS_LANGUAGE)
-        except Exception as err:
+        except Exception:
             self._parser = None
 
         if self._have_terminal and not self._plain_terminal:
