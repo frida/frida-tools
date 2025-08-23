@@ -17,6 +17,7 @@ from typing import Any, AnyStr, Callable, Dict, Iterable, List, Mapping, Mutable
 from urllib.request import build_opener
 
 import frida
+import tree_sitter_javascript
 from colorama import Fore, Style
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
@@ -28,7 +29,6 @@ from prompt_toolkit.shortcuts import prompt
 from prompt_toolkit.styles import Style as PromptToolkitStyle
 from pygments.lexers.javascript import JavascriptLexer
 from pygments.token import Token
-import tree_sitter_javascript
 from tree_sitter import Language, Parser, Query, QueryCursor
 
 from frida_tools import _repl_magic
