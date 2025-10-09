@@ -10,13 +10,13 @@ project(
   meson_version: '>=1.1.0',
 )
 
+python = import('python').find_installation()
+
 meson.add_dist_script(
-  find_program('python'),
+  python,
   meson.current_source_dir() / 'set_dist_version.py',
   meson.project_version(),
 )
-
-python = import('python').find_installation()
 
 node = find_program('node', version: '>=18.0.0', native: true, required: false)
 if not node.found()
