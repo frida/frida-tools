@@ -42,6 +42,21 @@ class CompilerApplication(ConsoleApplication):
         parser.add_argument(
             "-T", "--type-check", help="desired type-checking mode", choices=["full", "none"], default="full"
         )
+        parser.add_argument(
+            "-P",
+            "--platform",
+            help="JavaScript runtime platform",
+            choices=["gum", "browser", "neutral"],
+            default="gum",
+        )
+        parser.add_argument(
+            "-E",
+            "--external",
+            metavar="MODULE",
+            action="append",
+            default=[],
+            help="mark MODULE as external (may be specified multiple times)",
+        )
 
     def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
         self._module = os.path.abspath(options.module)
@@ -55,6 +70,8 @@ class CompilerApplication(ConsoleApplication):
             "type_check": options.type_check,
             "source_maps": "omitted" if options.no_source_maps else "included",
             "compression": "terser" if options.compress else "none",
+            "platform": options.platform,
+            "externals": options.external,
         }
 
         compiler = frida.Compiler()
