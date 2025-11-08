@@ -109,7 +109,7 @@ class REPLApplication(ConsoleApplication):
             default=False,
         )
         parser.add_argument(
-            "-t", "--timeout", help="seconds to wait before terminating in quiet mode", dest="timeout", default=0
+            "-t", "--timeout", help="seconds to wait before terminating in quiet mode (or 'inf' to run forever)", dest="timeout", default=0
         )
         parser.add_argument(
             "--pause",
