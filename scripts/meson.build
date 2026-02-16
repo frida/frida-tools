@@ -14,6 +14,7 @@ scripts = [
   ['frida-pull', 'pull'],
   ['frida-push', 'push'],
   ['frida-rm', 'rm'],
+  ['frida-strace', 'stracer'],
   ['frida-trace', 'tracer'],
 ]
 

@@ -69,6 +69,7 @@ def main():
                 "frida-push = frida_tools.push:main",
                 "frida-discover = frida_tools.discoverer:main",
                 "frida-trace = frida_tools.tracer:main",
+                "frida-strace = frida_tools.stracer:main",
                 "frida-itrace = frida_tools.itracer:main",
                 "frida-join = frida_tools.join:main",
                 "frida-create = frida_tools.creator:main",
