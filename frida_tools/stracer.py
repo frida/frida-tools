@@ -1208,6 +1208,8 @@ class SyscallTracer:
             args: List[Arg] = []
             if sig_args is not None:
                 for i, (atype, aname) in enumerate(sig_args):
+                    if i >= len(raw_args):
+                        break
                     args.append(self._make_arg(name, atype, aname, raw_args[i]))
             else:
                 for i, v in enumerate(raw_args):
