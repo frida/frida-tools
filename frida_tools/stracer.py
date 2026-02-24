@@ -753,7 +753,7 @@ class StraceApplication(ConsoleApplication):
             if idx is not None and 0 <= idx < len(self._events):
                 prev = self._events[idx]
                 if prev.phase == "enter" and prev.nr == ev.nr and prev.pid == ev.pid and prev.tid == ev.tid:
-                    prev.set_exit(ev.exit_retval, ev.exit_out_args, ev.time_ns)
+                    prev.set_exit(ev.exit_retval, ev.exit_out_args, ev.time_ns, ev.stack_id)
                     return True
 
         self._events.append(ev)
@@ -1386,10 +1386,12 @@ class SyscallEvent:
     symbols: Optional[Any] = None
     resolve_error: Optional[str] = None
 
-    def set_exit(self, retval: int, out_args: Optional[List[Arg]], exit_time_ns: int) -> None:
+    def set_exit(self, retval: int, out_args: Optional[List[Arg]], exit_time_ns: int, stack_id: int) -> None:
         self.exit_retval = retval
         self.exit_out_args = out_args
         self.exit_time_ns = exit_time_ns
+        if self.stack_id == -1:
+            self.stack_id = stack_id
         self.merged = True
         self.failed = retval < 0
 
