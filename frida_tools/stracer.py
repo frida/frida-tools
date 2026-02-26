@@ -964,7 +964,7 @@ class StraceApplication(ConsoleApplication):
             if mod_index == 0xFFFFFFFF:
                 out.append(f"  0x{addr:x}")
             else:
-                path = modules[mod_index]
+                path, *extra = modules[mod_index]
                 base = path.rsplit("/", 1)[-1]
                 out.append(f"  {base}+0x{offset:x}")
         for addr in stack[len(entries):]:
@@ -1186,7 +1186,7 @@ class SyscallTracer:
             self._notify()
 
     def _parse_event_row(self, row) -> SyscallEvent:
-        phase, time_ns, pid, tid, nr, stack_id, map_gen, args_or_retval, attachments = row
+        phase, time_ns, tid, pid, nr, stack_id, map_gen, args_or_retval, attachments = row
 
         abi = self._abi_by_pid.get(pid)
 
