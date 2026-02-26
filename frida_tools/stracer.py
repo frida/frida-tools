@@ -47,6 +47,7 @@ class StraceApplication(ConsoleApplication):
         self._tracer: Optional[SyscallTracer] = None
 
         self._events: List[SyscallEvent] = []
+        self._excluded_syscalls: set[tuple[str, int]] = set()
         self._selected = 0
         self._hscroll = 0
         self._tailing = True
@@ -130,6 +131,8 @@ class StraceApplication(ConsoleApplication):
             "-u", "--user", action="append", dest="users", help="Trace processes owned by USER (repeatable)"
         )
         parser.add_argument("--uid", action="append", type=int, dest="uids", help="Trace UID (repeatable)")
+        parser.add_argument("-x", "--exclude", action="append", dest="exclude",
+                            help="Exclude syscall by name (repeatable), e.g. --exclude openat")
         parser.add_argument("--limit", type=int, default=5000, help="Max events kept in UI (default: 5000)")
 
     def _initialize(self, parser, options, args) -> None:
@@ -137,6 +140,7 @@ class StraceApplication(ConsoleApplication):
         self._pids = options.pids
         self._users = options.users
         self._uids = options.uids
+        self._excluded_names_requested = options.exclude
         self._limit = options.limit
 
         if self._files is None and self._pids is None and self._users is None and self._uids is None:
@@ -176,7 +180,7 @@ class StraceApplication(ConsoleApplication):
             targets_req["uids"] = self._uids
 
         try:
-            self._tracer.start(self._device, targets_req=targets_req)
+            self._tracer.start(self._device, targets_req, self._excluded_names_requested)
         except Exception as e:
             self._state = "stopping"
             self._ready.set()
@@ -186,6 +190,11 @@ class StraceApplication(ConsoleApplication):
         finally:
             for pid in spawned_pids:
                 self._device.resume(pid)
+
+        excluded = self._tracer.get_excluded()
+        if excluded:
+            with self._lock:
+                self._excluded_syscalls = set(excluded)
 
         self._ui_app = self._create_ui()
 
@@ -395,6 +404,31 @@ class StraceApplication(ConsoleApplication):
         @kb.add("enter", filter=~has_focus(self._search_bar.control))
         def _(event):
             self._on_enter()
+            event.app.invalidate()
+
+        @kb.add("x", filter=~has_focus(self._search_bar.control))
+        def _(event):
+            with self._lock:
+                view = self._get_filtered_view_locked()
+                if not (0 <= self._selected < len(view)):
+                    return
+                ev = view[self._selected]
+
+                key = (ev.abi, ev.nr)
+                if key in self._excluded_syscalls:
+                    self._status_message = f"Already excluded: {ev.name} ({ev.abi} #{ev.nr})"
+                    event.app.invalidate()
+                    return
+
+                self._excluded_syscalls.add(key)
+                removed = self._exclude_events_locked(key)
+
+                self._status_message = f"Excluded: {ev.name} ({ev.abi} #{ev.nr})"
+                if removed:
+                    self._status_message += f" (purged {removed} events)"
+
+            self._tracer.exclude_syscalls([key])
+
             event.app.invalidate()
 
         list_win = Window(
@@ -777,6 +811,31 @@ class StraceApplication(ConsoleApplication):
 
         tracer.resolve_backtrace(ev.id, ev.pid, ev.map_gen, ev.stack_id)
 
+    def _exclude_events_locked(self, key: tuple[str, int]) -> None:
+        abi, nr = key
+
+        def keep(e: SyscallEvent) -> bool:
+            return not (e.abi == abi and e.nr == nr)
+
+        before = len(self._events)
+        self._events = [e for e in self._events if keep(e)]
+        removed = before - len(self._events)
+
+        if self._paused_events is not None:
+            self._paused_events = [e for e in self._paused_events if keep(e)]
+
+        self._pending_by_key.clear()
+        for i, e in enumerate(self._events):
+            if e.phase == "enter":
+                self._pending_by_key[(e.pid, e.tid, e.nr)] = i
+
+        self._bump_list_model_version_locked()
+        self._invalidate_filter_cache_locked()
+        self._recompute_search_matches_locked()
+        self._clamp_selected_locked()
+
+        return removed
+
     def _highlight_line(self, ft: FormattedText, needle_lc: str) -> FormattedText:
         plain = "".join(text for _, text in ft)
         hay_lc = plain.lower()
@@ -945,6 +1004,9 @@ class StraceApplication(ConsoleApplication):
             if self._search_text != "":
                 pieces.append("(f = filter search)")
 
+            if self._excluded_syscalls:
+                pieces.append(f"excluded={len(self._excluded_syscalls)} (x=exclude)")
+
             cols = get_app().output.get_size().columns
             if self._show_details:
                 placement = "below" if cols < self._details_breakpoint_cols else "right"
@@ -1092,6 +1154,7 @@ class SyscallTracer:
         self._updates_out: "queue.Queue[tuple[int, Optional[list[int]], Any]]" = queue.Queue()
 
         self._next_id = 1
+        self._excluded: set[tuple[str, int]] = set()
         self._stopping = False
 
         self._schedule_on_message = lambda m: self._reactor.schedule(lambda: self._handle_service_message(m))
@@ -1102,7 +1165,12 @@ class SyscallTracer:
     def set_platform(self, platform: Optional[str]) -> None:
         self._platform = platform
 
-    def start(self, device: frida.core.Device, targets_req: Dict[str, Any]) -> None:
+    def start(
+            self,
+            device: frida.core.Device,
+            targets_req: Dict[str, Any],
+            excluded_by_name: list[str]
+    ) -> None:
         self._service = device.open_service("syscall-trace")
 
         raw = self._service.request({"type": "get-signatures"})
@@ -1115,6 +1183,12 @@ class SyscallTracer:
         self._signatures = sigs
 
         self._service.on("message", self._schedule_on_message)
+
+        if excluded_by_name:
+            items = self._resolve_excludes_by_name(excluded_by_name)
+            if items:
+                by_abi = self._apply_excludes(items)
+                self._service.request({"type": "exclude-syscalls", **by_abi})
 
         add_req = {"type": "add-targets"}
         add_req.update(targets_req)
@@ -1148,6 +1222,54 @@ class SyscallTracer:
     def resolve_backtrace(self, event_id: int, pid: int, map_gen: int, stack_id: int) -> None:
         self._reactor.schedule(lambda: self._resolve_backtrace_on_reactor(event_id, pid, map_gen, stack_id))
 
+    def get_excluded(self) -> set[tuple[str, int]]:
+        return self._excluded
+
+    def exclude_syscalls(self, items: list[tuple[str, int]]) -> None:
+        by_abi = self._apply_excludes(items)
+        self._reactor.schedule(lambda: self._exclude_syscalls_on_reactor(by_abi))
+
+    def _exclude_syscalls_on_reactor(self, by_abi: dict[str, list[int]]) -> None:
+        if self._stopping or self._service is None:
+            return
+        self._service.request({"type": "exclude-syscalls", **by_abi})
+
+    def _resolve_excludes_by_name(self, names: list[str]) -> set[tuple[str, int]]:
+        wanted = {n.lower() for n in names if n}
+        out: set[tuple[str, int]] = set()
+        for abi, by_nr in self._signatures.items():
+            for nr, sig in by_nr.items():
+                if sig["name"] in wanted:
+                    out.add((abi, nr))
+        return out
+
+    def _group_by_abi(self, items: set[tuple[str, int]] | list[tuple[str, int]]) -> dict[str, list[int]]:
+        by_abi: dict[str, set[int]] = {}
+        for abi, nr in items:
+            by_abi.setdefault(abi, set()).add(nr)
+        return {abi: sorted(nrs) for abi, nrs in by_abi.items()}
+
+    def _apply_excludes(self, items: set[tuple[str, int]] | list[tuple[str, int]]) -> dict[str, list[int]]:
+        for k in items:
+            self._excluded.add(k)
+        return self._group_by_abi(items)
+
+    def _resolve_excludes_by_name(self, names: list[str]) -> list[tuple[str, int]]:
+        wanted = [n.lower() for n in names if n]
+        out: list[tuple[str, int]] = []
+        for abi, by_nr in self._signatures.items():
+            for nr, sig in by_nr.items():
+                sname = sig["name"].lower()
+                if sname in wanted:
+                    out.append((abi, nr))
+        seen = set()
+        uniq = []
+        for k in out:
+            if k not in seen:
+                seen.add(k)
+                uniq.append(k)
+        return uniq
+
     def _handle_service_message(self, m) -> None:
         if self._stopping or self._service is None:
             return
@@ -1171,6 +1293,10 @@ class SyscallTracer:
 
             for row in events:
                 ev = self._parse_event_row(row)
+
+                if (ev.abi, ev.nr) in self._excluded:
+                    continue
+
                 self._events_out.put(ev)
 
             if events:
@@ -1188,19 +1314,17 @@ class SyscallTracer:
     def _parse_event_row(self, row) -> SyscallEvent:
         phase, time_ns, tid, pid, nr, stack_id, map_gen, args_or_retval, attachments = row
 
-        abi = self._abi_by_pid.get(pid)
+        abi = self._abi_by_pid[pid]
 
         name = "some syscall"
         sig_args = None
-        if nr != -1 and abi is not None:
+        if nr != -1:
             sig = self._signatures[abi].get(nr)
             if sig is not None:
                 name = sig["name"]
                 sig_args = sig["args"]
             else:
                 name = f"#{nr}"
-        elif nr != -1:
-            name = f"#{nr}"
 
         if phase == "enter":
             raw_args = self._apply_attachments(args_or_retval, attachments)
@@ -1223,11 +1347,11 @@ class SyscallTracer:
                 tid=tid,
                 nr=nr,
                 name=name,
-                enter_args=args,
-                enter_summary=None,
                 stack_id=stack_id,
                 map_gen=map_gen,
                 abi=abi,
+                enter_args=args,
+                enter_summary=None,
             )
         else:
             retval = args_or_retval
@@ -1252,11 +1376,11 @@ class SyscallTracer:
                 tid=tid,
                 nr=nr,
                 name=name,
-                enter_args=None,
-                enter_summary=None,
                 stack_id=stack_id,
                 map_gen=map_gen,
                 abi=abi,
+                enter_args=None,
+                enter_summary=None,
                 exit_retval=retval,
                 exit_out_args=out_args,
                 exit_time_ns=time_ns,
@@ -1368,16 +1492,16 @@ class SyscallEvent:
     nr: int
     name: str
 
+    stack_id: int
+    map_gen: int
+    abi: str
+
     enter_args: Optional[List[Arg]] = None
     enter_summary: Optional[str] = None
 
     exit_retval: Optional[Any] = None
     exit_out_args: Optional[List[Arg]] = None
     exit_time_ns: Optional[int] = None
-
-    stack_id: int = -1
-    map_gen: int = 0
-    abi: Optional[str] = None
 
     merged: bool = False
     failed: bool = False
