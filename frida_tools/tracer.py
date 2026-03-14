@@ -42,7 +42,7 @@ def main() -> None:
         def __init__(self) -> None:
             super().__init__(await_ctrl_c)
             self._handlers = OrderedDict()
-            self._ui_zip = ZipFile(Path(__file__).parent / "tracer_ui.zip", "r")
+            self._ui_zip = ZipFile(Path(__file__).parent / "tracer_ui" / "tracer_ui.zip", "r")
             self._ui_socket_handlers: Set[UISocketHandler] = set()
             self._ui_worker = None
             self._asyncio_loop = None
