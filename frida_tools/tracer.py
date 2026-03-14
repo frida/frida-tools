@@ -21,6 +21,7 @@ from zipfile import ZipFile
 import frida
 import websockets.asyncio.server
 import websockets.datastructures
+import websockets.exceptions
 import websockets.http11
 
 from frida_tools.reactor import Reactor
@@ -421,7 +422,10 @@ def main() -> None:
             if content_encoding is not None:
                 headers.update({"Content-Encoding": content_encoding})
 
-            return websockets.http11.Response(status.value, status.phrase, headers, body)
+            response = websockets.http11.Response(status.value, status.phrase, headers, body)
+            connection.protocol.handshake_exc = websockets.exceptions.InvalidStatus(response)
+
+            return response
 
         def _compute_allowed_ui_origins(self):
             return compute_allowed_ui_origins(self._ui_host, self._ui_port, self._ui_allowed_origins)
