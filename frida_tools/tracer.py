@@ -21,13 +21,36 @@ from zipfile import ZipFile
 import frida
 import websockets.asyncio.server
 import websockets.datastructures
-import websockets.exceptions
 import websockets.http11
 
 from frida_tools.reactor import Reactor
 
 MANPAGE_CONTROL_CHARS = re.compile(r"\.[a-zA-Z]*(\s|$)|\s?\"")
 MANPAGE_FUNCTION_PROTOTYPE = re.compile(r"([a-zA-Z_]\w+)\(([^\)]+)")
+
+
+def compute_allowed_ui_origins(
+    ui_host: Optional[str], ui_port: Optional[int], extra_allowed_origins: Optional[List[str]] = None
+) -> List[str]:
+    if ui_host is None or ui_port is None:
+        return list(extra_allowed_origins or [])
+
+    origins = []
+    for host in compute_ui_origin_hosts(ui_host):
+        for port in (ui_port, ui_port + 1):
+            origins.append(f"http://{host}:{port}")
+
+    if extra_allowed_origins is not None:
+        origins.extend(extra_allowed_origins)
+
+    return list(OrderedDict.fromkeys(origins))
+
+
+def compute_ui_origin_hosts(ui_host: str) -> List[str]:
+    if ui_host in ("0.0.0.0", "::", ""):
+        return [ui_host, "localhost", "127.0.0.1"]
+
+    return [ui_host]
 
 
 def main() -> None:
@@ -154,6 +177,13 @@ def main() -> None:
                 "--ui-host", help="the host to serve the UI on (default localhost)", default="localhost"
             )
             parser.add_argument("--ui-port", help="the TCP port to serve the UI on")
+            parser.add_argument(
+                "--ui-allow-origin",
+                help="allow browser requests from ORIGIN; may be specified multiple times",
+                metavar="ORIGIN",
+                action="append",
+                default=[],
+            )
             self._profile_builder = pb
 
         def _usage(self) -> str:
@@ -169,6 +199,7 @@ def main() -> None:
             self._output_path: str = options.output
             self._ui_host: Optional[str] = options.ui_host
             self._ui_port: Optional[int] = options.ui_port
+            self._ui_allowed_origins: List[str] = options.ui_allow_origin
 
             self._init_scripts = []
             for path in options.init_session:
@@ -390,13 +421,10 @@ def main() -> None:
             if content_encoding is not None:
                 headers.update({"Content-Encoding": content_encoding})
 
-            response = websockets.http11.Response(status.value, status.phrase, headers, body)
-            connection.protocol.handshake_exc = websockets.exceptions.InvalidStatus(response)
-
-            return response
+            return websockets.http11.Response(status.value, status.phrase, headers, body)
 
         def _compute_allowed_ui_origins(self):
-            return [f"http://{self._ui_host}:{port}" for port in (self._ui_port, self._ui_port + 1)]
+            return compute_allowed_ui_origins(self._ui_host, self._ui_port, self._ui_allowed_origins)
 
     class UISocketHandler:
         def __init__(self, app: TracerApplication, socket: websockets.asyncio.server.ServerConnection) -> None:
