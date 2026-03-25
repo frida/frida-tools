@@ -30,30 +30,6 @@ MANPAGE_CONTROL_CHARS = re.compile(r"\.[a-zA-Z]*(\s|$)|\s?\"")
 MANPAGE_FUNCTION_PROTOTYPE = re.compile(r"([a-zA-Z_]\w+)\(([^\)]+)")
 
 
-def compute_allowed_ui_origins(
-    ui_host: Optional[str], ui_port: Optional[int], extra_allowed_origins: Optional[List[str]] = None
-) -> List[str]:
-    if ui_host is None or ui_port is None:
-        return list(extra_allowed_origins or [])
-
-    origins = []
-    for host in compute_ui_origin_hosts(ui_host):
-        for port in (ui_port, ui_port + 1):
-            origins.append(f"http://{host}:{port}")
-
-    if extra_allowed_origins is not None:
-        origins.extend(extra_allowed_origins)
-
-    return list(OrderedDict.fromkeys(origins))
-
-
-def compute_ui_origin_hosts(ui_host: str) -> List[str]:
-    if ui_host in ("0.0.0.0", "::", ""):
-        return [ui_host, "localhost", "127.0.0.1"]
-
-    return [ui_host]
-
-
 def main() -> None:
     import json
     import traceback
@@ -531,6 +507,30 @@ def main() -> None:
 
     app = TracerApplication()
     app.run()
+
+
+def compute_allowed_ui_origins(
+    ui_host: Optional[str], ui_port: Optional[int], extra_allowed_origins: Optional[List[str]] = None
+) -> List[str]:
+    if ui_host is None or ui_port is None:
+        return list(extra_allowed_origins or [])
+
+    origins = []
+    for host in compute_ui_origin_hosts(ui_host):
+        for port in (ui_port, ui_port + 1):
+            origins.append(f"http://{host}:{port}")
+
+    if extra_allowed_origins is not None:
+        origins.extend(extra_allowed_origins)
+
+    return list(OrderedDict.fromkeys(origins))
+
+
+def compute_ui_origin_hosts(ui_host: str) -> List[str]:
+    if ui_host in ("0.0.0.0", "::", ""):
+        return [ui_host, "localhost", "127.0.0.1"]
+
+    return [ui_host]
 
 
 class TracerProfileBuilder:
