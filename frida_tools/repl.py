@@ -530,10 +530,6 @@ class REPLApplication(ConsoleApplication):
 
         if obj_type == "function":
             signature = self._evaluate_expression("%s.toString()" % obj_to_identify)[1]
-
-            if isinstance(signature, bytes):
-                signature.decode()
-
             clean_signature = signature.split("{")[0][:-1].split("function ")[-1]
 
             if "[native code]" in signature:
