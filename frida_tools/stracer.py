@@ -57,6 +57,7 @@ class StraceApplication(ConsoleApplication):
         self._pending_by_key: Dict[Tuple[int, int, int], int] = {}
 
         self._show_details = True
+        self._show_help = False
         self._details_breakpoint_cols = 120
 
         self._lock = threading.RLock()
@@ -439,6 +440,17 @@ class StraceApplication(ConsoleApplication):
 
             event.app.invalidate()
 
+        @kb.add("?", filter=~has_focus(self._search_bar.control))
+        def _(event):
+            self._show_help = not self._show_help
+            event.app.invalidate()
+
+        @kb.add("escape", filter=~has_focus(self._search_bar.control))
+        def _(event):
+            if self._show_help:
+                self._show_help = False
+                event.app.invalidate()
+
         @kb.add("w", filter=~has_focus(self._search_bar.control))
         def _(event):
             self._export_events()
@@ -488,6 +500,40 @@ class StraceApplication(ConsoleApplication):
             filter=Condition(lambda: self._search_editing),
         )
 
+        help_text = "\n".join([
+            "",
+            "  Navigation",
+            "    j/k ↑/↓         move selection",
+            "    PgUp/PgDn       page up/down",
+            "    ^D/^U           half-page down/up",
+            "    Home  End  t    top / tail",
+            "    ←/→  0          scroll / reset",
+            "",
+            "  Search & Filter",
+            "    /               search",
+            "    n/N             next/prev match",
+            "    f               promote search to filter",
+            "    ^L              clear filter",
+            "",
+            "  Actions",
+            "    Enter           resolve selected stack",
+            "    x               exclude syscall",
+            "    w               export view to JSON",
+            "    d               toggle detail pane",
+            "",
+            "  ?  close this help    q/^C  quit",
+            "",
+        ])
+        help_win = Window(
+            content=FormattedTextControl(text=help_text),
+            wrap_lines=False,
+            always_hide_cursor=True,
+        )
+        help_float = ConditionalContainer(
+            content=Frame(help_win, title="Help"),
+            filter=Condition(lambda: self._show_help),
+        )
+
         root = FloatContainer(
             content=body,
             floats=[
@@ -497,7 +543,12 @@ class StraceApplication(ConsoleApplication):
                     left=0,
                     right=0,
                     height=3,
-                )
+                ),
+                Float(
+                    content=help_float,
+                    xcursor=False,
+                    ycursor=False,
+                ),
             ],
         )
 
@@ -1061,6 +1112,8 @@ class StraceApplication(ConsoleApplication):
                 pieces.append(f"details=on ({placement})  d=hide")
             else:
                 pieces.append("details=off  d=show")
+
+            pieces.append("?=help")
 
             return "  ".join(pieces)
 
