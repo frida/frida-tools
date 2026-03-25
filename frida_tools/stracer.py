@@ -803,7 +803,6 @@ class StraceApplication(ConsoleApplication):
             return
 
         changed_list = False
-        to_resolve: List[SyscallEvent] = []
 
         while True:
             new_events = tracer.drain_events(limit=5000)
@@ -811,6 +810,8 @@ class StraceApplication(ConsoleApplication):
 
             if not new_events and not updates:
                 break
+
+            to_resolve: List[SyscallEvent] = []
 
             with self._lock:
                 if new_events:
@@ -837,7 +838,7 @@ class StraceApplication(ConsoleApplication):
                         view = self._get_filtered_view_locked()
                         self._selected = max(0, len(view) - 1)
 
-                    if self._auto_resolve:
+                    if self._auto_resolve and self._tailing:
                         live = set(id(e) for e in self._events)
                         for ev in reversed(new_events):
                             if id(ev) in live and ev.stack_id >= 0 and not ev.resolving and ev.stack is None:
@@ -852,11 +853,11 @@ class StraceApplication(ConsoleApplication):
                             id_to_event.setdefault(e.id, e)
 
                     for event_id, stack_or_none, syms_or_exc in updates:
+                        self._resolving_remaining = max(0, self._resolving_remaining - 1)
                         ev = id_to_event.get(event_id)
                         if ev is None:
                             continue
                         ev.resolving = False
-                        self._resolving_remaining = max(0, self._resolving_remaining - 1)
                         if stack_or_none is None:
                             ev.resolve_error = str(syms_or_exc)
                         else:
@@ -869,8 +870,8 @@ class StraceApplication(ConsoleApplication):
                     self._invalidate_filter_cache_locked()
                     self._recompute_search_matches_locked()
 
-        if to_resolve:
-            tracer.resolve_backtraces_bulk(to_resolve)
+            if to_resolve:
+                tracer.resolve_backtraces_bulk(to_resolve)
 
         with self._lock:
             self._ui_refresh_pending = False
