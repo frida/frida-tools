@@ -6,13 +6,7 @@ import unittest
 import frida
 
 from frida_tools.reactor import Reactor
-from frida_tools.tracer import (
-    UI,
-    MemoryRepository,
-    Tracer,
-    TracerProfileBuilder,
-    compute_allowed_ui_origins,
-)
+from frida_tools.tracer import UI, MemoryRepository, Tracer, TracerProfileBuilder, compute_allowed_ui_origins
 
 from .data import target_program
 
