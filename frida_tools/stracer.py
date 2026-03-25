@@ -4,7 +4,10 @@ import json
 import queue
 import shlex
 import threading
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import frida
@@ -56,6 +59,7 @@ class StraceApplication(ConsoleApplication):
         self._pending_by_key: Dict[Tuple[int, int, int], int] = {}
 
         self._show_details = True
+        self._show_help = False
         self._details_breakpoint_cols = 120
 
         self._lock = threading.RLock()
@@ -73,6 +77,8 @@ class StraceApplication(ConsoleApplication):
 
         self._ignore_search_text_change = False
         self._status_message = ""
+
+        self._resolving_remaining = 0
 
         self._fd_style_by_pid_value: Dict[Tuple[int, int], str] = {}
         self._fd_color_palette = [
@@ -133,7 +139,11 @@ class StraceApplication(ConsoleApplication):
         parser.add_argument("--uid", action="append", type=int, dest="uids", help="Trace UID (repeatable)")
         parser.add_argument("-x", "--exclude", action="append", dest="exclude",
                             help="Exclude syscall by name (repeatable), e.g. --exclude openat")
+        parser.add_argument("-i", "--include", action="append", dest="include",
+                            help="Only trace syscall by name (repeatable), e.g. --include openat")
         parser.add_argument("--limit", type=int, default=5000, help="Max events kept in UI (default: 5000)")
+        parser.add_argument("--auto-resolve", action="store_true", default=False,
+                            help="Automatically resolve stack traces")
 
     def _initialize(self, parser, options, args) -> None:
         self._files = options.files
@@ -141,10 +151,15 @@ class StraceApplication(ConsoleApplication):
         self._users = options.users
         self._uids = options.uids
         self._excluded_names_requested = options.exclude
+        self._included_names_requested = options.include
         self._limit = options.limit
+        self._auto_resolve = options.auto_resolve
 
         if self._files is None and self._pids is None and self._users is None and self._uids is None:
             raise ValueError("At least one target must be specified (use --file, --pid, --user, and/or --uid).")
+
+        if self._excluded_names_requested and self._included_names_requested:
+            raise ValueError("--exclude and --include are mutually exclusive.")
 
     def _usage(self) -> str:
         return "%(prog)s [options]"
@@ -180,7 +195,7 @@ class StraceApplication(ConsoleApplication):
             targets_req["uids"] = self._uids
 
         try:
-            self._tracer.start(self._device, targets_req, self._excluded_names_requested)
+            self._tracer.start(self._device, targets_req, self._excluded_names_requested, self._included_names_requested)
         except Exception as e:
             self._state = "stopping"
             self._ready.set()
@@ -427,8 +442,35 @@ class StraceApplication(ConsoleApplication):
                 if removed:
                     self._status_message += f" (purged {removed} events)"
 
-            self._tracer.exclude_syscalls([key])
+            if ev.nr >= 0:
+                self._tracer.exclude_syscalls([key])
 
+            event.app.invalidate()
+
+        @kb.add("?", filter=~has_focus(self._search_bar.control))
+        def _(event):
+            self._show_help = not self._show_help
+            event.app.invalidate()
+
+        @kb.add("escape", filter=~has_focus(self._search_bar.control))
+        def _(event):
+            if self._show_help:
+                self._show_help = False
+                event.app.invalidate()
+
+        @kb.add("r", filter=~has_focus(self._search_bar.control))
+        def _(event):
+            self._resolve_pending_stacks()
+            event.app.invalidate()
+
+        @kb.add("R", filter=~has_focus(self._search_bar.control))
+        def _(event):
+            self._toggle_auto_resolve()
+            event.app.invalidate()
+
+        @kb.add("w", filter=~has_focus(self._search_bar.control))
+        def _(event):
+            self._export_events()
             event.app.invalidate()
 
         list_win = Window(
@@ -475,6 +517,42 @@ class StraceApplication(ConsoleApplication):
             filter=Condition(lambda: self._search_editing),
         )
 
+        help_text = "\n".join([
+            "",
+            "  Navigation",
+            "    j/k ↑/↓         move selection",
+            "    PgUp/PgDn       page up/down",
+            "    ^D/^U           half-page down/up",
+            "    Home  End  t    top / tail",
+            "    ←/→  0          scroll / reset",
+            "",
+            "  Search & Filter",
+            "    /               search",
+            "    n/N             next/prev match",
+            "    f               promote search to filter",
+            "    ^L              clear filter",
+            "",
+            "  Actions",
+            "    Enter           resolve selected stack",
+            "    r               resolve all stacks in view (pauses)",
+            "    R               toggle auto-resolve (may impact performance)",
+            "    x               exclude syscall",
+            "    w               export view to JSON",
+            "    d               toggle detail pane",
+            "",
+            "  ?  close this help    q/^C  quit",
+            "",
+        ])
+        help_win = Window(
+            content=FormattedTextControl(text=help_text),
+            wrap_lines=False,
+            always_hide_cursor=True,
+        )
+        help_float = ConditionalContainer(
+            content=Frame(help_win, title="Help"),
+            filter=Condition(lambda: self._show_help),
+        )
+
         root = FloatContainer(
             content=body,
             floats=[
@@ -484,7 +562,12 @@ class StraceApplication(ConsoleApplication):
                     left=0,
                     right=0,
                     height=3,
-                )
+                ),
+                Float(
+                    content=help_float,
+                    xcursor=False,
+                    ycursor=False,
+                ),
             ],
         )
 
@@ -696,6 +779,10 @@ class StraceApplication(ConsoleApplication):
                     return True
         if ev.exit_retval is not None and f_lc in str(ev.exit_retval).lower():
             return True
+        if ev.symbols is not None:
+            for path, *_ in ev.symbols["modules"]:
+                if f_lc in path.rsplit("/", 1)[-1].lower():
+                    return True
         return False
 
     def _notify_ui(self) -> None:
@@ -723,6 +810,8 @@ class StraceApplication(ConsoleApplication):
             if not new_events and not updates:
                 break
 
+            to_resolve: List[SyscallEvent] = []
+
             with self._lock:
                 if new_events:
                     for ev in new_events:
@@ -748,6 +837,14 @@ class StraceApplication(ConsoleApplication):
                         view = self._get_filtered_view_locked()
                         self._selected = max(0, len(view) - 1)
 
+                    if self._auto_resolve and self._tailing:
+                        live = set(id(e) for e in self._events)
+                        for ev in reversed(new_events):
+                            if id(ev) in live and ev.stack_id >= 0 and not ev.resolving and ev.stack is None:
+                                ev.resolving = True
+                                to_resolve.append(ev)
+                        self._resolving_remaining += len(to_resolve)
+
                 if updates:
                     id_to_event = {e.id: e for e in self._events}
                     if self._paused_events is not None:
@@ -755,6 +852,7 @@ class StraceApplication(ConsoleApplication):
                             id_to_event.setdefault(e.id, e)
 
                     for event_id, stack_or_none, syms_or_exc in updates:
+                        self._resolving_remaining = max(0, self._resolving_remaining - 1)
                         ev = id_to_event.get(event_id)
                         if ev is None:
                             continue
@@ -770,6 +868,9 @@ class StraceApplication(ConsoleApplication):
                     self._bump_list_model_version_locked()
                     self._invalidate_filter_cache_locked()
                     self._recompute_search_matches_locked()
+
+            if to_resolve:
+                tracer.resolve_backtraces_bulk(to_resolve)
 
         with self._lock:
             self._ui_refresh_pending = False
@@ -810,6 +911,75 @@ class StraceApplication(ConsoleApplication):
             ev.resolving = True
 
         tracer.resolve_backtrace(ev.id, ev.pid, ev.map_gen, ev.stack_id)
+
+    def _export_events(self) -> None:
+        with self._lock:
+            view = self._get_filtered_view_locked()
+            rows = [self._serialize_event(ev) for ev in view]
+
+        filename = f"stracer-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+        with open(filename, "w") as f:
+            json.dump(rows, f, indent=2, default=str)
+
+        with self._lock:
+            self._status_message = f"Exported {len(rows)} events → {filename}"
+
+    def _toggle_auto_resolve(self) -> None:
+        tracer = self._tracer
+        if tracer is None:
+            return
+        with self._lock:
+            self._auto_resolve = not self._auto_resolve
+            if self._auto_resolve:
+                self._status_message = "Auto-resolve ON"
+                pending = self._collect_unresolved_locked(self._get_filtered_view_locked())
+            else:
+                self._status_message = "Auto-resolve OFF"
+                pending = []
+        if pending:
+            tracer.resolve_backtraces_bulk(pending)
+
+    def _resolve_pending_stacks(self) -> None:
+        tracer = self._tracer
+        if tracer is None:
+            return
+        with self._lock:
+            self._pause_if_tailing()
+            pending = self._collect_unresolved_locked(self._get_filtered_view_locked())
+        if pending:
+            tracer.resolve_backtraces_bulk(pending)
+
+    def _collect_unresolved_locked(self, view: List[SyscallEvent]) -> List[SyscallEvent]:
+        pending: List[SyscallEvent] = []
+        for ev in view:
+            if ev.stack_id >= 0 and not ev.resolving and ev.stack is None:
+                ev.resolving = True
+                pending.append(ev)
+        self._resolving_remaining += len(pending)
+        return pending
+
+    def _serialize_event(self, ev: SyscallEvent) -> dict:
+        d: dict = {
+            "id": ev.id, "phase": ev.phase,
+            "pid": ev.pid, "tid": ev.tid, "abi": ev.abi,
+            "nr": ev.nr, "name": ev.name,
+            "time_ns": ev.time_ns,
+            "merged": ev.merged, "failed": ev.failed,
+        }
+
+        if ev.enter_args is not None:
+            d["enter_args"] = [{"name": a.name, "type": a.type, "text": a.text} for a in ev.enter_args]
+        if ev.exit_retval is not None:
+            d["exit_retval"] = ev.exit_retval
+            d["exit_time_ns"] = ev.exit_time_ns
+        if ev.exit_out_args is not None:
+            d["exit_out_args"] = [{"name": a.name, "type": a.type, "text": a.text} for a in ev.exit_out_args]
+
+        if ev.stack is not None:
+            d["stack"] = [f"0x{addr:x}" for addr in ev.stack]
+            d["call_stack"] = self._format_call_stack(ev)
+
+        return d
 
     def _exclude_events_locked(self, key: tuple[str, int]) -> None:
         abi, nr = key
@@ -1004,6 +1174,11 @@ class StraceApplication(ConsoleApplication):
             if self._search_text != "":
                 pieces.append("(f = filter search)")
 
+            if self._resolving_remaining > 0:
+                pieces.append(f"resolving={self._resolving_remaining}")
+            if self._auto_resolve:
+                pieces.append("[R]")
+
             if self._excluded_syscalls:
                 pieces.append(f"excluded={len(self._excluded_syscalls)} (x=exclude)")
 
@@ -1013,6 +1188,8 @@ class StraceApplication(ConsoleApplication):
                 pieces.append(f"details=on ({placement})  d=hide")
             else:
                 pieces.append("details=off  d=show")
+
+            pieces.append("?=help")
 
             return "  ".join(pieces)
 
@@ -1156,6 +1333,7 @@ class SyscallTracer:
         self._next_id = 1
         self._excluded: set[tuple[str, int]] = set()
         self._stopping = False
+        self._resolve_pool = ThreadPoolExecutor(max_workers=4)
 
         self._schedule_on_message = lambda m: self._reactor.schedule(lambda: self._handle_service_message(m))
 
@@ -1169,7 +1347,8 @@ class SyscallTracer:
             self,
             device: frida.core.Device,
             targets_req: Dict[str, Any],
-            excluded_by_name: list[str]
+            excluded_by_name: Optional[list[str]],
+            included_by_name: Optional[list[str]] = None,
     ) -> None:
         self._service = device.open_service("syscall-trace")
 
@@ -1184,7 +1363,17 @@ class SyscallTracer:
 
         self._service.on("message", self._schedule_on_message)
 
-        if excluded_by_name:
+        if included_by_name:
+            included = set(self._resolve_excludes_by_name(included_by_name))
+            to_exclude = []
+            for abi, by_nr in self._signatures.items():
+                for nr in by_nr:
+                    if (abi, nr) not in included:
+                        to_exclude.append((abi, nr))
+            if to_exclude:
+                by_abi = self._apply_excludes(to_exclude)
+                self._service.request({"type": "exclude-syscalls", **by_abi})
+        elif excluded_by_name:
             items = self._resolve_excludes_by_name(excluded_by_name)
             if items:
                 by_abi = self._apply_excludes(items)
@@ -1196,6 +1385,7 @@ class SyscallTracer:
 
     def stop(self) -> None:
         self._stopping = True
+        self._resolve_pool.shutdown(wait=False)
         if self._service is not None:
             self._service.off("message", self._schedule_on_message)
             self._service.close()
@@ -1220,7 +1410,10 @@ class SyscallTracer:
         return out
 
     def resolve_backtrace(self, event_id: int, pid: int, map_gen: int, stack_id: int) -> None:
-        self._reactor.schedule(lambda: self._resolve_backtrace_on_reactor(event_id, pid, map_gen, stack_id))
+        self._resolve_pool.submit(self._resolve_backtrace_on_reactor, event_id, pid, map_gen, stack_id)
+
+    def resolve_backtraces_bulk(self, events: List[SyscallEvent]) -> None:
+        self._resolve_pool.submit(self._resolve_backtraces_bulk_on_reactor, events)
 
     def get_excluded(self) -> set[tuple[str, int]]:
         return self._excluded
@@ -1480,6 +1673,59 @@ class SyscallTracer:
             self._updates_out.put((event_id, None, e))
         finally:
             self._notify_ui()
+
+    def _resolve_backtraces_bulk_on_reactor(self, events: List[SyscallEvent]) -> None:
+        if self._stopping or self._service is None:
+            return
+
+        stack_ids = list({ev.stack_id for ev in events})
+        try:
+            stacks_res = self._service.request({"type": "resolve-stacks", "ids": stack_ids})
+        except Exception as e:
+            for ev in events:
+                self._updates_out.put((ev.id, None, e))
+            self._notify_ui()
+            return
+        stack_by_id = dict(zip(stack_ids, stacks_res["stacks"]))
+
+        groups: Dict[Tuple[int, int], List[SyscallEvent]] = defaultdict(list)
+        for ev in events:
+            groups[(ev.pid, ev.map_gen)].append(ev)
+
+        def resolve_group(key, group_evs):
+            pid, map_gen = key
+            all_addrs = []
+            ev_ranges = []
+            for ev in group_evs:
+                stack = stack_by_id.get(ev.stack_id)
+                if stack is None:
+                    self._updates_out.put((ev.id, None, Exception("stack not found")))
+                    continue
+                start = len(all_addrs)
+                all_addrs.extend(stack)
+                ev_ranges.append((ev, stack, start, len(all_addrs)))
+            if not all_addrs:
+                return
+            try:
+                syms = self._service.request({
+                    "type": "resolve-symbols",
+                    "pid": pid,
+                    "gen": map_gen,
+                    "addresses": [("uint64", addr) for addr in all_addrs],
+                })
+                for ev, stack, start, end in ev_ranges:
+                    ev_syms = {"modules": syms["modules"], "symbols": syms["symbols"][start:end]}
+                    self._updates_out.put((ev.id, stack, ev_syms))
+            except Exception as e:
+                for ev, stack, start, end in ev_ranges:
+                    self._updates_out.put((ev.id, None, e))
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futs = [pool.submit(resolve_group, k, g) for k, g in groups.items()]
+            for f in futs:
+                f.result()
+
+        self._notify_ui()
 
 
 @dataclass
