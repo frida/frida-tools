@@ -459,6 +459,11 @@ class StraceApplication(ConsoleApplication):
                 self._show_help = False
                 event.app.invalidate()
 
+        @kb.add("r", filter=~has_focus(self._search_bar.control))
+        def _(event):
+            self._resolve_pending_stacks()
+            event.app.invalidate()
+
         @kb.add("R", filter=~has_focus(self._search_bar.control))
         def _(event):
             self._toggle_auto_resolve()
@@ -929,6 +934,16 @@ class StraceApplication(ConsoleApplication):
             else:
                 self._status_message = "Auto-resolve OFF"
                 pending = []
+        if pending:
+            tracer.resolve_backtraces_bulk(pending)
+
+    def _resolve_pending_stacks(self) -> None:
+        tracer = self._tracer
+        if tracer is None:
+            return
+        with self._lock:
+            self._pause_if_tailing()
+            pending = self._collect_unresolved_locked(self._get_filtered_view_locked())
         if pending:
             tracer.resolve_backtraces_bulk(pending)
 
