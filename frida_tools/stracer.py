@@ -434,7 +434,8 @@ class StraceApplication(ConsoleApplication):
                 if removed:
                     self._status_message += f" (purged {removed} events)"
 
-            self._tracer.exclude_syscalls([key])
+            if ev.nr >= 0:
+                self._tracer.exclude_syscalls([key])
 
             event.app.invalidate()
 
