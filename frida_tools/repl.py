@@ -109,7 +109,11 @@ class REPLApplication(ConsoleApplication):
             default=False,
         )
         parser.add_argument(
-            "-t", "--timeout", help="seconds to wait before terminating in quiet mode (or 'inf' to run forever)", dest="timeout", default=0
+            "-t",
+            "--timeout",
+            help="seconds to wait before terminating in quiet mode (or 'inf' to run forever)",
+            dest="timeout",
+            default=0,
         )
         parser.add_argument(
             "--pause",
@@ -477,7 +481,7 @@ class REPLApplication(ConsoleApplication):
     def _exec_and_print(self, exec: Callable[[T], Tuple[str, bytes]], arg: T) -> bool:
         success = False
         try:
-            (t, value) = self._perform_on_reactor_thread(lambda: exec(arg))
+            t, value = self._perform_on_reactor_thread(lambda: exec(arg))
             if t in ("function", "undefined", "null"):
                 output = t
             elif t == "binary":
@@ -504,8 +508,7 @@ class REPLApplication(ConsoleApplication):
         return success
 
     def _print_startup_message(self) -> None:
-        self._print(
-            """\
+        self._print("""\
      ____
     / _  |   Frida {version} - A world-class dynamic instrumentation toolkit
    | (_| |
@@ -514,10 +517,7 @@ class REPLApplication(ConsoleApplication):
    . . . .       object?   -> Display information about 'object'
    . . . .       exit/quit -> Exit
    . . . .
-   . . . .   More info at https://frida.re/docs/home/""".format(
-                version=frida.__version__
-            )
-        )
+   . . . .   More info at https://frida.re/docs/home/""".format(version=frida.__version__))
 
     def _print_help(self, expression: str) -> None:
         # TODO: Figure out docstrings and implement here. This is real jankaty right now.
@@ -526,7 +526,7 @@ class REPLApplication(ConsoleApplication):
             expression = expression[:-2] + "?"
 
         obj_to_identify = [x for x in expression.split(" ") if x.endswith("?")][0][:-1]
-        (obj_type, obj_value) = self._evaluate_expression(obj_to_identify)
+        obj_type, obj_value = self._evaluate_expression(obj_to_identify)
 
         if obj_type == "function":
             signature = self._evaluate_expression("%s.toString()" % obj_to_identify)[1]
@@ -1091,7 +1091,7 @@ class FridaCompleter(Completer):
     def _get_keys(self, code):
         repl = self._repl
         with repl._reactor.io_cancellable:
-            (t, value) = repl._evaluate_expression(code)
+            t, value = repl._evaluate_expression(code)
 
         if t == "error":
             return []

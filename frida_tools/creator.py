@@ -42,7 +42,7 @@ class CreatorApplication(ConsoleApplication):
         return False
 
     def _start(self) -> None:
-        (assets, message) = self._generate()
+        assets, message = self._generate()
 
         outdir = self._outdir
         for name, data in assets.items():
@@ -66,9 +66,7 @@ class CreatorApplication(ConsoleApplication):
     def _generate_agent(self) -> Tuple[Dict[str, str], str]:
         assets = {}
 
-        assets[
-            "package.json"
-        ] = f"""{{
+        assets["package.json"] = f"""{{
   "name": "{self._project_name}-agent",
   "version": "1.0.0",
   "description": "Frida agent written in TypeScript",
@@ -87,9 +85,7 @@ class CreatorApplication(ConsoleApplication):
 }}
 """
 
-        assets[
-            "tsconfig.json"
-        ] = """\
+        assets["tsconfig.json"] = """\
 {
   "compilerOptions": {
     "target": "ES2022",
@@ -103,9 +99,7 @@ class CreatorApplication(ConsoleApplication):
 
 """
 
-        assets[
-            "agent/index.ts"
-        ] = """\
+        assets["agent/index.ts"] = """\
 import { log } from "./logger.js";
 
 const header = Memory.alloc(16);
@@ -130,9 +124,7 @@ Interceptor.attach(Module.findGlobalExportByName("open")!, {
 });
 """
 
-        assets[
-            "agent/logger.ts"
-        ] = """\
+        assets["agent/logger.ts"] = """\
 export function log(message: string): void {
     console.log(message);
 }
@@ -155,9 +147,7 @@ Tip: Use an editor like Visual Studio Code for code completion, inline docs,
     def _generate_cmodule(self) -> Tuple[Dict[str, str], str]:
         assets = {}
 
-        assets[
-            "meson.build"
-        ] = f"""\
+        assets["meson.build"] = f"""\
 project('{self._project_name}', 'c',
   default_options: 'buildtype=release',
 )
@@ -168,9 +158,7 @@ shared_module('{self._project_name}', '{self._project_name}.c',
 )
 """
 
-        assets[
-            self._project_name + ".c"
-        ] = """\
+        assets[self._project_name + ".c"] = """\
 #include <gum/guminterceptor.h>
 
 static void frida_log (const char * format, ...);

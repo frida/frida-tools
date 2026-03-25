@@ -853,9 +853,7 @@ class Repository:
 defineHandler(function (log, args, state) {
   log(`%(display_name)s hit! sp=${this.context.sp}`);
 });
-""" % {
-            "display_name": target.display_name
-        }
+""" % {"display_name": target.display_name}
 
     def _create_stub_native_handler(self, target: TraceTarget, decorate: bool) -> str:
         if target.flavor == "objc":
@@ -963,9 +961,7 @@ defineHandler({
     }
   }
 });
-""" % {
-            "display_name": target.display_name
-        }
+""" % {"display_name": target.display_name}
 
     def _generate_cstyle_argument_logging_code(self, target: TraceTarget) -> List[str]:
         if self._manpages is None:
@@ -1165,7 +1161,7 @@ class FileRepository(Repository):
     def ensure_handler(self, target: TraceTarget) -> str:
         entry = self._handler_by_id.get(target.identifier)
         if entry is not None:
-            (target, handler, handler_file) = entry
+            target, handler, handler_file = entry
             return handler
 
         handler = None
@@ -1250,7 +1246,7 @@ class FileRepository(Repository):
         changes = self._changed_files.copy()
         self._changed_files.clear()
         for changed_handler_file in changes:
-            (target, old_handler, handler_file) = self._handler_by_file[changed_handler_file]
+            target, old_handler, handler_file = self._handler_by_file[changed_handler_file]
             new_handler = self._load_handler(handler_file)
             if new_handler != old_handler:
                 entry = (target, new_handler, handler_file)

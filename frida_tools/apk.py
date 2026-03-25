@@ -154,7 +154,7 @@ def inject(gadget_so: str, lib_dir: str, config: Dict[str, Dict[str, str]], outp
 def get_gadget_arch(gadget: BinaryIO) -> str:
     ELF_HEADER = struct.Struct("<B3sB13xH")
 
-    (m1, m2, bits, machine) = ELF_HEADER.unpack(gadget.read(ELF_HEADER.size))
+    m1, m2, bits, machine = ELF_HEADER.unpack(gadget.read(ELF_HEADER.size))
     if m1 != 0x7F or m2 != b"ELF":
         raise ValueError("gadget is not an ELF file")
 
@@ -218,7 +218,7 @@ class ChunkHeader:
     def __init__(self, stream: BufferedReader, consume_data: bool = True) -> None:
         self.stream = stream
         data = self.stream.peek(struct.calcsize(self.FORMAT))
-        (self.type, self.header_size, self.size) = struct.unpack_from(self.FORMAT, data)
+        self.type, self.header_size, self.size = struct.unpack_from(self.FORMAT, data)
         if consume_data:
             self.chunk_data = self.stream.read(self.size)
         else:

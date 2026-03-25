@@ -55,7 +55,7 @@ class Reactor:
             previous_pending_length = -1
             with self._lock:
                 for item in self._pending:
-                    (f, when) = item
+                    f, when = item
                     if now >= when:
                         work = f
                         self._pending.remove(item)

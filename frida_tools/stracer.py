@@ -133,10 +133,20 @@ class StraceApplication(ConsoleApplication):
             "-u", "--user", action="append", dest="users", help="Trace processes owned by USER (repeatable)"
         )
         parser.add_argument("--uid", action="append", type=int, dest="uids", help="Trace UID (repeatable)")
-        parser.add_argument("-x", "--exclude", action="append", dest="exclude",
-                            help="Exclude syscall by name (repeatable), e.g. --exclude openat")
-        parser.add_argument("-i", "--include", action="append", dest="include",
-                            help="Only trace syscall by name (repeatable), e.g. --include openat")
+        parser.add_argument(
+            "-x",
+            "--exclude",
+            action="append",
+            dest="exclude",
+            help="Exclude syscall by name (repeatable), e.g. --exclude openat",
+        )
+        parser.add_argument(
+            "-i",
+            "--include",
+            action="append",
+            dest="include",
+            help="Only trace syscall by name (repeatable), e.g. --include openat",
+        )
         parser.add_argument("--limit", type=int, default=5000, help="Max events kept in UI (default: 5000)")
 
     def _initialize(self, parser, options, args) -> None:
@@ -188,7 +198,9 @@ class StraceApplication(ConsoleApplication):
             targets_req["uids"] = self._uids
 
         try:
-            self._tracer.start(self._device, targets_req, self._excluded_names_requested, self._included_names_requested)
+            self._tracer.start(
+                self._device, targets_req, self._excluded_names_requested, self._included_names_requested
+            )
         except Exception as e:
             self._state = "stopping"
             self._ready.set()
@@ -500,30 +512,32 @@ class StraceApplication(ConsoleApplication):
             filter=Condition(lambda: self._search_editing),
         )
 
-        help_text = "\n".join([
-            "",
-            "  Navigation",
-            "    j/k ↑/↓         move selection",
-            "    PgUp/PgDn       page up/down",
-            "    ^D/^U           half-page down/up",
-            "    Home  End  t    top / tail",
-            "    ←/→  0          scroll / reset",
-            "",
-            "  Search & Filter",
-            "    /               search",
-            "    n/N             next/prev match",
-            "    f               promote search to filter",
-            "    ^L              clear filter",
-            "",
-            "  Actions",
-            "    Enter           resolve selected stack",
-            "    x               exclude syscall",
-            "    w               export view to JSON",
-            "    d               toggle detail pane",
-            "",
-            "  ?  close this help    q/^C  quit",
-            "",
-        ])
+        help_text = "\n".join(
+            [
+                "",
+                "  Navigation",
+                "    j/k ↑/↓         move selection",
+                "    PgUp/PgDn       page up/down",
+                "    ^D/^U           half-page down/up",
+                "    Home  End  t    top / tail",
+                "    ←/→  0          scroll / reset",
+                "",
+                "  Search & Filter",
+                "    /               search",
+                "    n/N             next/prev match",
+                "    f               promote search to filter",
+                "    ^L              clear filter",
+                "",
+                "  Actions",
+                "    Enter           resolve selected stack",
+                "    x               exclude syscall",
+                "    w               export view to JSON",
+                "    d               toggle detail pane",
+                "",
+                "  ?  close this help    q/^C  quit",
+                "",
+            ]
+        )
         help_win = Window(
             content=FormattedTextControl(text=help_text),
             wrap_lines=False,
@@ -889,11 +903,16 @@ class StraceApplication(ConsoleApplication):
 
     def _serialize_event(self, ev: SyscallEvent) -> dict:
         d: dict = {
-            "id": ev.id, "phase": ev.phase,
-            "pid": ev.pid, "tid": ev.tid, "abi": ev.abi,
-            "nr": ev.nr, "name": ev.name,
+            "id": ev.id,
+            "phase": ev.phase,
+            "pid": ev.pid,
+            "tid": ev.tid,
+            "abi": ev.abi,
+            "nr": ev.nr,
+            "name": ev.name,
             "time_ns": ev.time_ns,
-            "merged": ev.merged, "failed": ev.failed,
+            "merged": ev.merged,
+            "failed": ev.failed,
         }
 
         if ev.enter_args is not None:
@@ -1130,7 +1149,7 @@ class StraceApplication(ConsoleApplication):
                 path, *extra = modules[mod_index]
                 base = path.rsplit("/", 1)[-1]
                 out.append(f"  {base}+0x{offset:x}")
-        for addr in stack[len(entries):]:
+        for addr in stack[len(entries) :]:
             out.append(f"  0x{addr:x}")
         return out
 
@@ -1267,11 +1286,11 @@ class SyscallTracer:
         self._platform = platform
 
     def start(
-            self,
-            device: frida.core.Device,
-            targets_req: Dict[str, Any],
-            excluded_by_name: Optional[list[str]],
-            included_by_name: Optional[list[str]] = None,
+        self,
+        device: frida.core.Device,
+        targets_req: Dict[str, Any],
+        excluded_by_name: Optional[list[str]],
+        included_by_name: Optional[list[str]] = None,
     ) -> None:
         self._service = device.open_service("syscall-trace")
 

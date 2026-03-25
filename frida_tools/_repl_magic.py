@@ -168,9 +168,7 @@ class Time(Magic):
                 const _endTime = Date.now();
                 console.log('Time: ' + (_endTime - _startTime) + ' ms.');
                 return _result;
-            }})();""".format(
-                expression=json.dumps(" ".join(args))
-            ),
+            }})();""".format(expression=json.dumps(" ".join(args))),
         )
 
 
