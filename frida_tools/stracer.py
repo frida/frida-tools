@@ -134,6 +134,8 @@ class StraceApplication(ConsoleApplication):
         parser.add_argument("--uid", action="append", type=int, dest="uids", help="Trace UID (repeatable)")
         parser.add_argument("-x", "--exclude", action="append", dest="exclude",
                             help="Exclude syscall by name (repeatable), e.g. --exclude openat")
+        parser.add_argument("-i", "--include", action="append", dest="include",
+                            help="Only trace syscall by name (repeatable), e.g. --include openat")
         parser.add_argument("--limit", type=int, default=5000, help="Max events kept in UI (default: 5000)")
 
     def _initialize(self, parser, options, args) -> None:
@@ -142,10 +144,14 @@ class StraceApplication(ConsoleApplication):
         self._users = options.users
         self._uids = options.uids
         self._excluded_names_requested = options.exclude
+        self._included_names_requested = options.include
         self._limit = options.limit
 
         if self._files is None and self._pids is None and self._users is None and self._uids is None:
             raise ValueError("At least one target must be specified (use --file, --pid, --user, and/or --uid).")
+
+        if self._excluded_names_requested and self._included_names_requested:
+            raise ValueError("--exclude and --include are mutually exclusive.")
 
     def _usage(self) -> str:
         return "%(prog)s [options]"
@@ -181,7 +187,7 @@ class StraceApplication(ConsoleApplication):
             targets_req["uids"] = self._uids
 
         try:
-            self._tracer.start(self._device, targets_req, self._excluded_names_requested)
+            self._tracer.start(self._device, targets_req, self._excluded_names_requested, self._included_names_requested)
         except Exception as e:
             self._state = "stopping"
             self._ready.set()
@@ -1210,7 +1216,8 @@ class SyscallTracer:
             self,
             device: frida.core.Device,
             targets_req: Dict[str, Any],
-            excluded_by_name: list[str]
+            excluded_by_name: Optional[list[str]],
+            included_by_name: Optional[list[str]] = None,
     ) -> None:
         self._service = device.open_service("syscall-trace")
 
@@ -1225,7 +1232,17 @@ class SyscallTracer:
 
         self._service.on("message", self._schedule_on_message)
 
-        if excluded_by_name:
+        if included_by_name:
+            included = set(self._resolve_excludes_by_name(included_by_name))
+            to_exclude = []
+            for abi, by_nr in self._signatures.items():
+                for nr in by_nr:
+                    if (abi, nr) not in included:
+                        to_exclude.append((abi, nr))
+            if to_exclude:
+                by_abi = self._apply_excludes(to_exclude)
+                self._service.request({"type": "exclude-syscalls", **by_abi})
+        elif excluded_by_name:
             items = self._resolve_excludes_by_name(excluded_by_name)
             if items:
                 by_abi = self._apply_excludes(items)
