@@ -535,6 +535,8 @@ class StraceApplication(ConsoleApplication):
             "",
             "  Actions",
             "    Enter           resolve selected stack",
+            "    r               resolve all stacks in view (pauses)",
+            "    R               toggle auto-resolve (may impact performance)",
             "    x               exclude syscall",
             "    w               export view to JSON",
             "    d               toggle detail pane",
@@ -1171,6 +1173,11 @@ class StraceApplication(ConsoleApplication):
 
             if self._search_text != "":
                 pieces.append("(f = filter search)")
+
+            if self._resolving_remaining > 0:
+                pieces.append(f"resolving={self._resolving_remaining}")
+            if self._auto_resolve:
+                pieces.append("[R]")
 
             if self._excluded_syscalls:
                 pieces.append(f"excluded={len(self._excluded_syscalls)} (x=exclude)")
