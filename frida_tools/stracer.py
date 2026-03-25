@@ -760,6 +760,10 @@ class StraceApplication(ConsoleApplication):
                     return True
         if ev.exit_retval is not None and f_lc in str(ev.exit_retval).lower():
             return True
+        if ev.symbols is not None:
+            for path, *_ in ev.symbols["modules"]:
+                if f_lc in path.rsplit("/", 1)[-1].lower():
+                    return True
         return False
 
     def _notify_ui(self) -> None:
