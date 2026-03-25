@@ -1346,15 +1346,6 @@ class SyscallTracer:
             return
         self._service.request({"type": "exclude-syscalls", **by_abi})
 
-    def _resolve_excludes_by_name(self, names: list[str]) -> set[tuple[str, int]]:
-        wanted = {n.lower() for n in names if n}
-        out: set[tuple[str, int]] = set()
-        for abi, by_nr in self._signatures.items():
-            for nr, sig in by_nr.items():
-                if sig["name"] in wanted:
-                    out.add((abi, nr))
-        return out
-
     def _group_by_abi(self, items: set[tuple[str, int]] | list[tuple[str, int]]) -> dict[str, list[int]]:
         by_abi: dict[str, set[int]] = {}
         for abi, nr in items:
