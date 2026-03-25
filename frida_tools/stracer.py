@@ -78,7 +78,6 @@ class StraceApplication(ConsoleApplication):
         self._ignore_search_text_change = False
         self._status_message = ""
 
-        self._auto_resolve = False
         self._resolving_remaining = 0
 
         self._fd_style_by_pid_value: Dict[Tuple[int, int], str] = {}
