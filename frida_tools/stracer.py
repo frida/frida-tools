@@ -5,6 +5,7 @@ import queue
 import shlex
 import threading
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import frida
@@ -431,6 +432,11 @@ class StraceApplication(ConsoleApplication):
 
             event.app.invalidate()
 
+        @kb.add("w", filter=~has_focus(self._search_bar.control))
+        def _(event):
+            self._export_events()
+            event.app.invalidate()
+
         list_win = Window(
             content=self._list_ctl,
             wrap_lines=False,
@@ -810,6 +816,41 @@ class StraceApplication(ConsoleApplication):
             ev.resolving = True
 
         tracer.resolve_backtrace(ev.id, ev.pid, ev.map_gen, ev.stack_id)
+
+    def _export_events(self) -> None:
+        with self._lock:
+            view = self._get_filtered_view_locked()
+            rows = [self._serialize_event(ev) for ev in view]
+
+        filename = f"stracer-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+        with open(filename, "w") as f:
+            json.dump(rows, f, indent=2, default=str)
+
+        with self._lock:
+            self._status_message = f"Exported {len(rows)} events → {filename}"
+
+    def _serialize_event(self, ev: SyscallEvent) -> dict:
+        d: dict = {
+            "id": ev.id, "phase": ev.phase,
+            "pid": ev.pid, "tid": ev.tid, "abi": ev.abi,
+            "nr": ev.nr, "name": ev.name,
+            "time_ns": ev.time_ns,
+            "merged": ev.merged, "failed": ev.failed,
+        }
+
+        if ev.enter_args is not None:
+            d["enter_args"] = [{"name": a.name, "type": a.type, "text": a.text} for a in ev.enter_args]
+        if ev.exit_retval is not None:
+            d["exit_retval"] = ev.exit_retval
+            d["exit_time_ns"] = ev.exit_time_ns
+        if ev.exit_out_args is not None:
+            d["exit_out_args"] = [{"name": a.name, "type": a.type, "text": a.text} for a in ev.exit_out_args]
+
+        if ev.stack is not None:
+            d["stack"] = [f"0x{addr:x}" for addr in ev.stack]
+            d["call_stack"] = self._format_call_stack(ev)
+
+        return d
 
     def _exclude_events_locked(self, key: tuple[str, int]) -> None:
         abi, nr = key
