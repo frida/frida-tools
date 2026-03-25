@@ -6,7 +6,13 @@ import unittest
 import frida
 
 from frida_tools.reactor import Reactor
-from frida_tools.tracer import UI, MemoryRepository, Tracer, TracerProfileBuilder
+from frida_tools.tracer import (
+    UI,
+    MemoryRepository,
+    Tracer,
+    TracerProfileBuilder,
+    compute_allowed_ui_origins,
+)
 
 from .data import target_program
 
@@ -40,6 +46,28 @@ class TestTracer(unittest.TestCase):
 
         reactor.schedule(start)
         reactor.run()
+
+
+class TestTracerUiOrigins(unittest.TestCase):
+    def test_localhost_ui_origin_is_allowed(self):
+        origins = compute_allowed_ui_origins("localhost", 2999)
+        self.assertEqual(origins, ["http://localhost:2999", "http://localhost:3000"])
+
+    def test_bind_allows_common_local_origins(self):
+        origins = compute_allowed_ui_origins("0.0.0.0", 2999)
+        self.assertIn("http://0.0.0.0:2999", origins)
+        self.assertIn("http://localhost:2999", origins)
+        self.assertIn("http://127.0.0.1:2999", origins)
+        self.assertIn("http://localhost:3000", origins)
+        self.assertIn("http://127.0.0.1:3000", origins)
+
+    def test_extra_origin_is_allowed(self):
+        origins = compute_allowed_ui_origins("localhost", 2999, ["http://example.test:8080"])
+        self.assertIn("http://example.test:8080", origins)
+
+    def test_duplicate_origins_are_removed(self):
+        origins = compute_allowed_ui_origins("localhost", 2999, ["http://localhost:2999"])
+        self.assertEqual(origins.count("http://localhost:2999"), 1)
 
 
 if __name__ == "__main__":
