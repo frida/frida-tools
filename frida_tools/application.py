@@ -24,7 +24,7 @@ import frida._frida as _frida
 
 from frida_tools.reactor import Reactor
 
-AUX_OPTION_PATTERN = re.compile(r"(.+)=\((string|bool|int)\)(.+)")
+TYPED_OPTION_PATTERN = re.compile(r"(.+)=\((string|bool|int)\)(.+)")
 
 T = TypeVar("T")
 TargetType = Union[List[str], re.Pattern, int, str]
@@ -196,6 +196,9 @@ class ConsoleApplication:
         if self._needs_device():
             self._device_id = options.device_id
             self._device_type = options.device_type
+            device_opts = dict([parse_typed_option(o) for o in shlex.split(os.environ.get("FRIDA_DEVICE_OPTIONS", ""))])
+            device_opts.update(dict([parse_typed_option(o) for o in options.device_options]))
+            self._device_options = device_opts
             self._host = options.host
             if all([x is None for x in [self._device_id, self._device_type, self._host]]):
                 self._device_id = os.environ.get("FRIDA_DEVICE")
@@ -211,6 +214,7 @@ class ConsoleApplication:
         else:
             self._device_id = None
             self._device_type = None
+            self._device_options = []
             self._host = None
             self._certificate = None
             self._origin = None
@@ -300,6 +304,14 @@ class ConsoleApplication:
             help="set keepalive interval in seconds, or 0 to disable (defaults to -1 to auto-select based on transport)",
             metavar="INTERVAL",
             type=int,
+        )
+        parser.add_argument(
+            "--device-option",
+            help="override a backend-specific option, such as “control-endpoint=(string)localabstract:/my-frida-server” (supported types are: string, bool, int)",
+            metavar="option",
+            action="append",
+            dest="device_options",
+            default=[],
         )
         parser.add_argument(
             "--p2p",
@@ -541,6 +553,8 @@ class ConsoleApplication:
                 return
         else:
             self._device = frida.get_local_device()
+        for name, value in self._device_options.items():
+            self._device.override_option(name, value)
         self._on_device_found()
         self._device.on("output", self._schedule_on_output)
         self._device.on("lost", self._schedule_on_device_lost)
@@ -597,7 +611,7 @@ class ConsoleApplication:
 
                     aux_kwargs = {}
                     if self._aux is not None:
-                        aux_kwargs = dict([parse_aux_option(o) for o in self._aux])
+                        aux_kwargs = dict([parse_typed_option(o) for o in self._aux])
 
                     self._spawned_pid = self._device.spawn(argv, stdio=self._stdio, **aux_kwargs)
                     self._spawned_argv = argv
@@ -994,8 +1008,8 @@ def expand_target(target: TargetTypeTuple) -> TargetTypeTuple:
     return (target_type, target_value)
 
 
-def parse_aux_option(option: str) -> Tuple[str, Union[str, bool, int]]:
-    m = AUX_OPTION_PATTERN.match(option)
+def parse_typed_option(option: str) -> Tuple[str, Union[str, bool, int]]:
+    m = TYPED_OPTION_PATTERN.match(option)
     if m is None:
         raise ValueError("expected name=(type)value, e.g. “uid=(int)42”; supported types are: string, bool, int")
 
