@@ -65,7 +65,7 @@ class PackageManagerApplication(ConsoleApplication):
             "specs",
             nargs="*",
             metavar="SPEC",
-            help="package spec, e.g. 'frida-objc-bridge@^8.0.5' or 'frida-il2cpp-bridge'",
+            help="package spec, e.g. 'frida-objc-bridge@^8.0.6' or 'frida-il2cpp-bridge'",
         )
         install_p.add_argument(
             "--project-root",
