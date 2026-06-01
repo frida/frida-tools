@@ -229,6 +229,11 @@ class ConsoleApplication:
             self._stdio = options.stdio
             self._aux = options.aux
             self._realm = options.realm
+            self._exceptor = options.exceptor
+            self._unwind_broker = options.unwind_broker
+            self._exit_monitor = options.exit_monitor
+            self._thread_suspend_monitor = options.thread_suspend_monitor
+            self._linker_notifier_offsets = options.linker_notifier_offsets
             self._runtime = options.runtime
             self._enable_debugger = options.enable_debugger
             self._squelch_crash = options.squelch_crash
@@ -236,6 +241,11 @@ class ConsoleApplication:
             self._stdio = "inherit"
             self._aux = []
             self._realm = "native"
+            self._exceptor = None
+            self._unwind_broker = None
+            self._exit_monitor = None
+            self._thread_suspend_monitor = None
+            self._linker_notifier_offsets = []
             self._runtime = "qjs"
             self._enable_debugger = False
             self._squelch_crash = False
@@ -383,6 +393,41 @@ class ConsoleApplication:
             default=[],
         )
         parser.add_argument("--realm", help="realm to attach in", choices=["native", "emulated"], default="native")
+        parser.add_argument(
+            "--exceptor",
+            help="configure the exception handling mode",
+            choices=["full", "handler-only", "off"],
+        )
+        parser.add_argument(
+            "--disable-unwind-broker",
+            help="disable the unwind broker",
+            action="store_false",
+            dest="unwind_broker",
+            default=None,
+        )
+        parser.add_argument(
+            "--disable-exit-monitor",
+            help="disable the exit monitor",
+            action="store_false",
+            dest="exit_monitor",
+            default=None,
+        )
+        parser.add_argument(
+            "--disable-thread-suspend-monitor",
+            help="disable the thread suspend monitor",
+            action="store_false",
+            dest="thread_suspend_monitor",
+            default=None,
+        )
+        parser.add_argument(
+            "--linker-notifier-offset",
+            help="add a linker notifier OFFSET (may be specified multiple times)",
+            metavar="OFFSET",
+            action="append",
+            dest="linker_notifier_offsets",
+            type=lambda v: int(v, 0),
+            default=[],
+        )
         parser.add_argument("--runtime", help="script runtime to use", choices=["qjs", "v8"])
         parser.add_argument(
             "--debug",
@@ -653,7 +698,18 @@ class ConsoleApplication:
         self._target_pid = pid
 
         assert self._device is not None
-        self._session = self._device.attach(pid, realm=self._realm)
+        attach_kwargs = {"realm": self._realm}
+        if self._exceptor is not None:
+            attach_kwargs["exceptor"] = self._exceptor
+        if self._unwind_broker is not None:
+            attach_kwargs["unwind_broker"] = self._unwind_broker
+        if self._exit_monitor is not None:
+            attach_kwargs["exit_monitor"] = self._exit_monitor
+        if self._thread_suspend_monitor is not None:
+            attach_kwargs["thread_suspend_monitor"] = self._thread_suspend_monitor
+        if self._linker_notifier_offsets:
+            attach_kwargs["linker_notifier_offsets"] = self._linker_notifier_offsets
+        self._session = self._device.attach(pid, **attach_kwargs)
         self._session.on("detached", self._schedule_on_session_detached)
 
         if self._session_transport == "p2p":
