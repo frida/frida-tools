@@ -2,6 +2,7 @@ entrypoint = 'agent.ts'
 
 sources = [
   entrypoint,
+  'value.ts',
   'package.json',
   'package-lock.json',
   'tsconfig.json',

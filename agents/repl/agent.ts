@@ -1,3 +1,5 @@
+import { encodeValue } from "./value.js";
+
 class REPL {
     #quickCommands = new Map();
 
@@ -100,10 +102,10 @@ function evaluate(func: () => any) {
         const result = func();
         if (result instanceof ArrayBuffer) {
             return result;
-        } else {
-            const type = (result === null) ? "null" : typeof result;
-            return [type, result];
         }
+        const type = (result === null) ? "null" : typeof result;
+        const [tree, blob] = encodeValue(result, { maxDepth: 5 });
+        return ["inspect", type, tree, (blob !== null) ? Array.from(new Uint8Array(blob)) : null];
     } catch (exception) {
         const e = exception as Error;
         return ["error", {

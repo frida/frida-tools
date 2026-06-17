@@ -28,7 +28,7 @@ from prompt_toolkit.styles import Style as PromptToolkitStyle
 from pygments.lexers.javascript import JavascriptLexer
 from pygments.token import Token
 
-from frida_tools import _repl_magic
+from frida_tools import _repl_magic, repl_inspect
 from frida_tools.application import ConsoleApplication
 from frida_tools.cli_formatting import THEME_COLOR, format_compiled, format_compiling, format_diagnostic
 from frida_tools.reactor import Reactor
@@ -482,12 +482,11 @@ class REPLApplication(ConsoleApplication):
         success = False
         try:
             t, value = self._perform_on_reactor_thread(lambda: exec(arg))
-            if t in ("function", "undefined", "null"):
-                output = t
-            elif t == "binary":
-                output = hexdump(value).rstrip("\n")
+            if t == "binary":
+                output = repl_inspect.render_hexdump(value)
             else:
-                output = json.dumps(value, sort_keys=True, indent=4, separators=(",", ": "))
+                tree, blob = value
+                output = "undefined" if repl_inspect.is_undefined(tree) else repl_inspect.render(tree, blob)
             success = True
         except JavaScriptError as e:
             error = e.error
@@ -529,7 +528,8 @@ class REPLApplication(ConsoleApplication):
         obj_type, obj_value = self._evaluate_expression(obj_to_identify)
 
         if obj_type == "function":
-            signature = self._evaluate_expression("%s.toString()" % obj_to_identify)[1]
+            _, (signature_tree, _) = self._evaluate_expression("%s.toString()" % obj_to_identify)
+            signature = signature_tree[1]
             clean_signature = signature.split("{")[0][:-1].split("function ")[-1]
 
             if "[native code]" in signature:
@@ -549,9 +549,9 @@ class REPLApplication(ConsoleApplication):
             help_text += "Docstring: #TODO :)"
 
         elif obj_type == "string":
-            bool_text = self._evaluate_expression(obj_to_identify + ".toString()")[1]
+            _, (text_tree, _) = self._evaluate_expression(obj_to_identify + ".toString()")
             help_text += "Type:      Boolean\n"
-            help_text += f"Text:      {bool_text.decode()}\n"
+            help_text += f"Text:      {text_tree[1]}\n"
             help_text += "Docstring: #TODO :)"
 
         self._print(help_text)
@@ -681,7 +681,8 @@ class REPLApplication(ConsoleApplication):
             return ("binary", bytes())
         elif result[0] == "error":
             raise JavaScriptError(result[1])
-        return (result[0], result[1])
+        _, value_type, tree, blob = result
+        return (value_type, (tree, blob))
 
     def _process_message(self, message: Mapping[Any, Any], data: Any) -> None:
         message_type = message["type"]
@@ -1096,7 +1097,8 @@ class FridaCompleter(Completer):
         if t == "error":
             return []
 
-        return sorted(filter(self._is_valid_name, set(value)))
+        names = repl_inspect.to_string_list(value[0])
+        return sorted(filter(self._is_valid_name, set(names)))
 
     def _is_valid_name(self, name) -> bool:
         tokens = list(self._lexer.get_tokens(name))
@@ -1110,17 +1112,6 @@ def script_needs_compilation(path: AnyStr) -> bool:
     if isinstance(path, str):
         return path.endswith(".ts")
     return path.endswith(b".ts")
-
-
-def hexdump(src, length: int = 16) -> str:
-    FILTER = "".join([(len(repr(chr(x))) == 3) and chr(x) or "." for x in range(256)])
-    lines = []
-    for c in range(0, len(src), length):
-        chars = src[c : c + length]
-        hex = " ".join(["%02x" % x for x in iter(chars)])
-        printable = "".join(["%s" % ((x <= 127 and FILTER[x]) or ".") for x in iter(chars)])
-        lines.append("%04x  %-*s  %s\n" % (c, length * 3, hex, printable))
-    return "".join(lines)
 
 
 OS_BINARY_SIGNATURES = {
