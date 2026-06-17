@@ -17,10 +17,11 @@ from typing import Any, AnyStr, Callable, Dict, Iterable, List, Mapping, Mutable
 from urllib.request import build_opener
 
 import frida
-from colorama import Fore, Style
-from prompt_toolkit import PromptSession
+from colorama import Style
+from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
 from prompt_toolkit.document import Document
+from prompt_toolkit.formatted_text import FormattedText, fragment_list_to_text
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.shortcuts import prompt
@@ -29,7 +30,7 @@ from pygments.lexers.javascript import JavascriptLexer
 from pygments.token import Token
 
 from frida_tools import _repl_magic, repl_inspect
-from frida_tools.application import ConsoleApplication
+from frida_tools.application import ConsoleApplication, ConsoleState
 from frida_tools.cli_formatting import THEME_COLOR, format_compiled, format_compiling, format_diagnostic
 from frida_tools.reactor import Reactor
 
@@ -491,7 +492,7 @@ class REPLApplication(ConsoleApplication):
         except JavaScriptError as e:
             error = e.error
 
-            output = Fore.RED + Style.BRIGHT + error["name"] + Style.RESET_ALL + ": " + error["message"]
+            fragments = [("fg:#ff453a bold", error["name"]), ("", ": " + error["message"])]
 
             stack = error.get("stack", None)
             if stack is not None:
@@ -499,12 +500,21 @@ class REPLApplication(ConsoleApplication):
                 trim_amount = 6 if self._runtime == "v8" else 7
                 trimmed_stack = stack.split("\n")[message_len:-trim_amount]
                 if len(trimmed_stack) > 0:
-                    output += "\n" + "\n".join(trimmed_stack)
+                    fragments.append(("", "\n" + "\n".join(trimmed_stack)))
+
+            output = FormattedText(fragments)
         except frida.InvalidOperationError:
             return success
         if output != "undefined":
-            self._print(output)
+            self._print_rich(output)
         return success
+
+    def _print_rich(self, formatted: FormattedText) -> None:
+        if self._cli is not None:
+            print_formatted_text(formatted, output=self._cli.output)
+            self._console_state = ConsoleState.TEXT
+        else:
+            self._print(fragment_list_to_text(formatted))
 
     def _print_startup_message(self) -> None:
         self._print("""\
