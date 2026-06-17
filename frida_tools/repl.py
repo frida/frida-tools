@@ -717,9 +717,7 @@ class REPLApplication(ConsoleApplication):
         raw_fragments = []
 
         data_dir = Path(__file__).parent
-        raw_fragments.append(
-            (data_dir / "repl_agent.js").read_text(encoding="utf-8").replace("/agent.js", "/frida/repl/agent.js", 1)
-        )
+        raw_fragments.append(self._relocate_bundle((data_dir / "repl_agent.js").read_text(encoding="utf-8"), "/frida/repl"))
 
         if self._codeshare_script is not None:
             raw_fragments.append(
@@ -761,6 +759,16 @@ class REPLApplication(ConsoleApplication):
                 fragments.append(f"{size} /frida/repl-{script_id}.js\n✄\n{raw_fragment}")
 
         return "📦\n" + "\n✄\n".join(fragments)
+
+    @staticmethod
+    def _relocate_bundle(bundle: str, prefix: str) -> str:
+        header, separator, body = bundle.partition("\n✄\n")
+        lines = header.split("\n")
+        relocated = [lines[0]]
+        for line in lines[1:]:
+            size, _, path = line.partition(" ")
+            relocated.append(f"{size} {prefix}{path}")
+        return "\n".join(relocated) + separator + body
 
     def _wrap_user_script(self, name, script):
         if script.startswith("📦\n"):
