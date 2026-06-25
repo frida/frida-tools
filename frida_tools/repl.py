@@ -526,7 +526,8 @@ class REPLApplication(ConsoleApplication):
    . . . .       object?   -> Display information about 'object'
    . . . .       exit/quit -> Exit
    . . . .
-   . . . .   More info at https://frida.re/docs/home/""".format(version=frida.__version__))
+   . . . .   Prefer a GUI? Luma is the official Frida app, with a live REPL,
+   . . . .   persistent sessions & collaboration. https://luma.frida.re/""".format(version=frida.__version__))
 
     def _print_help(self, expression: str) -> None:
         # TODO: Figure out docstrings and implement here. This is real jankaty right now.

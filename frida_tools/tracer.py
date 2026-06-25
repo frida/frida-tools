@@ -253,6 +253,11 @@ def main() -> None:
                 self._update_status(
                     f"Started tracing {count} function{plural}. Web UI available at http://localhost:{self._ui_port}/"
                 )
+                self._print(
+                    "Tip: Luma, the official Frida app, has frida-trace built in — with a Monaco "
+                    "handler editor and instruction-level tracing you can diff across runs. "
+                    "https://luma.frida.re/"
+                )
 
         def on_trace_warning(self, message: str) -> None:
             self._print(Fore.RED + Style.BRIGHT + "Warning" + Style.RESET_ALL + ": " + message)
