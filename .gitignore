@@ -18,3 +18,4 @@
 /subprojects/frida-gum.wrap
 /subprojects/frida-gum/
 /subprojects/frida-python/
+__handlers__/
