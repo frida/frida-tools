@@ -92,7 +92,9 @@ class CreatorApplication(ConsoleApplication):
     "lib": ["ES2022"],
     "module": "Node16",
     "strict": true,
-    "noEmit": true
+    "noEmit": true,
+    "rootDir": "./agent",
+    "types": ["node", "frida-gum"]
   },
   "include": ["agent/**/*.ts"]
 }
