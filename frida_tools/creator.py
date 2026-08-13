@@ -79,7 +79,7 @@ class CreatorApplication(ConsoleApplication):
     "watch": "frida-compile agent/index.ts -o _agent.js -w"
   }},
   "devDependencies": {{
-    "@types/frida-gum": "^19.0.0",
+    "@types/frida-gum": "^19.10.0",
     "@types/node": "^18.14.0"
   }}
 }}
