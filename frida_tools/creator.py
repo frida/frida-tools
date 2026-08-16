@@ -79,7 +79,7 @@ class CreatorApplication(ConsoleApplication):
     "watch": "frida-compile agent/index.ts -o _agent.js -w"
   }},
   "devDependencies": {{
-    "@types/frida-gum": "^19.0.0",
+    "@types/frida-gum": "^19.10.0",
     "@types/node": "^18.14.0"
   }}
 }}
@@ -92,7 +92,9 @@ class CreatorApplication(ConsoleApplication):
     "lib": ["ES2022"],
     "module": "Node16",
     "strict": true,
-    "noEmit": true
+    "noEmit": true,
+    "rootDir": "./agent",
+    "types": ["node", "frida-gum"]
   },
   "include": ["agent/**/*.ts"]
 }
