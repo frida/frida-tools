@@ -1124,7 +1124,10 @@ class FridaCompleter(Completer):
             return []
 
         names = repl_inspect.to_string_list(value[0])
-        return sorted(filter(self._is_valid_name, set(names)))
+        return sorted(
+            filter(self._is_valid_name, set(names)),
+            key=lambda n: (n.startswith("_"), n.startswith("__"), n.lower()),
+        )
 
     def _is_valid_name(self, name) -> bool:
         tokens = list(self._lexer.get_tokens(name))
