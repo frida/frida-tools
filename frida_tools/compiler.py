@@ -26,6 +26,9 @@ class CompilerApplication(ConsoleApplication):
         parser.add_argument("module", help="TypeScript/JavaScript module to compile")
         parser.add_argument("-o", "--output", help="write output to <file>")
         parser.add_argument("-w", "--watch", help="watch for changes and recompile", action="store_true")
+        parser.add_argument(
+            "-L", "--library", help="emit a library into the directory given by -o", action="store_true"
+        )
         parser.add_argument("-S", "--no-source-maps", help="omit source-maps", action="store_true")
         parser.add_argument("-c", "--compress", help="minify code", action="store_true")
         parser.add_argument("-v", "--verbose", help="be verbose", action="store_true")
@@ -61,6 +64,9 @@ class CompilerApplication(ConsoleApplication):
     def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
         self._module = os.path.abspath(options.module)
         self._output = options.output
+        if options.library and options.output is None:
+            parser.error("--library requires -o <directory>")
+        self._library = options.library
         self._mode = "watch" if options.watch else "build"
         self._verbose = self._mode == "watch" or options.verbose
         self._compiler_options = {
@@ -98,7 +104,9 @@ class CompilerApplication(ConsoleApplication):
 
     def _start(self) -> None:
         try:
-            if self._mode == "build":
+            if self._library:
+                self._start_library()
+            elif self._mode == "build":
                 self._compiler.build(self._module, **self._compiler_options)
                 self._exit(0)
             else:
@@ -106,6 +114,17 @@ class CompilerApplication(ConsoleApplication):
         except Exception as e:
             error = e
             self._reactor.schedule(lambda: self._on_fatal_error(error))
+
+    def _start_library(self) -> None:
+        options = {
+            "project_root": self._compiler_options["project_root"],
+            "source_maps": self._compiler_options["source_maps"],
+        }
+        if self._mode == "build":
+            self._compiler.build_library(self._module, self._output, **options)
+            self._exit(0)
+        else:
+            self._compiler.watch_library(self._module, self._output, **options)
 
     def _on_fatal_error(self, error: Exception) -> None:
         self._print(format_error(error))
