@@ -8,6 +8,7 @@ export interface EncodeOptions {
 }
 
 const DEFAULT_MAX_DEPTH = 3;
+const MAX_ITERATOR_ITEMS = 100;
 
 export type PackedValue = [EncodedValueTree, ArrayBuffer | null];
 
@@ -40,6 +41,7 @@ const enum ValueTag {
     WeakSet = 19,
     DepthLimit = 20,
     Circular = 21,
+    Iterator = 22,
 }
 
 type TypedArrayName =
@@ -145,6 +147,7 @@ function collectTree(
         const isArray = Array.isArray(obj);
         const isMap = obj instanceof Map;
         const isSet = obj instanceof Set;
+        const isIterator = typeof obj.next === "function" && typeof obj[Symbol.iterator] === "function";
 
         const existingId = state.seen.get(obj);
         if (existingId !== undefined) {
@@ -160,6 +163,9 @@ function collectTree(
             }
             if (isSet) {
                 return [ValueTag.DepthLimit, ValueTag.Set];
+            }
+            if (isIterator) {
+                return [ValueTag.DepthLimit, ValueTag.Iterator];
             }
             return [ValueTag.DepthLimit, ValueTag.Object];
         }
@@ -192,6 +198,20 @@ function collectTree(
                 collectTree(v, chunks, maxDepth, depth + 1, state),
             );
             return [ValueTag.Array, id, elements];
+        }
+
+        if (isIterator) {
+            const label = obj[Symbol.toStringTag] ?? "Iterator";
+            const items: EncodedValueTree[] = [];
+            let truncated = false;
+            for (const v of obj as Iterable<unknown>) {
+                if (items.length === MAX_ITERATOR_ITEMS) {
+                    truncated = true;
+                    break;
+                }
+                items.push(collectTree(v, chunks, maxDepth, depth + 1, state));
+            }
+            return [ValueTag.Iterator, id, label, items, truncated];
         }
 
         try {
@@ -347,6 +367,15 @@ function patchTree(
             const items = rest[1] as EncodedValueTree[];
             const patchedItems = items.map(child => patchTree(child, offsets));
             return [ValueTag.Set, id, patchedItems];
+        }
+
+        case ValueTag.Iterator: {
+            const id = rest[0] as number;
+            const label = rest[1] as string;
+            const items = rest[2] as EncodedValueTree[];
+            const truncated = rest[3] as boolean;
+            const patchedItems = items.map(child => patchTree(child, offsets));
+            return [ValueTag.Iterator, id, label, patchedItems, truncated];
         }
 
         default:
