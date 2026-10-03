@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+from pathlib import Path
 from timeit import default_timer as timer
 from typing import Any, Dict, List, Optional
 
@@ -149,8 +150,9 @@ class CompilerApplication(ConsoleApplication):
     def _on_compiler_output(self, bundle: str) -> None:
         if self._output is not None:
             try:
-                with open(self._output, "w", encoding="utf-8", newline="\n") as f:
-                    f.write(bundle)
+                output = Path(self._output)
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_text(bundle, encoding="utf-8", newline="\n")
             except Exception as e:
                 self._on_fatal_error(e)
         else:
