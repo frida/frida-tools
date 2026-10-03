@@ -64,7 +64,7 @@ def render_hexdump(data: bytes) -> FormattedText:
     for offset in range(0, len(data), _HEX_BYTES_PER_ROW):
         if offset > 0:
             out.append(("", "\n"))
-        _hex_row(out, offset, data[offset:offset + _HEX_BYTES_PER_ROW])
+        _hex_row(out, offset, data[offset : offset + _HEX_BYTES_PER_ROW])
     return FormattedText(out)
 
 
@@ -195,11 +195,11 @@ def _append_bytes(node: Node, level: int, out: List[Fragment], blob: Sequence[in
     out.append((_MINT, "Bytes("))
     out.append((_CYAN, kind))
     out.append((_MINT, "[%d])" % length))
-    data = bytes(blob[offset:offset + length])
+    data = bytes(blob[offset : offset + length])
     for start in range(0, len(data), _HEX_BYTES_PER_ROW):
         out.append(("", "\n"))
         _indent(level + 1, out)
-        _hex_row(out, start, data[start:start + _HEX_BYTES_PER_ROW])
+        _hex_row(out, start, data[start : start + _HEX_BYTES_PER_ROW])
 
 
 def _append_error(node: Node, level: int, out: List[Fragment]) -> None:

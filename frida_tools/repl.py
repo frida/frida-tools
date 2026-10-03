@@ -728,7 +728,9 @@ class REPLApplication(ConsoleApplication):
         raw_fragments = []
 
         data_dir = Path(__file__).parent
-        raw_fragments.append(self._relocate_bundle((data_dir / "repl_agent.js").read_text(encoding="utf-8"), "/frida/repl"))
+        raw_fragments.append(
+            self._relocate_bundle((data_dir / "repl_agent.js").read_text(encoding="utf-8"), "/frida/repl")
+        )
 
         if self._codeshare_script is not None:
             raw_fragments.append(
