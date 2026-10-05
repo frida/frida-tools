@@ -33,6 +33,7 @@ WEAKMAP = 18
 WEAKSET = 19
 DEPTH_LIMIT = 20
 CIRCULAR = 21
+ITERATOR = 22
 
 _CYAN = "fg:#64d2ff"
 _MINT = "fg:#66d4cf"
@@ -47,7 +48,7 @@ _MAX_ITEMS = 100
 
 _HEX_BYTES_PER_ROW = 16
 
-_CONTAINER_NAMES = {OBJECT: "Object", ARRAY: "Array", MAP: "Map", SET: "Set"}
+_CONTAINER_NAMES = {OBJECT: "Object", ARRAY: "Array", MAP: "Map", SET: "Set", ITERATOR: "Iterator"}
 
 Node = Sequence[Any]
 Fragment = Tuple[str, str]
@@ -146,6 +147,9 @@ def _append(node: Node, level: int, out: List[Fragment], blob: Sequence[int]) ->
 
     elif tag == CIRCULAR:
         out.append((_ORANGE, "⟳ circular *%d" % node[1]))
+
+    elif tag == ITERATOR:
+        _append_iterator(node, level, out, blob)
 
 
 def _append_object(node: Node, level: int, out: List[Fragment], blob: Sequence[int]) -> None:
@@ -259,6 +263,28 @@ def _append_set(node: Node, level: int, out: List[Fragment], blob: Sequence[int]
         _append(element, level + 1, out, blob)
         out.append(("", "\n"))
     _append_overflow(hidden, level + 1, out)
+    _indent(level, out)
+    out.append((_CYAN, "]"))
+
+
+def _append_iterator(node: Node, level: int, out: List[Fragment], blob: Sequence[int]) -> None:
+    label, elements, truncated = node[2], node[3], node[4]
+    if not elements:
+        out.append((_CYAN, "%s[]" % label))
+        return
+
+    out.append((_CYAN, "%s[" % label))
+    out.append(("", "\n"))
+    for index, element in enumerate(elements):
+        _indent(level + 1, out)
+        _append(element, level + 1, out, blob)
+        if _has_more(index, elements, truncated):
+            out.append(("", ","))
+        out.append(("", "\n"))
+    if truncated:
+        _indent(level + 1, out)
+        out.append((_ORANGE, "… more"))
+        out.append(("", "\n"))
     _indent(level, out)
     out.append((_CYAN, "]"))
 
