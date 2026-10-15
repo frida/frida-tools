@@ -1,6 +1,7 @@
 def main() -> None:
     import functools
     import threading
+    from concurrent.futures import ThreadPoolExecutor, wait
 
     import frida
     from prompt_toolkit.application import Application
@@ -35,6 +36,12 @@ def main() -> None:
                 self._exit(1)
                 return
 
+            devices.sort(key=functools.cmp_to_key(compare_devices))
+
+            if not self._have_terminal or self._plain_terminal:
+                self._print_devices(devices)
+                return
+
             bindings = KeyBindings()
 
             @bindings.add("<any>")
@@ -47,7 +54,7 @@ def main() -> None:
             type_rows = []
             name_rows = []
             os_rows = []
-            for device in sorted(devices, key=functools.cmp_to_key(compare_devices)):
+            for device in devices:
                 id_rows.append(Label(device.id, dont_extend_width=True))
                 type_rows.append(Label(device.type, dont_extend_width=True))
                 name_rows.append(Label(device.name, dont_extend_width=True))
@@ -85,6 +92,24 @@ def main() -> None:
             self._ui_app.run()
             self._ui_app._redraw()
 
+        def _print_devices(self, devices):
+            with ThreadPoolExecutor(len(devices)) as pool:
+                futures = [pool.submit(self._query_os, device) for device in devices]
+                while not all(future.done() for future in futures):
+                    try:
+                        wait(futures)
+                    except KeyboardInterrupt:
+                        self._reactor.cancel_io()
+                os_names = [future.result() for future in futures]
+
+            headers = ("Id", "Type", "Name", "OS")
+            rows = [(device.id, device.type, device.name, os_name) for device, os_name in zip(devices, os_names)]
+            widths = [max(map(len, column)) for column in zip(headers, *rows)]
+            for row in [headers, ["-" * width for width in widths]] + rows:
+                self._print("  ".join(value.ljust(width) for value, width in zip(row, widths)).rstrip())
+
+            self._exit(0)
+
         def _on_stop(self):
             if self._ui_app is not None:
                 self._ui_app.exit()
@@ -104,6 +129,15 @@ def main() -> None:
             self._reactor.schedule(self._update_progress, delay=0.1)
 
         def _fetch_parameters(self, device, os_label):
+            text = self._query_os(device)
+
+            with self._lock:
+                os_label.text = text
+                self._pending_labels.remove(os_label)
+
+            self._ui_app.invalidate()
+
+        def _query_os(self, device):
             try:
                 with self._reactor.io_cancellable:
                     params = device.query_system_parameters()
@@ -115,12 +149,7 @@ def main() -> None:
                     text = os["name"]
             except:
                 text = ""
-
-            with self._lock:
-                os_label.text = text
-                self._pending_labels.remove(os_label)
-
-            self._ui_app.invalidate()
+            return text
 
     def compare_devices(a: frida.core.Device, b: frida.core.Device) -> int:
         a_score = score(a)
