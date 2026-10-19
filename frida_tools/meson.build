@@ -7,6 +7,7 @@ sources = [
   'compiler.py',
   'creator.py',
   'discoverer.py',
+  'itracer.py',
   'join.py',
   'kill.py',
   'ls.py',
@@ -20,7 +21,10 @@ sources = [
   'repl.py',
   'repl_inspect.py',
   'rm.py',
+  'stracer.py',
+  'stream_controller.py',
   'tracer.py',
+  'units.py',
 ]
 
 python.install_sources(sources, subdir: 'frida_tools')
