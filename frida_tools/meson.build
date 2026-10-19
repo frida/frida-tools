@@ -18,6 +18,7 @@ sources = [
   'push.py',
   'reactor.py',
   'repl.py',
+  'repl_inspect.py',
   'rm.py',
   'tracer.py',
 ]
