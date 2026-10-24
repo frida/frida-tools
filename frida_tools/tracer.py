@@ -522,6 +522,8 @@ def compute_allowed_ui_origins(
 
     origins = []
     for host in compute_ui_origin_hosts(ui_host):
+        if ":" in host:
+            host = f"[{host}]"
         for port in (ui_port, ui_port + 1):
             origins.append(f"http://{host}:{port}")
 
