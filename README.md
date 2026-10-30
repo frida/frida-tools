@@ -35,13 +35,13 @@ There are three different kinds of MESSAGEs:
   Signals that the trace is starting, providing the initial register values.
   Contains register names and sizes in the JSON portion, and register values in
   the data portion.
-  Generated [here](https://github.com/frida/frida-itrace/blob/ad7780bde9e518e325d7aaf848e9a29e1a53b7d2/lib/backend.ts#L341-L359).
+  Generated [here](https://github.com/frida-packages/frida-itrace/blob/ad7780bde9e518e325d7aaf848e9a29e1a53b7d2/lib/backend.ts#L341-L359).
 - "itrace:end": Signals that the endpoint was reached, when specifying a range
   with an end address included.
 - "itrace:compile": Signals that a basic block was discovered, providing the
   schema of future CHUNKs pertaining to it.
-  Generated [here](https://github.com/frida/frida-itrace/blob/ad7780bde9e518e325d7aaf848e9a29e1a53b7d2/lib/backend.ts#L277-L323)
-  and by the [code](https://github.com/frida/frida-itrace/blob/ad7780bde9e518e325d7aaf848e9a29e1a53b7d2/lib/backend.ts#L398-L401)
+  Generated [here](https://github.com/frida-packages/frida-itrace/blob/ad7780bde9e518e325d7aaf848e9a29e1a53b7d2/lib/backend.ts#L277-L323)
+  and by the [code](https://github.com/frida-packages/frida-itrace/blob/ad7780bde9e518e325d7aaf848e9a29e1a53b7d2/lib/backend.ts#L398-L401)
   above it that computes the "writes" array.
 
   The "writes" array contains tuples (arrays) that look like this:
