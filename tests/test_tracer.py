@@ -63,6 +63,21 @@ class TestTracerUiOrigins(unittest.TestCase):
         origins = compute_allowed_ui_origins("localhost", 2999, ["http://localhost:2999"])
         self.assertEqual(origins.count("http://localhost:2999"), 1)
 
+    def test_ipv6_ui_origin_is_bracketed(self):
+        origins = compute_allowed_ui_origins("::1", 2999)
+        self.assertEqual(origins, ["http://[::1]:2999", "http://[::1]:3000"])
+
+    def test_already_bracketed_ipv6_origin_is_not_wrapped_again(self):
+        origins = compute_allowed_ui_origins("[::1]", 2999)
+        self.assertEqual(origins, ["http://[::1]:2999", "http://[::1]:3000"])
+
+    def test_ipv6_wildcard_allows_loopback_origins(self):
+        origins = compute_allowed_ui_origins("::", 2999)
+        self.assertIn("http://[::]:2999", origins)
+        self.assertIn("http://[::1]:2999", origins)
+        self.assertIn("http://localhost:2999", origins)
+        self.assertIn("http://127.0.0.1:2999", origins)
+
 
 if __name__ == "__main__":
     unittest.main()

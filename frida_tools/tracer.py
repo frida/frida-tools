@@ -523,7 +523,7 @@ def compute_allowed_ui_origins(
     origins = []
     for host in compute_ui_origin_hosts(ui_host):
         for port in (ui_port, ui_port + 1):
-            origins.append(f"http://{host}:{port}")
+            origins.append(f"http://{format_origin_host(host)}:{port}")
 
     if extra_allowed_origins is not None:
         origins.extend(extra_allowed_origins)
@@ -532,10 +532,21 @@ def compute_allowed_ui_origins(
 
 
 def compute_ui_origin_hosts(ui_host: str) -> List[str]:
-    if ui_host in ("0.0.0.0", "::", ""):
+    if ui_host == "::":
+        return [ui_host, "localhost", "::1", "127.0.0.1"]
+    if ui_host in ("0.0.0.0", ""):
         return [ui_host, "localhost", "127.0.0.1"]
 
     return [ui_host]
+
+
+def format_origin_host(host: str) -> str:
+    # RFC 3986 requires IPv6 literals to be bracketed in the host component,
+    # which is how browsers serialize them in the Origin header.
+    if ":" in host and not host.startswith("["):
+        return f"[{host}]"
+
+    return host
 
 
 class TracerProfileBuilder:
