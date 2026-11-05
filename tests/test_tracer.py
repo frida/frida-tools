@@ -119,6 +119,12 @@ class TestTracerUiOrigins(unittest.TestCase):
         self.assertIn("http://[::]:2999", origins)
         self.assertNotIn("http://:::2999", origins)
 
+    def test_ipv6_bind_allows_loopback_origins(self):
+        origins = compute_allowed_ui_origins("::", 2999)
+        self.assertIn("http://localhost:2999", origins)
+        self.assertIn("http://[::1]:2999", origins)
+        self.assertIn("http://127.0.0.1:2999", origins)
+
     def test_extra_origin_is_allowed(self):
         origins = compute_allowed_ui_origins("localhost", 2999, ["http://example.test:8080"])
         self.assertIn("http://example.test:8080", origins)

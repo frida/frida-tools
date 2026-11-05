@@ -534,7 +534,9 @@ def compute_allowed_ui_origins(
 
 
 def compute_ui_origin_hosts(ui_host: str) -> List[str]:
-    if ui_host in ("0.0.0.0", "::", ""):
+    if ui_host == "::":
+        return [ui_host, "localhost", "::1", "127.0.0.1"]
+    if ui_host in ("0.0.0.0", ""):
         return [ui_host, "localhost", "127.0.0.1"]
 
     return [ui_host]
