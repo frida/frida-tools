@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           submodules: recursive
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
       - name: Build the package
         run: uv build
       - name: Upload build artifact
