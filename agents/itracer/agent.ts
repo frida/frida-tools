@@ -65,17 +65,8 @@ class Agent {
         const session = new TraceSession(strategy, this.buffer!);
         this.session = session;
 
-        session.events.on("start", (regSpecs, regValues) => {
-            send({ type: "itrace:start", payload: regSpecs }, regValues);
-        });
         session.events.on("end", () => {
             send({ type: "itrace:end" });
-        });
-        session.events.on("compile", block => {
-            send({ type: "itrace:compile", payload: block });
-        });
-        session.events.on("panic", message => {
-            console.error(message);
         });
 
         session.open();

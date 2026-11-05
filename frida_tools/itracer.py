@@ -186,14 +186,12 @@ def main() -> None:
             except:
                 pass
 
-        def on_trace_progress(self, total_blocks: int, total_bytes: int) -> None:
-            blocks_suffix = "s" if total_blocks != 1 else ""
+        def on_trace_progress(self, total_bytes: int) -> None:
             self._cli.message = FormattedText(
                 [
                     ("bold", "Tracing!"),
                     ("", " Collected "),
                     ("fg:green bold", human_readable_size(total_bytes)),
-                    ("", f" from {total_blocks} basic block{blocks_suffix}"),
                 ]
             )
             self._cli.app.invalidate()
@@ -295,7 +293,7 @@ class InstructionTracerUI(ABC):
     def on_trace_stopped(self, error_message: Optional[str] = None) -> None:
         raise NotImplementedError
 
-    def on_trace_progress(self, total_blocks: int, total_bytes: int) -> None:
+    def on_trace_progress(self, total_bytes: int) -> None:
         pass
 
     def _on_script_created(self, script: frida.core.Script) -> None:
@@ -303,13 +301,12 @@ class InstructionTracerUI(ABC):
 
 
 class InstructionTracer:
-    FILE_MAGIC = b"ITRC"
+    FILE_MAGIC = b"ITR2"
 
     def __init__(self, reactor: Reactor) -> None:
         self._reactor = reactor
         self._outfile = None
         self._ui: Optional[InstructionTracerUI] = None
-        self._total_blocks = 0
         self._tracer_script: Optional[frida.core.Script] = None
         self._reader_script: Optional[frida.core.Script] = None
         self._reader_api = None
@@ -432,9 +429,6 @@ class InstructionTracer:
         else:
             self._write_message(message, data)
 
-            if mtype == "itrace:compile":
-                self._total_blocks += 1
-
         self._update_progress()
 
         if mtype == "itrace:end":
@@ -443,7 +437,7 @@ class InstructionTracer:
         return True
 
     def _update_progress(self) -> None:
-        self._ui.on_trace_progress(self._total_blocks, self._outfile.tell())
+        self._ui.on_trace_progress(self._outfile.tell())
 
     def _write_message(self, message, data) -> None:
         f = self._outfile
