@@ -218,7 +218,7 @@ class REPLApplication(ConsoleApplication):
             self._logfile.flush()
 
     def _usage(self) -> str:
-        return "%(prog)s [options] target"
+        return "%(prog)s [options] target [args...]"
 
     def _needs_target(self) -> bool:
         return True

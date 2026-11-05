@@ -282,6 +282,12 @@ class ConsoleApplication:
 
         if self._needs_target():
             self._add_target_arguments(parser)
+            parser.epilog = (
+                "TARGET is a process name, a PID, or the path to a program to spawn. "
+                "Arguments after TARGET are passed to the spawned program, so use -- "
+                "before any of them that start with -, e.g. "
+                "%(prog)s -f ./prog -- --flag value"
+            )
 
         parser.add_argument(
             "-O", "--options-file", help="text file containing additional command line options", metavar="FILE"

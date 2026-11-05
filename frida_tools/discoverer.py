@@ -183,7 +183,7 @@ class DiscovererApplication(ConsoleApplication, UI):
             self._results_received.wait(0.5)
 
     def _usage(self) -> str:
-        return "%(prog)s [options] target"
+        return "%(prog)s [options] target [args...]"
 
     def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
         self._discoverer = None

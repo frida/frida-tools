@@ -164,7 +164,7 @@ def main() -> None:
             self._profile_builder = pb
 
         def _usage(self) -> str:
-            return "%(prog)s [options] target"
+            return "%(prog)s [options] target [args...]"
 
         def _initialize(self, parser: argparse.ArgumentParser, options: argparse.Namespace, args: List[str]) -> None:
             self._repo: Optional[FileRepository] = None
