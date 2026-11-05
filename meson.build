@@ -1,9 +1,11 @@
 project('frida-tools', 'c',
-  version: run_command(find_program('python3'), files('setup.py'), '-V',
+  version: run_command(find_program('python3'), meson.global_source_root() / 'releng' / 'frida_version.py',
     capture: true,
     check: true).stdout().strip(),
   meson_version: '>=1.1.0',
 )
+
+meson.add_dist_script(find_program('python3'), files('set_dist_version.py'), meson.project_version())
 
 python = import('python').find_installation()
 
@@ -20,7 +22,9 @@ subdir('agents')
 subdir('bridges')
 subdir('apps')
 subdir('frida_tools')
-subdir('scripts')
+if get_option('scripts')
+  subdir('scripts')
+endif
 subdir('completions')
 
 test('frida-tools', python,

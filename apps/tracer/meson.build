@@ -36,5 +36,5 @@ custom_target('tracer-app',
     '@PRIVATE_DIR@',
   ],
   install: true,
-  install_dir: python.get_install_dir() / 'frida_tools' / 'tracer_ui',
+  install_dir: python.get_install_dir() / 'frida_tools',
 )
