@@ -163,6 +163,52 @@ class DeviceParsingTestCase(unittest.TestCase):
                     DummyConsoleApplication(args=args)
 
 
+class SpawnParsingTestCase(unittest.TestCase):
+    def test_no_env(self):
+        app = DummyTargetApplication(args=["-f", "./prog"])
+        self.assertEqual({}, app._env)
+
+    def test_single_env(self):
+        app = DummyTargetApplication(args=["-f", "./prog", "--env", "DISABLE_TWAKS=1"])
+        self.assertEqual({"DISABLE_TWAKS": "1"}, app._env)
+
+    def test_multiple_env(self):
+        app = DummyTargetApplication(args=["-f", "./prog", "--env", "A=1", "--env", "B=x=y"])
+        self.assertEqual({"A": "1", "B": "x=y"}, app._env)
+
+    def test_invalid_env(self):
+        with self.assertRaises(SystemExit):
+            DummyTargetApplication(args=["-f", "./prog", "--env", "NOVALUE"])
+
+
+class SpawnWiringTestCase(unittest.TestCase):
+    def test_env_reaches_device_spawn(self):
+        kwargs = self._spawn(["-f", "./prog", "--env", "A=1"])
+        self.assertEqual({"A": "1"}, kwargs["env"])
+        self.assertEqual("inherit", kwargs["stdio"])
+
+    def test_no_env_when_not_requested(self):
+        kwargs = self._spawn(["-f", "./prog"])
+        self.assertNotIn("env", kwargs)
+
+    def test_env_alongside_aux(self):
+        kwargs = self._spawn(["-f", "./prog", "--env", "A=1", "--aux", "uid=(int)42"])
+        self.assertEqual({"A": "1"}, kwargs["env"])
+        self.assertEqual(42, kwargs["uid"])
+
+    def _spawn(self, args):
+        app = DummyTargetApplication(args=args)
+        app._device = FakeDevice()
+        app._quiet = True
+        try:
+            app._attach_and_instrument()
+        except SystemExit:
+            pass
+        self.assertEqual(1, len(app._device.spawn_calls))
+        _, kwargs = app._device.spawn_calls[0]
+        return kwargs
+
+
 class KillParsingTestCase(unittest.TestCase):
     def test_no_arguments(self):
         with self.assertRaises(SystemExit):
@@ -179,3 +225,26 @@ class KillParsingTestCase(unittest.TestCase):
     def test_passing_file(self):
         with self.assertRaises(SystemExit):
             KillApplication(args=["./file"])
+
+
+class DummyTargetApplication(ConsoleApplication):
+    def _usage(self):
+        return "no usage"
+
+    def _needs_target(self):
+        return True
+
+    def _update_status(self, message):
+        pass
+
+    def _exit(self, exit_status):
+        raise SystemExit(exit_status)
+
+
+class FakeDevice:
+    def __init__(self):
+        self.spawn_calls = []
+
+    def spawn(self, argv, **kwargs):
+        self.spawn_calls.append((argv, kwargs))
+        return 1234

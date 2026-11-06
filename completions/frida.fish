@@ -86,6 +86,7 @@ function add_target_arguments
 	complete --command "$argv[1]" --no-files --require-parameter --short-option=W --long-option=await --description="await spawn matching PATTERN"
 	complete --command "$argv[1]" --no-files --require-parameter --long-option=stdio --description="stdio behavior when spawning" --arguments="inherit pipe"
 	complete --command "$argv[1]" --no-files --require-parameter --long-option=aux --description="set aux option when spawning"
+	complete --command "$argv[1]" --no-files --require-parameter --long-option=env --description="set an environment variable when spawning"
 	complete --command "$argv[1]" --no-files --require-parameter --long-option=realm --description="realm to attach in" --arguments="native emulated"
 	complete --command "$argv[1]" --no-files --require-parameter --long-option=runtime --description="script runtime to use" --arguments="qjs v8"
 	complete --command "$argv[1]" --no-files --long-option=debug --description="enable the Node.js compatible script debugger"

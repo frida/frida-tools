@@ -227,6 +227,7 @@ class ConsoleApplication:
     def _initialize_target_arguments(self, parser: argparse.ArgumentParser, options: argparse.Namespace) -> None:
         if self._needs_target():
             self._stdio = options.stdio
+            self._env = dict(options.env)
             self._aux = options.aux
             self._realm = options.realm
             self._exceptor = options.exceptor
@@ -239,6 +240,7 @@ class ConsoleApplication:
             self._squelch_crash = options.squelch_crash
         else:
             self._stdio = "inherit"
+            self._env = {}
             self._aux = []
             self._realm = "native"
             self._exceptor = None
@@ -389,6 +391,15 @@ class ConsoleApplication:
             help="stdio behavior when spawning (defaults to “inherit”)",
             choices=["inherit", "pipe"],
             default="inherit",
+        )
+        parser.add_argument(
+            "--env",
+            help="set an environment variable when spawning, such as “DISABLE_TWAKS=1” (may be used multiple times)",
+            metavar="KEY=VALUE",
+            action="append",
+            type=parse_env_entry,
+            dest="env",
+            default=[],
         )
         parser.add_argument(
             "--aux",
@@ -660,11 +671,13 @@ class ConsoleApplication:
                     if not self._quiet:
                         self._update_status(f"Spawning `{' '.join(argv)}`...")
 
-                    aux_kwargs = {}
+                    spawn_kwargs = {}
                     if self._aux is not None:
-                        aux_kwargs = dict([parse_typed_option(o) for o in self._aux])
+                        spawn_kwargs = dict([parse_typed_option(o) for o in self._aux])
+                    if self._env:
+                        spawn_kwargs["env"] = self._env
 
-                    self._spawned_pid = self._device.spawn(argv, stdio=self._stdio, **aux_kwargs)
+                    self._spawned_pid = self._device.spawn(argv, stdio=self._stdio, **spawn_kwargs)
                     self._spawned_argv = argv
                     attach_target = self._spawned_pid
                 else:
@@ -1068,6 +1081,13 @@ def expand_target(target: TargetTypeTuple) -> TargetTypeTuple:
     if target_type == "file" and isinstance(target_value, list):
         target_value = [target_value[0]]
     return (target_type, target_value)
+
+
+def parse_env_entry(entry: str) -> Tuple[str, str]:
+    name, sep, value = entry.partition("=")
+    if not sep or not name:
+        raise argparse.ArgumentTypeError("expected KEY=VALUE")
+    return (name, value)
 
 
 def parse_typed_option(option: str) -> Tuple[str, Union[str, bool, int]]:
