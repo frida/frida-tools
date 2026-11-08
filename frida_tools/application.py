@@ -64,7 +64,7 @@ def input_with_cancellable(cancellable: frida.Cancellable) -> str:
             cancellable.raise_if_cancelled()
 
             if sys.stdin in rlist:
-                return sys.stdin.readline()
+                return _read_line_or_await_cancellation(cancellable)
     else:
         with cancellable.get_pollfd() as cancellable_fd:
             try:
@@ -75,7 +75,26 @@ def input_with_cancellable(cancellable: frida.Cancellable) -> str:
 
         cancellable.raise_if_cancelled()
 
-        return sys.stdin.readline()
+        return _read_line_or_await_cancellation(cancellable)
+
+
+def _read_line_or_await_cancellation(cancellable: frida.Cancellable) -> str:
+    line = sys.stdin.readline()
+    stdin_exhausted = line == "" and not sys.stdin.isatty()
+    if stdin_exhausted:
+        _await_cancellation(cancellable)
+    return line
+
+
+def _await_cancellation(cancellable: frida.Cancellable) -> None:
+    with cancellable.get_pollfd() as cancellable_fd:
+        while True:
+            try:
+                select.select([cancellable_fd], [], [])
+            except OSError as e:
+                if e.args[0] != errno.EINTR:
+                    raise e
+            cancellable.raise_if_cancelled()
 
 
 def await_enter(reactor: Reactor) -> None:
