@@ -93,14 +93,17 @@ def main() -> None:
             self._ui_app._redraw()
 
         def _print_devices(self, devices):
-            with ThreadPoolExecutor(len(devices)) as pool:
-                futures = [pool.submit(self._query_os, device) for device in devices]
-                while not all(future.done() for future in futures):
-                    try:
-                        wait(futures)
-                    except KeyboardInterrupt:
-                        self._reactor.cancel_io()
-                os_names = [future.result() for future in futures]
+            if len(devices) > 0:
+                with ThreadPoolExecutor(len(devices)) as pool:
+                    futures = [pool.submit(self._query_os, device) for device in devices]
+                    while not all(future.done() for future in futures):
+                        try:
+                            wait(futures)
+                        except KeyboardInterrupt:
+                            self._reactor.cancel_io()
+                    os_names = [future.result() for future in futures]
+            else:
+                os_names = []
 
             headers = ("Id", "Type", "Name", "OS")
             rows = [(device.id, device.type, device.name, os_name) for device, os_name in zip(devices, os_names)]
