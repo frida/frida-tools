@@ -33,6 +33,24 @@ class TestLSD(unittest.TestCase):
         )
 
 
+    @mock.patch("signal.signal")
+    @mock.patch("frida.shutdown")
+    @mock.patch("frida.enumerate_devices")
+    @mock.patch.object(sys, "stdin", io.StringIO())
+    @mock.patch.object(sys, "argv", ["frida-ls-devices"])
+    def test_list_no_devices_prints_header(self, enumerate_devices, shutdown, signal_):
+        enumerate_devices.return_value = []
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as cm:
+            lsd.main()
+        self.assertEqual(cm.exception.code, 0)
+        self.assertEqual(
+            output.getvalue(),
+            "Id  Type  Name  OS\n"
+            "--  ----  ----  --\n",
+        )
+
+
 class FakeDevice:
     def __init__(self, id, type, name, os):
         self.id = id
