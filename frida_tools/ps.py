@@ -79,11 +79,7 @@ def main() -> None:
 
             try:
                 assert self._device is not None
-                processes = _enumerate_with_icon_fallback(
-                    self._device.enumerate_processes,
-                    scope,
-                    lambda e: self._log("warning", f"Unable to load app icons ({e}), listing without them"),
-                )
+                processes = self._device.enumerate_processes(scope=scope)
             except Exception as e:
                 self._update_status(f"Failed to enumerate processes: {e}")
                 self._exit(1)
@@ -132,11 +128,7 @@ def main() -> None:
 
             try:
                 assert self._device is not None
-                applications = _enumerate_with_icon_fallback(
-                    self._device.enumerate_applications,
-                    scope,
-                    lambda e: self._log("warning", f"Unable to load app icons ({e}), listing without them"),
-                )
+                applications = self._device.enumerate_applications(scope=scope)
             except Exception as e:
                 self._update_status(f"Failed to enumerate applications: {e}")
                 self._exit(1)
@@ -293,18 +285,6 @@ def main() -> None:
 
     app = PSApplication()
     app.run()
-
-
-def _enumerate_with_icon_fallback(enumerate_fn, scope, warn):
-    if scope != "full":
-        return enumerate_fn(scope=scope)
-
-    try:
-        return enumerate_fn(scope="full")
-    except Exception as e:
-        result = enumerate_fn(scope="minimal")
-        warn(e)
-        return result
 
 
 if __name__ == "__main__":
